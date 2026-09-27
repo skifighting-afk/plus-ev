@@ -10,7 +10,7 @@ const fmtDT = d => new Date(d).toLocaleString('ko-KR', { month: 'numeric', day: 
 const man = n => `${E.won(n / 10000)}만`;
 function toast(m) { const t = $('#toast'); t.textContent = m; t.classList.add('on'); clearTimeout(toast.h); toast.h = setTimeout(() => t.classList.remove('on'), 2800); }
 async function q(p) { const { data, error } = await p; if (error) { toast(error.message); throw error; } return data; }
-const STORE_COLS = 'id,company_id,name,area,address,pyeong,tables,layout,night_start,night_end,need_by_wd,join_code,created_at,goal,fixed';
+const STORE_COLS = 'id,company_id,name,area,address,pyeong,tables,layout,night_start,night_end,need_by_wd,join_code,created_at,goal,fixed,holidays';
 const PRICE = { basic: 25000, pro: 35000 };
 const CAT = { rent: '임대료', mgmt: '관리비', elec: '전기세', water: '수도세', net: '통신·보안', goods: '음료·소모품', card: '카드 수수료', labor: '기타 인건비', etc: '기타' };
 const SLOT = { OPEN: ['', '모집 중'], MATCHED: ['y', '채용 확정'], WORKING: ['g', '근무 중'], DONE: ['y', '근무 끝 · 확인 대기'], DISPUTED: ['r', '문제 신고 · 운영사 확인'], PAID: ['g', '지급 완료'], REFUND: ['', '미채용 환불'] };
@@ -244,7 +244,6 @@ function fixedCard() {
 }
 function vHome() {
   const M = monthSummary(S.y, S.m), [y, m, d] = TODAY.split('-').map(Number), cur = S.y === y && S.m === m;
-  const todayList = S.members.filter(p => p.role !== 'owner').map(p => ({ p, t: E.shiftOn(p.id, y, m, d, S.tpl, S.ov) })).filter(x => x.t);
   const months = Array.from({ length: 6 }, (_, i) => { const dt = new Date(S.y, S.m - 6 + i, 1); return [dt.getFullYear(), dt.getMonth() + 1]; }).map(([yy, mm]) => ({ yy, mm, s: monthSummary(yy, mm) })).filter(x => x.s.n);
   const mx = Math.max(1, ...months.map(x => Math.abs(x.s.left)));
   return `${storeHead('브리핑')}
@@ -261,7 +260,7 @@ function vHome() {
   ${lightsCard(false)}
   ${months.length ? `<div class="card"><h3>월별 손익 <small>매출 − 비용 = 남은 돈</small></h3><div class="pnl">${months.map(x => `<div class="pr"><span class="mut">${x.mm}월</span><span class="num">₩${man(x.s.proj)}</span><span class="num mut">−₩${man(x.s.cost)}</span><span class="pb"><i class="${x.s.left >= 0 ? 'g' : 'r'}" style="width:${Math.max(3, Math.abs(x.s.left) / mx * 100)}%"></i></span><b class="num ${x.s.left >= 0 ? 'up' : 'down'}">${x.s.left < 0 ? '−' : '+'}₩${man(Math.abs(x.s.left))}</b></div>`).join('')}</div>${months.at(-1).yy === y && months.at(-1).mm === m ? '<p class="note">이번 달은 월말 예상이에요.</p>' : ''}</div>` : ''}
   ${fixedCard()}
-  <div class="card"><h3>오늘 근무 <small>${todayList.length}명</small></h3>${todayList.map(({ p, t }) => `<div class="li"><div><b>${esc(p.nick)}</b><small>${esc(p.job_role || '')}</small></div><span class="num">${t5(t.s)}–${t5(t.e)}</span></div>`).join('') || '<div class="empty">오늘 근무자가 없어요</div>'}</div>
+  ${S.members.some(p => p.role !== 'owner') ? `<div class="card"><div class="row between"><h3 style="margin:0">오늘 근무표 <small>${m}월 ${d}일 (${E.WD[E.wdOf(y, m, d)]})</small></h3><button class="btn sm" data-act="day-open" data-d="${TODAY}">스케줄 →</button></div>${dayTimeline(TODAY, true)}</div>` : ''}
   ${S.members.some(p => p.role !== 'owner') ? '' : `<div class="card"><h3>처음 할 일</h3><div class="li"><div><b>① 직원 등록</b><small>시급·계약·계좌까지</small></div><button class="btn sm pri" data-tab="staff">하러 가기</button></div><div class="li"><div><b>② 스케줄 짜기</b><small>요일 기본 + 날짜별 수정</small></div><button class="btn sm" data-tab="sched">하러 가기</button></div><div class="li"><div><b>③ 매일 매출 보고</b></div><button class="btn sm" data-tab="sales">하러 가기</button></div></div>`}
   ${S.joins.length ? `<div class="card" style="border-color:rgba(245,158,11,.5)"><h3>소속 신청 ${S.joins.length}건 <button class="btn sm pri" data-tab="staff">확인</button></h3></div>` : ''}
   ${S.notis.length ? `<div class="card"><h3>알림</h3>${S.notis.slice(0, 5).map(x => `<div class="li"><span>${esc(x.body)}</span><small>${fmtDT(x.created_at)}</small></div>`).join('')}</div>` : ''}`;
@@ -507,23 +506,46 @@ function vEdu() {
   <div class="card"><h3>우리 딜러 학습 현황</h3>${open ? (S.acBoard?.length ? `<div class="tbl"><table style="min-width:0"><thead><tr><th>딜러</th><th class="r">진도</th><th class="r">시험</th><th>결과</th></tr></thead><tbody>${S.acBoard.map(r => `<tr><td><b>${esc(r.nick)}</b></td><td class="r num">${r.done * 20}%</td><td class="r num">${r.score ?? '—'}${r.score != null ? '/5' : ''}</td><td><span class="pill ${r.passed ? 'g' : r.score != null ? 'r' : ''}">${r.passed ? '합격' : r.score != null ? '재시험' : '진행 중'}</span></td></tr>`).join('')}</tbody></table></div>` : '<p class="mut" style="margin:0">앱에 가입해 소속된 직원이 들으면 여기에 보여요.</p>') : '<p class="mut" style="margin:0">열면 딜러별 진도와 시험 점수가 여기에 보여요.</p>'}</div>
   ${own ? `<div class="card"><h3>사장님 강의 <small>매장을 키우는 운영 노하우 · 준비 중</small></h3>${OWNER_COURSES.map(([ic, t, d, p], i) => { const on = (S.interest || []).includes(i); return `<div class="li"><div><b>${ic} ${t}</b><small>${d} · ₩${E.won(p)}</small></div><button class="btn sm" style="white-space:nowrap" data-act="interest" data-v="${i}">${on ? '알림 신청됨' : '열리면 알림'}</button></div>`; }).join('')}<p class="note">강의가 열리면 알림으로 알려드려요. 신청이 많은 강의부터 먼저 만들어요.</p></div>` : ''}`;
 }
+const isHoliday = k => (S.store.holidays || []).includes(k);
+const needOn = (k, need) => { const [y, m, d] = k.split('-').map(Number); return isHoliday(k) ? (need[7] ?? need[6]) : need[E.wdOf(y, m, d)]; };
+const addDay = (k, n) => { const [y, m, d] = k.split('-').map(Number), t = new Date(y, m - 1, d + n); return E.ymd(t.getFullYear(), t.getMonth() + 1, t.getDate()); };
+// 일간 근무표 — 가로 타임라인. 영업이 자정을 넘으면 다음 날 새벽까지 이어서 그림
+function dayTimeline(k, compact) {
+  const [y, m, d] = k.split('-').map(Number), staff = S.members.filter(p => p.role !== 'owner');
+  const L = staff.map(p => ({ p, t: E.shiftOn(p.id, y, m, d, S.tpl, S.ov) })).filter(x => x.t).map(x => { const a = E.toMin(x.t.s); let b = E.toMin(x.t.e); if (b <= a) b += 1440; return { ...x, a, b }; }).sort((u, v) => u.a - v.a || u.b - v.b);
+  const need = needOn(k, S.store.need_by_wd || [3, 4, 3, 4, 6, 7, 2]);
+  if (!L.length) return `<div class="empty">${compact ? '오늘' : '이날'} 근무자가 없어요${compact ? '' : ` <button class="chip add" data-act="add-d" data-d="${k}">+ 근무 추가</button>`}</div>`;
+  const h0 = Math.floor(Math.min(...L.map(x => x.a)) / 60), h1 = Math.ceil(Math.max(...L.map(x => x.b)) / 60), span = Math.max(1, h1 - h0), pct = v => (v - h0 * 60) / (span * 60) * 100;
+  const hours = Array.from({ length: span + 1 }, (_, i) => h0 + i), step = span > 12 ? 2 : 1;
+  const cov = hours.slice(0, -1).map(h => L.filter(x => x.a < (h + 1) * 60 && x.b > h * 60).length);
+  return `<div class="tl"><div class="tlh"><span></span><div>${hours.filter((h, i) => i % step === 0).map(h => `<em style="left:${pct(h * 60)}%">${h % 24}</em>`).join('')}</div></div>
+    ${L.map(({ p, t, a, b }) => `<div class="tlr"><span class="nm"><b>${esc(p.nick)}</b><small>${esc(p.job_role || '')}</small></span><div class="tlt">${hours.map(h => `<i style="left:${pct(h * 60)}%"></i>`).join('')}<button class="bar ${p.job_role === '딜러' ? '' : 'fl'} ${t.ov ? 'ov' : ''}" data-act="edit-d" data-m="${p.id}" data-d="${k}" style="left:${pct(a)}%;width:${pct(b) - pct(a)}%">${t5(t.s)}–${t5(t.e)}${t.brk ? ` <small>휴${t.brk}</small>` : ''}</button></div></div>`).join('')}
+    <div class="tlr cov"><span class="nm"><small>시간별 인원</small></span><div class="tlt">${cov.map((c, i) => `<span class="${c < need ? 'lo' : ''}" style="left:${pct(hours[i] * 60)}%;width:${100 / span}%">${c}</span>`).join('')}</div></div></div>
+    ${compact ? '' : `<p class="note">막대를 누르면 고쳐요. 빨간 숫자는 적정 인원(${need}명)보다 적은 시간이에요.</p>`}`;
+}
 function vSched() {
   const need = S.store.need_by_wd || [3, 4, 3, 4, 6, 7, 2], D = E.daysIn(S.y, S.m), lead = E.wdOf(S.y, S.m, 1), staff = S.members.filter(p => p.role !== 'owner');
   if (!staff.length) return `${storeHead('스케줄')}<div class="card empty">먼저 직원을 등록해 주세요 <button class="btn sm pri" data-tab="staff">직원 등록</button></div>`;
-  const head = `${storeHead('스케줄')}<div class="row between" style="margin-top:10px">${monthNav()}<div class="seg">${[['month', '월간'], ['week', '매주 기본']].map(([k, l]) => `<button data-act="sview" data-v="${k}" aria-pressed="${S.schedView === k}">${l}</button>`).join('')}</div></div>`;
-  if (S.schedView === 'week') return `${head}<div class="card"><p class="note" style="margin-top:0">매주 반복되는 기본 근무예요. 칸을 눌러 고치세요. 날짜마다 다르면 '월간'에서 그날만 바꾸세요.</p><div class="tbl"><table><thead><tr><th>이름</th>${E.WD.map(w => `<th>${w}</th>`).join('')}</tr></thead><tbody>
+  const view = S.schedView || 'month';
+  const head = `${storeHead('스케줄')}<div class="row between" style="margin-top:10px">${view === 'day' ? '<span></span>' : monthNav()}<div class="seg">${[['month', '월간'], ['day', '일간'], ['week', '매주 기본']].map(([k, l]) => `<button data-act="sview" data-v="${k}" aria-pressed="${view === k}">${l}</button>`).join('')}</div></div>`;
+  if (view === 'week') return `${head}<div class="card"><p class="note" style="margin-top:0">매주 반복되는 기본 근무예요. 칸을 눌러 고치세요. 날짜마다 다르면 '월간'에서 그날만 바꾸세요.</p><div class="tbl"><table><thead><tr><th>이름</th>${E.WD.map(w => `<th>${w}</th>`).join('')}</tr></thead><tbody>
     ${staff.map(p => `<tr><td><b>${esc(p.nick)}</b></td>${E.WD.map((_, i) => { const t = S.tpl.find(x => x.member_id === p.id && x.weekday === i); return `<td><button class="chip ${t ? '' : 'add'}" data-act="edit-w" data-m="${p.id}" data-w="${i}">${t ? `${t5(t.start_t)}–${t5(t.end_t)}` : '+'}</button></td>`; }).join('')}</tr>`).join('')}</tbody></table></div></div>`;
+  if (view === 'day') { const k = S.schedDay || TODAY, [y, m, d] = k.split('-').map(Number), hol = isHoliday(k), n = staff.filter(p => E.shiftOn(p.id, y, m, d, S.tpl, S.ov)).length, nd = needOn(k, need);
+    return `${head}<div class="card"><div class="row between"><button class="btn sm" data-act="day-go" data-v="-1">◀</button><div style="text-align:center"><b style="font-size:17px" class="${hol || E.wdOf(y, m, d) === 6 ? 'down' : ''}">${m}월 ${d}일 (${E.WD[E.wdOf(y, m, d)]})${hol ? ' · 공휴일' : ''}</b><small class="mut" style="display:block">${n}명 근무 · 적정 ${nd}명 ${n < nd ? `<b class="down">${nd - n}명 부족</b>` : ''}</small></div><button class="btn sm" data-act="day-go" data-v="1">▶</button></div>
+      <div class="row" style="justify-content:center;margin:10px 0 4px"><button class="btn sm ${hol ? 'gold' : ''}" data-act="holiday" data-d="${k}">${hol ? '✓ 공휴일' : '공휴일로 지정'}</button><button class="btn sm" data-act="add-d" data-d="${k}">+ 근무 추가</button>${k !== TODAY ? `<button class="btn sm" data-act="day-open" data-d="${TODAY}">오늘</button>` : ''}</div>
+      ${dayTimeline(k)}</div>`; }
   let cells = '', short = 0;
   for (let d = 1; d <= D; d++) {
-    const list = staff.map(p => ({ p, t: E.shiftOn(p.id, S.y, S.m, d, S.tpl, S.ov) })).filter(x => x.t), nd = need[E.wdOf(S.y, S.m, d)], k = E.ymd(S.y, S.m, d);
+    const k = E.ymd(S.y, S.m, d), list = staff.map(p => ({ p, t: E.shiftOn(p.id, S.y, S.m, d, S.tpl, S.ov) })).filter(x => x.t), nd = needOn(k, need), hol = isHoliday(k);
     if (list.length < nd) short++;
-    cells += `<div class="cell ${list.length < nd ? 'short' : ''} ${k === TODAY ? 'today' : ''}"><div class="ch"><span>${d}</span><span class="pill ${list.length < nd ? 'r' : 'g'}">${list.length}/${nd}</span></div>
-      ${list.map(({ p, t }) => `<button class="chip ${p.job_role === '딜러' ? '' : 'fl'} ${t.ov ? 'ov' : ''}" data-act="edit-d" data-m="${p.id}" data-d="${k}">${esc(p.nick)}<small>${t5(t.s).slice(0, 2)}-${t5(t.e).slice(0, 2)}</small></button>`).join('')}
-      <button class="chip add" data-act="add-d" data-d="${k}">+</button></div>`;
+    cells += `<div class="cell ${list.length < nd ? 'short' : ''} ${k === TODAY ? 'today' : ''} ${S.clip ? 'pastable' : ''}" data-d="${k}" ${S.clip ? 'data-act="paste"' : ''}><div class="ch"><button class="dn ${hol ? 'hol' : ''}" data-act="day-open" data-d="${k}" title="일간 근무표">${d}${hol ? '<small>휴</small>' : ''}</button><span class="pill ${list.length < nd ? 'r' : 'g'}">${list.length}/${nd}</span></div>
+      ${list.map(({ p, t }) => `<button class="chip ${p.job_role === '딜러' ? '' : 'fl'} ${t.ov ? 'ov' : ''} ${S.clip?.m === p.id && S.clip.from === k ? 'src' : ''}" data-act="edit-d" data-m="${p.id}" data-d="${k}">${esc(p.nick)}<small>${t5(t.s).slice(0, 2)}-${t5(t.e).slice(0, 2)}</small></button>`).join('')}
+      ${S.clip ? '' : `<button class="chip add" data-act="add-d" data-d="${k}">+</button>`}</div>`;
   }
-  return `${head}<div class="card"><div class="row between" style="margin-bottom:8px"><div class="row"><span class="mut" style="font-size:12px">요일별 적정 인원</span>${E.WD.map((w, i) => `<label class="row" style="gap:3px;font-size:12px">${w}<input type="number" min="0" max="20" value="${need[i]}" data-need="${i}" style="width:48px;padding:5px"></label>`).join('')}</div>${short ? `<span class="pill r">인원 부족 ${short}일</span>` : '<span class="pill g">모든 날 충분</span>'}</div>
+  const clip = S.clip ? `<div class="clipbar"><span>📋 <b>${esc(S.clip.nick)} ${t5(S.clip.s)}–${t5(S.clip.e)}</b> 복사됨 — 붙일 날짜를 계속 누르세요 <small class="mut">(Ctrl+V도 돼요)</small></span><button class="btn sm pri" data-act="clip-end">다 했어요</button></div>` : '';
+  return `${head}${clip}<div class="card"><div class="row between" style="margin-bottom:8px"><div class="row needs"><span class="mut" style="font-size:12px">적정 인원</span>${[...E.WD, '공휴일'].map((w, i) => `<label class="row" style="gap:3px;font-size:12px">${w}<input type="number" min="0" max="20" value="${need[i] ?? need[6]}" data-need="${i}" style="width:48px;padding:5px"></label>`).join('')}</div>${short ? `<span class="pill r">인원 부족 ${short}일</span>` : '<span class="pill g">모든 날 충분</span>'}</div>
     <div class="cal">${E.WD.map(w => `<div class="h">${w}</div>`).join('')}${'<div></div>'.repeat(lead)}${cells}</div>
-    <p class="note">이름을 누르면 그날 근무를 고치고, + 로 추가해요. 점선은 그날만 바꾼 근무예요. ▶로 다음 달 스케줄도 미리 짤 수 있어요.</p></div>`;
+    <p class="note">날짜 숫자를 누르면 그날 근무표(타임라인)가 나와요. 이름을 누르면 고치고 복사할 수 있어요. 이름에 마우스를 올리고 Ctrl+C, 다른 날짜에 올리고 Ctrl+V로도 붙여요.</p></div>`;
 }
 function shiftSheet({ memberId, date, weekday, add }) {
   const p = S.members.find(x => x.id === memberId), [y, m, d] = date ? date.split('-').map(Number) : [];
@@ -533,9 +555,9 @@ function shiftSheet({ memberId, date, weekday, add }) {
   <form class="f" id="shift-form" data-m="${memberId || ''}" data-d="${date || ''}" data-w="${weekday ?? ''}">
     ${add ? (off.length ? `<label class="fl">누구<select name="member">${off.map(q => `<option value="${q.id}">${esc(q.nick)} (${esc(q.job_role || '')})</option>`).join('')}</select></label>` : '<p class="mut">이날은 모든 직원이 근무해요.</p>') : ''}
     <div class="grid2"><label class="fl">시작<input type="time" name="s" value="${t5(t?.s || '20:00')}" required></label><label class="fl">끝<input type="time" name="e" value="${t5(t?.e || '04:00')}" required></label></div>
-    <label class="fl">휴게<select name="brk">${[['', '법대로 자동 (4h↑30분, 8h↑1시간)'], [0, '없음'], [30, '30분'], [60, '1시간'], [90, '1시간 30분']].map(([v, l]) => `<option value="${v}" ${String(t?.brk ?? '') === String(v) ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+    <div class="fl"><span>휴게</span><div class="seg brk">${[[0, '없음'], [30, '30분'], [60, '1시간'], [90, '1시간 30분']].map(([v, l]) => `<label><input type="radio" name="brk" value="${v}" ${(t?.brk ?? 30) === v ? 'checked' : ''}><span>${l}</span></label>`).join('')}</div></div>
     ${date ? `<label class="tog"><span>매주 ${E.WD[E.wdOf(y, m, d)]}요일에도 똑같이</span><input type="checkbox" name="rep"></label>` : ''}
-    <button class="btn pri full">저장</button>${!add && t ? `<button class="btn red full" type="button" data-act="shift-off">${date ? '이날 휴무' : '이 요일 근무 없애기'}</button>` : ''}
+    <button class="btn pri full">저장</button>${date && !add && t ? `<button class="btn full" type="button" data-act="clip" data-m="${memberId}" data-d="${date}">📋 복사해서 다른 날에 붙이기</button>` : ''}${!add && t ? `<button class="btn red full" type="button" data-act="shift-off">${date ? '이날 휴무' : '이 요일 근무 없애기'}</button>` : ''}
     <button class="btn full" type="button" data-act="close">취소</button></form>`);
 }
 function vSales() {
@@ -790,6 +812,16 @@ function openSheet(html) { const s = $('#sheet'); s.innerHTML = `<div class="in"
 function closeSheet() { $('#sheet').hidden = true; }
 $('#sheet').addEventListener('click', e => { if (e.target.id === 'sheet') closeSheet(); });
 
+// ===== 스케줄 복사·붙여넣기 =====
+function clipFrom(m, k) { const [y, mo, dd] = k.split('-').map(Number), t = E.shiftOn(m, y, mo, dd, S.tpl, S.ov); if (!t) return; S.clip = { m, from: k, s: t.s, e: t.e, brk: t.brk ?? 30, nick: S.members.find(x => x.id === m)?.nick || '' }; S.schedView = 'month'; render(); toast(`${S.clip.nick} 근무를 복사했어요. 붙일 날짜를 누르세요`); }
+function pasteTo(k) { const c = S.clip; if (!c || k === c.from) return; busy(async () => { await q(sb.from('shift_overrides').upsert({ member_id: c.m, work_date: k, off: false, start_t: c.s, end_t: c.e, break_min: c.brk })); await reload(); toast(`${+k.slice(8)}일에 붙였어요`); }); }
+document.addEventListener('mouseover', e => { const el = e.target.closest('[data-d]'); S.hover = el ? { m: el.dataset.m, d: el.dataset.d } : null; });
+document.addEventListener('keydown', e => {
+  if (!(e.ctrlKey || e.metaKey) || S.tab !== 'sched' || e.target.closest('input,textarea,select') || !S.hover) return;
+  const key = e.key.toLowerCase();
+  if (key === 'c' && S.hover.m && !String(getSelection())) { e.preventDefault(); clipFrom(S.hover.m, S.hover.d); }
+  if (key === 'v' && S.clip) { e.preventDefault(); pasteTo(S.hover.d); }
+});
 // ===== 동작 =====
 let working = false;
 const busy = async fn => { if (working) return; working = true; document.body.classList.add('busy'); try { await fn(); } catch (e) { console.error(e); } finally { working = false; document.body.classList.remove('busy'); } };
@@ -805,8 +837,14 @@ document.addEventListener('click', e => {
   if (a === 'goto') { S.tab = d.t; S.sub = d.s || null; render(); scrollTo(0, 0); }
   if (a === 'sub') { S.sub = d.v || null; render(); scrollTo(0, 0); if (d.v === 'used') busy(async () => { S.used = await q(sb.from('used_items').select('*').order('created_at', { ascending: false }).limit(50)); render(); }); if (d.v === 'rot') busy(async () => { await loadRot(); render(); }); if (d.v === 'edu') busy(loadEdu); if (d.v === 'inq') busy(async () => { S.inq = await q(sb.from('inquiries').select('*').eq('from_user', S.user.id).order('created_at', { ascending: false })); render(); }); }
   if (a === 'mon') busy(async () => { S.m += +d.v; if (S.m > 12) { S.m = 1; S.y++; } if (S.m < 1) { S.m = 12; S.y--; } await reload(); });
-  if (a === 'sview') { S.schedView = d.v; render(); }
-  if (a === 'edit-d') { S.edit = { memberId: d.m, date: d.d }; shiftSheet(S.edit); }
+  if (a === 'sview') { S.schedView = d.v; S.clip = null; render(); }
+  if (a === 'day-open') { S.tab = 'sched'; S.schedView = 'day'; S.schedDay = d.d; S.clip = null; closeSheet(); render(); scrollTo(0, 0); }
+  if (a === 'day-go') { S.schedDay = addDay(S.schedDay || TODAY, +d.v); render(); }
+  if (a === 'holiday') busy(async () => { const on = !isHoliday(d.d); await q(sb.rpc('set_holiday', { p_store: S.store.id, p_date: d.d, p_on: on })); S.store.holidays = on ? [...(S.store.holidays || []), d.d] : S.store.holidays.filter(x => x !== d.d); render(); toast(on ? '공휴일로 지정했어요. 적정 인원이 공휴일 기준으로 바뀌어요' : '공휴일을 풀었어요'); });
+  if (a === 'clip') { clipFrom(d.m, d.d); closeSheet(); }
+  if (a === 'clip-end') { S.clip = null; render(); }
+  if (a === 'paste') { if (e.target.closest('.dn')) return; pasteTo(d.d); }
+  if (a === 'edit-d') { if (S.clip) return pasteTo(d.d); S.edit = { memberId: d.m, date: d.d }; shiftSheet(S.edit); }
   if (a === 'add-d') { S.edit = { date: d.d, add: true }; shiftSheet(S.edit); }
   if (a === 'edit-w') { S.edit = { memberId: d.m, weekday: +d.w }; shiftSheet(S.edit); }
   if (a === 'shift-off') busy(async () => {
@@ -896,7 +934,7 @@ document.addEventListener('change', e => {
   if (d.rot) { const R = rotState(); R[d.rot] = Math.max(5, +t.value || 5); render(); busy(saveRot); }
   if (d.stock || d.stockmin) busy(async () => { const id = +(d.stock || d.stockmin), row = S.stock.find(s => s.item_id === id), patch = d.stock ? { qty: +t.value || 0 } : { min: +t.value || 0 }; Object.assign(row, patch); await q(sb.from('stock').update(patch).eq('store_id', S.store.id).eq('item_id', id)); render(); });
   if (t.id === 'tax-inv') S.taxInv = t.checked;
-  if (d.need !== undefined) busy(async () => { const need = [...(S.store.need_by_wd || [3, 4, 3, 4, 6, 7, 2])]; need[+d.need] = +t.value || 0; await q(sb.rpc('set_need', { p_store: S.store.id, p_need: need })); S.store.need_by_wd = need; render(); });
+  if (d.need !== undefined) busy(async () => { const need = [...(S.store.need_by_wd || [3, 4, 3, 4, 6, 7, 2])]; if (need.length < 8) need[7] = need[6]; need[+d.need] = +t.value || 0; await q(sb.rpc('set_need', { p_store: S.store.id, p_need: need })); S.store.need_by_wd = need; render(); });
   if (d.inc) busy(async () => { const month = E.ymd(S.y, S.m, 1); await q(sb.from('incentives').delete().eq('member_id', d.inc).eq('month', month)); if (+t.value) await q(sb.from('incentives').insert({ member_id: d.inc, month, amount: +t.value, reason: '' })); await reload(); toast('인센티브를 반영했어요'); });
 });
 document.addEventListener('submit', e => {
@@ -911,7 +949,7 @@ document.addEventListener('submit', e => {
     if (id === 'join-code-form') { const name = await q(sb.rpc('request_join', { p_code: v.code })); toast(`${name}에 소속 신청했어요. 승인되면 알림이 와요`); f.reset(); }
     if (id === 'join-form') { await q(sb.rpc('approve_join', { p_req: f.dataset.r, p_member: v.member || null, p_rate: +v.rate || 0, p_role: v.role, p_contract: v.contract })); closeSheet(); await reload(); toast('승인했어요. 이제 직원 앱에서 스케줄·급여가 보여요'); }
     if (id === 'shift-form') {
-      const m = f.dataset.m || v.member, brk = v.brk === '' ? null : +v.brk, row = { start_t: v.s, end_t: v.e, break_min: brk };
+      const m = f.dataset.m || v.member, brk = +v.brk || 0, row = { start_t: v.s, end_t: v.e, break_min: brk };
       if (!m) return toast('추가할 직원이 없어요');
       if (f.dataset.d) { await q(sb.from('shift_overrides').upsert({ member_id: m, work_date: f.dataset.d, off: false, ...row })); if (v.rep) { const [y, mo, dd] = f.dataset.d.split('-').map(Number); await q(sb.from('shift_templates').upsert({ member_id: m, weekday: E.wdOf(y, mo, dd), ...row })); } }
       else await q(sb.from('shift_templates').upsert({ member_id: m, weekday: +f.dataset.w, ...row }));
