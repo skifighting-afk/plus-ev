@@ -41,7 +41,7 @@ async function payReturn(pr) {
   if (pr.get('pay') === 'fail') { toast(pr.get('message') || '결제를 취소했어요'); return; }
   const { data, error } = await sb.functions.invoke('pay-confirm', { body: { paymentKey: pr.get('paymentKey'), orderId: pr.get('orderId'), amount: +pr.get('amount') } });
   if (error || !data?.ok) { toast((data && data.message) || '결제 확인에 실패했어요. 운영사에 문의해 주세요'); return; }
-  toast({ tickets: '결제 완료! 지원권을 넣어드렸어요', pro: '결제 완료! PRO가 시작됐어요', academy: '결제 완료! 딜러 교육이 열렸어요', plan: '결제 완료! 프로 요금제가 시작됐어요', store: '결제 완료! 새 매장이 추가됐어요', post: '결제 완료! 공고가 올라갔어요', post_extra: '결제 완료! 공고 기간·노출을 늘렸어요', used_boost: '결제 완료! 중고 글이 맨 위로 올라갔어요' }[data.kind] || '결제가 완료됐어요');
+  toast({ tickets: '결제 완료! 지원권을 넣어드렸어요', pro: '결제 완료! PRO가 시작됐어요', academy: '결제 완료! 딜러 교육이 열렸어요', plan: '결제 완료! 프로 요금제가 시작됐어요', store: '결제 완료! 새 매장이 추가됐어요', post: '결제 완료! 공고가 올라갔어요', post_extra: '결제 완료! 공고 기간·노출을 늘렸어요', franchise: '결제 완료! 가맹 공고가 30일 동안 게시돼요', franchise_leads: '결제 완료! 리드 비용을 정산했어요', used_boost: '결제 완료! 중고 글이 맨 위로 올라갔어요' }[data.kind] || '결제가 완료됐어요');
 }
 window.__evPayReturn = async p => { await payReturn(new URLSearchParams(p)); await boot(); };
 const payNote = () => PAY_TEST ? '<p class="note warn">🧪 지금은 테스트 결제예요. 결제창이 떠도 실제 돈은 나가지 않아요.</p>' : '';
@@ -142,11 +142,12 @@ async function loadHQ() {
   S.stats = await q(sb.rpc('hq_store_stats', { p_from: first, p_to: last }));
   S.companies = await q(sb.from('companies').select('*').order('created_at', { ascending: false }));
   S.inq = await q(sb.from('inquiries').select('*').order('created_at', { ascending: false }).limit(100));
-  S.hqProfiles = await q(sb.from('profiles').select('id,name,kind'));
+  S.hqProfiles = await q(sb.from('profiles').select('id,name,kind,can_post_franchise'));
   S.hqOrders = await q(sb.from('orders').select('*').order('created_at', { ascending: false }).limit(50));
   S.hqWds = await q(sb.from('withdrawals').select('*').order('created_at', { ascending: false }).limit(50));
   await loadProducts();
   S.notices = await q(sb.from('notices').select('*').order('created_at', { ascending: false }).limit(30));
+  S.hqFr = await q(sb.from('franchise_postings').select('*').order('created_at', { ascending: false })); S.hqLeads = await q(sb.from('franchise_leads').select('*').order('connected_at', { ascending: false }).limit(200));
   S.hqPays = await q(sb.from('payments').select('*').order('created_at', { ascending: false }).limit(100));
 }
 const payOf = p => E.payroll(p, S.y, S.m, S.tpl, S.ov, S.inc.filter(i => i.member_id === p.id).reduce((a, i) => a + i.amount, 0), TODAY, night());
@@ -157,7 +158,7 @@ const TABS = {
   store: [['home', '🏠', '홈'], ['sched', '🗓', '스케줄'], ['sales', '💰', '매출'], ['staff', '👥', '직원'], ['jobs', '📣', '구인'], ['market', '🛒', '장터']],
   staff: [['work', '🗓', '내 근무'], ['attend', '📍', '출퇴근'], ['jobs', '📣', '구인'], ['wallet', '👛', '지갑'], ['me', '🙂', '내 정보']],
   dealer: [['jobs', '📣', '구인'], ['mywork', '🃏', '내 근무'], ['wallet', '👛', '지갑'], ['me', '🙂', '내 정보']],
-  hq: [['dash', '📊', '대시보드'], ['stores', '🏢', '매장'], ['goods', '📦', '상품'], ['data', '🗂', '데이터'], ['inq', '💬', '문의함'], ['notice', '📢', '공지']]
+  hq: [['dash', '📊', '대시보드'], ['stores', '🏢', '매장'], ['goods', '📦', '상품'], ['data', '🗂', '데이터'], ['inq', '💬', '문의함'], ['notice', '📢', '공지'], ['fr', '🏢', '가맹']]
 };
 function render() {
   clearInterval(S.qrTimer);
@@ -169,7 +170,7 @@ function render() {
     store: () => ((S.tab === 'more' && S.sub === 'daily' ? vDaily : 0) || ({ improve: vImprove, home: vHome, sched: vSched, sales: vSales, staff: vStaff, jobs: vJobs, more: vMore }[S.tab] || vHome))(),
     staff: () => ({ learn: vLearn, work: vWork, attend: vAttend, jobs: vBoard, wallet: vWallet, me: vMe }[S.tab] || vWork)(),
     dealer: () => ({ jobs: vBoard, mywork: vMyWork, wallet: vWallet, me: vMe }[S.tab] || vBoard)(),
-    hq: () => ({ dash: vHqDash, goods: vHqGoods, stores: vHqStores, data: vHqData, inq: vHqInq, notice: vHqNotice }[S.tab] || vHqDash)() };
+    hq: () => ({ dash: vHqDash, goods: vHqGoods, stores: vHqStores, data: vHqData, inq: vHqInq, notice: vHqNotice, fr: vHqFr }[S.tab] || vHqDash)() };
   view.innerHTML = (V[S.mode] || vAuth)(); enhanceInputs(view);
   if (S.mode === 'store' && S.tab === 'more' && S.sub === 'qr') startQR();
   if (S.mode === 'store' && S.tab === 'more' && S.sub === 'rot' && S.rot) rotTick();
@@ -212,8 +213,8 @@ function vOnboard() {
 // ===== 대표·점장 =====
 // 하단 탭 하나에 세부 메뉴를 묶음 (더보기 없음)
 const SUBNAV = { home: [['home', null, '브리핑'], ['improve', null, '✦ 매장 개선'], ['more', 'pnl', '월간 손익'], ['more', 'daily', '일 매출']], sched: [['sched', null, '근무표'], ['more', 'rot', '테이블 로테이션'], ['more', 'qr', '출퇴근 코드']],
-  sales: [['sales', null, '오픈·마감'], ['more', 'order', '재고·발주']], staff: [['staff', null, '직원·급여'], ['more', 'edu', '교육']], jobs: [['jobs', null, '우리 공고 올리기'], ['more', 'board', '전체 구인 공고']], market: [['more', 'used', '중고 장터'], ['more', 'transfer', '점포 양도양수']] };
-const SUB_GROUP = { board: 'jobs', notice: 'home', daily: 'home', pnl: 'home', rot: 'sched', qr: 'sched', order: 'sales', edu: 'staff', used: 'market', transfer: 'market' };
+  sales: [['sales', null, '오픈·마감'], ['more', 'order', '재고·발주']], staff: [['staff', null, '직원·급여'], ['more', 'edu', '교육']], jobs: [['jobs', null, '우리 공고 올리기'], ['more', 'board', '전체 구인 공고']], market: [['more', 'used', '중고 장터'], ['more', 'transfer', '점포 양도양수'], ['more', 'franchise', '가맹 모집']] };
+const SUB_GROUP = { franchise: 'market', board: 'jobs', notice: 'home', daily: 'home', pnl: 'home', rot: 'sched', qr: 'sched', order: 'sales', edu: 'staff', used: 'market', transfer: 'market' };
 const groupOf = () => S.tab === 'more' ? SUB_GROUP[S.sub] || null : S.tab === 'improve' ? 'home' : S.tab;
 function subnav() {
   const items = (SUBNAV[groupOf()] || []).filter(([, s]) => s !== 'transfer' || isOwner()); if (items.length < 2) return '';
@@ -897,6 +898,7 @@ function vMore() {
   if (sub === 'used') return `${storeHead('중고 장터')}${back}${usedBlock()}`;
   if (sub === 'board') return `${storeHead('전체 구인 공고')}${boardList(true)}`;
   if (sub === 'notice') return `${storeHead('운영사 공지')}${back}${(S.notices || []).map(n => `<div class="card notice"><div class="row between"><b>📢 ${esc(n.title)}</b><small class="mut">${fmtDT(n.created_at)}</small></div><div class="nb">${esc(n.body).replace(/\n/g, '<br>')}</div></div>`).join('') || '<div class="card empty">아직 공지가 없어요</div>'}`;
+  if (sub === 'franchise') return `${storeHead('가맹 모집')}${back}${frBlock()}`;
   if (sub === 'transfer') return `${storeHead('점포 양도양수')}${back}${transferBlock()}`;
   return '';
 }
@@ -1027,6 +1029,60 @@ function transferBlock() {
     : `<div class="bub a">감사해요! 지금 이 매장은 월 순이익이 약 ₩${man(mp)}이에요. 권리금은 보통 <b>순이익 10~12개월치</b>라서 <b>약 ₩${man(mp * 10)} ~ ₩${man(mp * 12)}</b>로 보여요. 운영사 담당자가 곧 연락드려요.</div>${S.sellSaved ? '<span class="pill g">상담 접수 완료</span>' : '<button class="btn gold full" data-act="sell-save">상담 신청하기</button>'}`}</div>`;
 }
 
+// ===== 프랜차이즈 가맹 모집 =====
+// 공고: 월 300,000원 게시비(선결제). 본사 실제 번호는 숨기고 +EV 추적번호(0507)로만 연결
+const FR_FIELDS = [['brand', '브랜드명', 1], ['corp_name', '법인명', 1], ['biz_no', '사업자번호', 1, 'biz'], ['ceo', '대표자명', 1], ['regions', '모집 지역', 1, '', '예: 서울 강남·서초 / 경기 성남'], ['invest', '예상 창업비용 (원)', 1, 'money'], ['fee', '가맹비 (원)', 1, 'money'], ['edu_fee', '교육비 (원)', 0, 'money'], ['interior_est', '인테리어 예상비 (원)', 0, 'money'], ['royalty', '로열티', 1, '', '예: 월 매출 3% 또는 월 50만 원'], ['min_py', '최소 평수', 0, 'num'], ['address', '본사 주소', 1], ['homepage', '홈페이지', 0, 'url'], ['phone_fr', '상담 전화번호 (실제 번호 · 공고엔 안 나가요)', 1, 'tel'], ['kakao', '카카오 상담 링크', 0, 'url'], ['video', '소개 영상 링크', 0, 'url']];
+async function frLoad() { S.frList = await q(sb.from('franchise_public').select('*').order('created_at', { ascending: false })); if (S.prof?.can_post_franchise) S.frMine = await q(sb.from('franchise_postings').select('*').eq('owner_user', S.user.id).order('created_at', { ascending: false })); render(); }
+const frCard = f => `<button class="card frcard" data-act="fr-open" data-v="${f.id}"><div class="frh">${f.logo_url ? `<img class="frlogo" src="${esc(f.logo_url)}" alt="">` : '<span class="frlogo ph">🏢</span>'}<div><b>${esc(f.brand)}</b><small class="mut">${esc(f.regions || '')} 가맹 모집</small></div></div>
+  ${f.image_url ? `<img class="frimg" src="${esc(f.image_url)}" alt="" loading="lazy">` : ''}
+  <div class="ps3"><div><small>예상 창업비용</small><b class="num">₩${man(f.invest || 0)}~</b></div><div><small>가맹비</small><b class="num">₩${E.won(f.fee || 0)}</b></div><div><small>로열티</small><b>${esc(f.royalty || '-')}</b></div></div></button>`;
+function frBlock() {
+  const can = S.prof?.can_post_franchise, L = S.frList || [], mine = S.frMine || [];
+  return `${can ? `<div class="card"><div class="row between"><h3 style="margin:0">내 가맹 공고</h3><button class="btn pri sm" data-act="fr-new">+ 새 공고</button></div>
+    ${mine.map(f => `<div class="li"><div><b>${esc(f.brand)}</b><small>${{ draft: '결제 전 (임시 저장)', active: `게시 중 · ${new Date(f.end_at).toLocaleDateString('ko-KR')}까지`, expired: '게시 끝남', paused: '멈춤' }[f.status]}${f.status === 'active' ? ` · 자동 연장 ${f.auto_renew ? '켬' : '끔'}` : ''}</small></div><span class="row">${f.status === 'active' ? `<button class="btn sm" data-act="fr-lead" data-v="${f.id}">📞 리드</button>` : ''}<button class="btn sm" data-act="fr-edit" data-v="${f.id}">수정</button>${f.status !== 'active' ? `<button class="btn sm gold" data-act="fr-pay" data-v="${f.id}">₩300,000 게시하기</button>` : ''}</span></div>`).join('') || '<p class="mut" style="margin:8px 0 0">아직 공고가 없어요. 30일 게시에 ₩300,000이고, 상담 전화가 30초 이상 연결되면 건당 ₩50,000이에요.</p>'}</div>` : ''}
+  <div class="row between" style="margin:12px 0 8px"><b>홀덤 프랜차이즈 가맹 모집 <small class="mut">${L.length}개</small></b></div>
+  ${L.map(frCard).join('') || '<div class="card empty">지금 모집 중인 브랜드가 없어요</div>'}
+  ${can ? '' : '<p class="note">프랜차이즈 본사라면 💬 문의로 "가맹 공고 등록"을 요청하세요. 운영사가 권한을 열어드려요.</p>'}`;
+}
+function frSheet(id) {
+  const f = (S.frList || []).find(x => x.id === id); if (!f) return; sb.rpc('fr_hit', { p_post: id, p_kind: 'detail' }).then(() => { });
+  const limited = f.limit_action === 'hide' && S.frLimited?.[id];
+  openSheet(`<div class="frh">${f.logo_url ? `<img class="frlogo" src="${esc(f.logo_url)}" alt="">` : '<span class="frlogo ph">🏢</span>'}<div><h2 style="margin:0">${esc(f.brand)}</h2><small class="mut">${esc(f.regions || '')} 가맹 모집</small></div></div>
+    ${f.image_url ? `<img class="frimg" src="${esc(f.image_url)}" alt="">` : ''}
+    <div class="ps3" style="margin-top:10px"><div><small>예상 창업비용</small><b class="num">₩${man(f.invest || 0)}~</b></div><div><small>가맹비</small><b class="num">₩${man(f.fee || 0)}</b></div><div><small>로열티</small><b>${esc(f.royalty || '-')}</b></div></div>
+    <div class="card" style="margin:10px 0;background:var(--card2)"><div class="li"><span class="mut">교육비</span><span class="num">₩${E.won(f.edu_fee || 0)}</span></div><div class="li"><span class="mut">인테리어 예상비</span><span class="num">₩${E.won(f.interior_est || 0)}</span></div><div class="li"><span class="mut">최소 평수</span><span>${f.min_py ? f.min_py + '평' : '-'}</span></div><div class="li"><span class="mut">모집 지역</span><span>${esc(f.regions || '-')}</span></div></div>
+    ${f.support ? `<h3>본사 지원</h3><p style="white-space:pre-wrap">${esc(f.support)}</p>` : ''}${f.description ? `<h3>브랜드 소개</h3><p style="white-space:pre-wrap">${esc(f.description)}</p>` : ''}
+    <p class="mut">📍 ${esc(f.address || '')}${f.homepage ? ` · <a href="${esc(f.homepage)}" target="_blank" rel="noopener">홈페이지</a>` : ''}${f.video ? ` · <a href="${esc(f.video)}" target="_blank" rel="noopener">소개 영상</a>` : ''}</p>
+    ${limited ? '<p class="note">이번 달 전화 상담 접수가 마감됐어요. 카카오 상담을 이용해 주세요.</p>' : f.tracking_number ? `<a class="btn gold full" href="tel:${esc(f.tracking_number.replace(/[^\d]/g, ''))}" data-act="fr-call" data-v="${f.id}">📞 전화 상담하기</a>` : '<button class="btn full" data-act="fr-ask" data-v="${f.id}">📞 전화 상담 요청 (운영사 연결)</button>'}
+    ${f.kakao ? `<a class="btn full" style="margin-top:8px" href="${esc(f.kakao)}" target="_blank" rel="noopener">💬 카카오톡 상담</a>` : ''}
+    <p class="note">전화는 +EV 상담 번호로 연결돼요. 상담 내용은 본사가 직접 응대해요.</p>`);
+}
+function frForm(f = {}) {
+  openSheet(`<h2 style="margin:0 0 10px">${f.id ? '가맹 공고 수정' : '가맹 공고 등록'}</h2><form class="f" id="fr-form" data-id="${f.id || ''}">
+    <div class="grid2"><label class="photo-in sm"><input type="file" name="logo" accept="image/*" hidden><span id="fr-logo-prev">${f.logo_url ? `<img src="${esc(f.logo_url)}" alt="">` : '🏢<b>브랜드 로고</b>'}</span></label><label class="photo-in sm"><input type="file" name="image" accept="image/*" hidden><span id="fr-img-prev">${f.image_url ? `<img src="${esc(f.image_url)}" alt="">` : '🖼<b>대표 이미지</b>'}</span></label></div>
+    ${FR_FIELDS.map(([k, l, req, t, ph]) => `<label class="fl">${l}${req ? '' : ' <small class="mut">(선택)</small>'}<input name="${k}" ${req ? 'required' : ''} value="${esc(f[k] ?? (k === 'phone_fr' ? f.phone : '') ?? '')}" ${t === 'money' || t === 'num' ? 'type="number" inputmode="numeric"' : t === 'url' ? 'type="url"' : ''} placeholder="${esc(ph || '')}"></label>`).join('')}
+    <label class="fl">브랜드 설명<textarea name="description" rows="4" required>${esc(f.description || '')}</textarea></label>
+    <label class="fl">지원 내용<textarea name="support" rows="3" placeholder="예: 오픈 3개월 본사 매니저 상주 · 딜러 교육 · 간판 제작">${esc(f.support || '')}</textarea></label>
+    <label class="tog"><span><b>자동 연장</b><small>게시 끝나기 3일 전 알려드리고, 켜 두면 30일씩 ₩300,000이 결제돼요</small></span><input type="checkbox" name="auto_renew" ${f.auto_renew !== false ? 'checked' : ''}></label>
+    <div class="grid2"><label class="fl">월 리드 한도 (원) <small class="mut">(선택)</small><input name="lead_limit_amt" type="number" inputmode="numeric" value="${f.lead_limit_amt ?? ''}" placeholder="예: 500000"></label><label class="fl">월 리드 한도 (건) <small class="mut">(선택)</small><input name="lead_limit_n" type="number" value="${f.lead_limit_n ?? ''}" placeholder="예: 10"></label></div>
+    <label class="fl">한도에 닿으면<select name="limit_action"><option value="keep" ${f.limit_action !== 'hide' ? 'selected' : ''}>공고는 계속 노출 · 전화 버튼도 유지 (초과분도 과금)</option><option value="hide" ${f.limit_action === 'hide' ? 'selected' : ''}>공고는 계속 노출 · 전화 버튼만 숨김</option></select></label>
+    <div class="receipt"><div class="rh">요금</div><div class="rl"><span>게시비 30일</span><b class="num">₩300,000</b></div><div class="rl"><span>유효 전화 상담 (30초 이상 연결)</span><b class="num">건당 ₩50,000</b></div><small class="mut">같은 번호는 30일에 1건만 과금돼요. 리드 비용은 월말에 모아서 다음 달 초 자동 결제돼요.</small></div>
+    <button class="btn pri full">${f.id ? '저장' : '저장하고 결제로'}</button></form>`);
+}
+// 본사 리드 대시보드: 이번 달 노출·상세·클릭·유효 리드·비용 + 리드 목록(이의제기) + 청구서 결제
+async function frLeadSheet(id) {
+  const f = (S.frMine || []).find(x => x.id === id); if (!f) return;
+  const [D, L, bills] = await Promise.all([q(sb.rpc('fr_dash', { p_post: id })), q(sb.from('franchise_leads').select('*').eq('posting_id', id).order('connected_at', { ascending: false }).limit(60)), q(sb.from('payments').select('*').eq('kind', 'franchise_leads').eq('user_id', S.user.id).order('created_at', { ascending: false }).limit(12))]);
+  const ST = { qualified: ['g', '유효'], short: ['', '30초 미만'], duplicate: ['', '30일 내 재통화'], invalid: ['', '무효'], disputed: ['y', '이의제기 중'], limit: ['y', '한도 초과'] }, mm = s => `${Math.floor(s / 60)}분 ${s % 60}초`;
+  const myBills = bills.filter(b => b.arg?.post === id);
+  openSheet(`<h2 style="margin:0 0 2px">${esc(f.brand)} · 이번 달</h2><small class="mut">${now.getMonth() + 1}월 1일부터 오늘까지</small>
+    <div class="stats4" style="margin-top:10px"><div><small>공고 노출</small><b class="num">${E.won(D.views)}회</b></div><div><small>상세 조회</small><b class="num">${E.won(D.details)}회</b></div><div><small>전화 버튼 클릭</small><b class="num">${D.clicks}회</b></div><div><small>유효 상담 전화</small><b class="num up">${D.leads}건</b></div></div>
+    <div class="card" style="margin:10px 0;background:var(--card2)"><div class="li"><span>이번 달 리드 비용</span><b class="num" style="font-size:20px">₩${E.won(D.cost)}</b></div><div class="li"><span class="mut">게시비 (선결제)</span><span class="num">₩300,000 / 30일</span></div>${f.lead_limit_amt || f.lead_limit_n ? `<div class="li"><span class="mut">월 한도</span><span>${f.lead_limit_amt ? '₩' + E.won(f.lead_limit_amt) : ''}${f.lead_limit_amt && f.lead_limit_n ? ' · ' : ''}${f.lead_limit_n ? f.lead_limit_n + '건' : ''}${D.limited ? ' <span class="pill y">도달</span>' : ''}</span></div>` : ''}<small class="mut">리드 비용은 다음 달 1일에 청구서로 모아 보내드려요. 30초 이상 연결된 통화만, 같은 번호는 30일에 1건만 세요.</small></div>
+    ${myBills.length ? `<h3>청구서</h3>${myBills.map(b => `<div class="li"><div><b>${esc(b.order_name)}</b><small>${fmtDT(b.created_at)}</small></div>${b.status === 'due' ? `<button class="btn sm gold" data-act="fr-bill" data-v="${b.order_id}">₩${E.won(b.amount)} 결제</button>` : `<span class="pill ${b.status === 'done' ? 'g' : ''}">${b.status === 'done' ? '결제 완료' : b.status}</span>`}</div>`).join('')}` : ''}
+    <h3>전화 리드 <small>최근 ${L.length}건</small></h3><div class="tbl"><table style="min-width:0;font-size:12.5px"><thead><tr><th>날짜</th><th>시간</th><th class="r">통화</th><th>상태</th><th class="r">비용</th><th></th></tr></thead><tbody>
+    ${L.map(l => { const t = new Date(l.connected_at); return `<tr><td>${String(t.getMonth() + 1).padStart(2, '0')}/${String(t.getDate()).padStart(2, '0')}</td><td>${String(t.getHours()).padStart(2, '0')}:${String(t.getMinutes()).padStart(2, '0')}</td><td class="r num">${mm(l.duration_seconds)}</td><td><span class="pill ${ST[l.status]?.[0] || ''}">${ST[l.status]?.[1] || l.status}</span>${l.reason ? `<small class="mut" style="display:block">${esc(l.reason)}</small>` : ''}</td><td class="r num">${l.charge_amount ? '₩' + E.won(l.charge_amount) : '0'}</td><td>${l.status === 'qualified' && !l.billed_month ? `<button class="btn sm" data-act="fr-dispute" data-v="${l.id}">이의</button>` : ''}</td></tr>`; }).join('') || '<tr><td colspan="6" class="mut">아직 상담 전화가 없어요</td></tr>'}</tbody></table></div>
+    <p class="note">발신 번호는 저장하지 않고 뒷자리만 보관해요. 광고·잘못 걸린 전화·반복 전화는 '이의'를 누르면 운영사가 확인하고 비용을 빼 드려요.</p>`);
+}
 // ===== 직원 (소속) =====
 function vWork() {
   const me = S.my[0], r = payOf(me), [y, m, d] = TODAY.split('-').map(Number), wk0 = d - E.wdOf(y, m, d), D = E.daysIn(S.y, S.m);
@@ -1129,7 +1185,7 @@ function hqProdSheet(id) {
     <button class="btn pri full">저장</button></form>`);
 }
 function vHqStores() {
-  return `<h1>입점 매장</h1><div class="card">${(S.companies || []).map(c => `<div class="li"><div><b>${esc(c.name)}</b>${c.brand ? ` <small class="mut">${esc(c.brand)}</small>` : ''}<small>사업자 ${esc(c.biz_no || '')} · ${{ trial: '무료 체험', basic: '베이직', pro: '프로' }[c.plan]} · ${new Date(c.created_at).toLocaleDateString('ko-KR')}</small></div>${c.biz_verified ? '<span class="pill g">확인 완료</span>' : `<button class="btn sm pri" data-act="verify" data-c="${c.id}">사업자 확인</button>`}</div>`).join('') || '<div class="empty">아직 매장이 없어요</div>'}</div>`;
+  return `<h1>입점 매장</h1><div class="card"><h3>가맹본사 권한 <small>켜면 가맹 모집 공고를 올릴 수 있어요</small></h3>${(S.hqProfiles || []).filter(p => p.kind === 'owner').map(p => `<div class="li"><span>${esc(p.name || '이름 없음')} <small class="mut">${p.id.slice(0, 8)}</small></span><button class="btn sm ${p.can_post_franchise ? 'pri' : ''}" data-act="fr-perm" data-u="${p.id}" data-v="${p.can_post_franchise ? 'false' : 'true'}">${p.can_post_franchise ? '✓ 가맹본사' : '권한 주기'}</button></div>`).join('') || '<div class="empty">대표 계정이 없어요</div>'}</div><div class="card">${(S.companies || []).map(c => `<div class="li"><div><b>${esc(c.name)}</b>${c.brand ? ` <small class="mut">${esc(c.brand)}</small>` : ''}<small>사업자 ${esc(c.biz_no || '')} · ${{ trial: '무료 체험', basic: '베이직', pro: '프로' }[c.plan]} · ${new Date(c.created_at).toLocaleDateString('ko-KR')}</small></div>${c.biz_verified ? '<span class="pill g">확인 완료</span>' : `<button class="btn sm pri" data-act="verify" data-c="${c.id}">사업자 확인</button>`}</div>`).join('') || '<div class="empty">아직 매장이 없어요</div>'}</div>`;
 }
 function vHqData() {
   const st = S.stats || [];
@@ -1142,6 +1198,19 @@ const NOTICE_DRAFTS = [
   ['점검', '[안내] 서비스 점검 예정', `사장님, 안녕하세요. +EV 운영팀이에요.\n더 안정적인 서비스를 위해 아래 시간에 점검이 있어요.\n\n· 일시: 0월 0일 (0) 새벽 5시 ~ 6시\n· 영향: 점검 중에는 잠시 접속이 안 될 수 있어요. 마감 기록은 그대로 남아 있어요.\n\n영업 시간을 피해서 진행할게요. 양해 부탁드려요.`],
   ['요금', '[안내] 요금제 변경 소식', `사장님, 안녕하세요. +EV 운영팀이에요.\n요금제가 이렇게 바뀌어요.\n\n· 베이직: 무료 — 매장 관리 기능 전부\n· 프로: 매장당 월 35,000원 — 주변 매장 비교 순위·경고등·매달 처방\n\n이미 결제한 기간은 그대로 쓰실 수 있어요.`],
   ['장애', '[사과] 일시적인 접속 문제 안내', `사장님, 안녕하세요. +EV 운영팀이에요.\n0월 0일 0시부터 0시까지 일부 화면이 열리지 않는 문제가 있었어요. 지금은 정상으로 돌아왔어요.\n\n· 원인: \n· 영향: 입력한 기록은 모두 안전하게 남아 있어요.\n\n불편을 드려 죄송해요. 같은 일이 없도록 더 꼼꼼히 챙길게요.`]];
+// 운영자: 가맹 정산 — 등록 프랜차이즈·게시 기간·결제·리드 통계·이의 처리·추적번호·통화 수기 입력
+function vHqFr() {
+  const P = S.hqFr || [], L = S.hqLeads || [], m0 = TODAY.slice(0, 7), thisM = l => l.connected_at.slice(0, 7) === m0, pays = (S.hqPays || []);
+  const post = pays.filter(x => x.status === 'done' && x.kind === 'franchise' && x.approved_at?.slice(0, 7) === m0).reduce((a, x) => a + x.amount, 0), lead = L.filter(l => l.is_qualified && thisM(l)).reduce((a, l) => a + l.charge_amount, 0);
+  const used = pays.filter(x => x.status === 'done' && x.kind === 'used_boost' && x.approved_at?.slice(0, 7) === m0), nm = id => (S.hqProfiles || []).find(p => p.id === id)?.name || '본사';
+  const ST = { qualified: ['g', '유효'], short: ['', '30초 미만'], duplicate: ['', '재통화'], invalid: ['', '무효'], disputed: ['y', '이의제기'], limit: ['y', '한도'] };
+  return `<h1>가맹 · 정산</h1>
+  <div class="stats4"><div><small>${+m0.slice(5)}월 게시 매출</small><b class="num">₩${E.won(post)}</b></div><div><small>${+m0.slice(5)}월 리드 매출</small><b class="num up">₩${E.won(lead)}</b></div><div><small>중고 상단노출</small><b class="num">₩${E.won(used.filter(x => x.arg?.type !== 'urgent').reduce((a, x) => a + x.amount, 0))}</b></div><div><small>중고 급매</small><b class="num">₩${E.won(used.filter(x => x.arg?.type === 'urgent').reduce((a, x) => a + x.amount, 0))}</b></div></div>
+  <div class="card"><h3>등록 프랜차이즈 <small>${P.length}개</small></h3>${P.map(f => { const my = L.filter(l => l.posting_id === f.id && thisM(l)); return `<div class="li"><div><b>${esc(f.brand)}</b> <small class="mut">${esc(nm(f.owner_user))}</small><small>${{ draft: '결제 전', active: `게시 중 · ${new Date(f.end_at).toLocaleDateString('ko-KR')}까지`, expired: '만료', paused: '멈춤' }[f.status]} · 추적번호 ${esc(f.tracking_number || '없음')} · 이번 달 유효 ${my.filter(l => l.is_qualified).length} / 무효 ${my.filter(l => !l.is_qualified).length}건 · ₩${E.won(my.reduce((a, l) => a + l.charge_amount, 0))}</small></div><button class="btn sm" data-act="fr-track" data-v="${f.id}">📞 추적번호</button></div>`; }).join('') || '<div class="empty">등록된 프랜차이즈가 없어요</div>'}</div>
+  <div class="card"><h3>이의제기 <small>${L.filter(l => l.status === 'disputed').length}건 대기</small></h3>${L.filter(l => l.status === 'disputed').map(l => `<div class="li"><div><b>${esc(P.find(p => p.id === l.posting_id)?.brand || '')}</b> · ${fmtDT(l.connected_at)} · ${l.duration_seconds}초 · 뒷자리 ${esc(l.caller_tail || '')}<small>사유: ${esc(l.dispute_note || '')}</small></div><span class="row"><button class="btn sm red" data-act="fr-resolve" data-v="${l.id}" data-ok="false" data-r="${esc(l.dispute_note || '')}">무효 · 비용 취소</button><button class="btn sm pri" data-act="fr-resolve" data-v="${l.id}" data-ok="true">유효 유지</button></span></div>`).join('') || '<p class="mut" style="margin:0">대기 중인 이의제기가 없어요</p>'}</div>
+  <div class="card"><h3>통화 기록 넣기 <small>전화 연동사 웹훅이 없을 때 수기 입력</small></h3><form class="f" id="fr-call-form" onsubmit="return false"><div class="grid2"><label class="fl">추적번호<input name="tracking" required placeholder="0507-1234-5678"></label><label class="fl">발신 번호<input name="caller" required placeholder="010-0000-0000"></label><label class="fl">연결 시각<input name="at" type="datetime-local" required value="${new Date(Date.now() - new Date().getTimezoneOffset() * 6e4).toISOString().slice(0, 16)}"></label><label class="fl">통화 시간 (초)<input name="seconds" type="number" min="0" required value="60"></label></div><button class="btn pri full" data-act="fr-logcall">기록하고 판정하기</button></form><p class="note">웹훅 주소: <code>/functions/v1/fr-call-hook</code> · 헤더 x-hook-secret · 본문 {tracking, caller, connected_at, seconds}. 판정: 30초 이상 = 유효, 같은 번호 30일 1회, 한도 초과 시 설정대로.</p></div>
+  <div class="card"><h3>최근 리드 <small>${L.length}건</small></h3><div class="tbl"><table style="min-width:0;font-size:12.5px"><thead><tr><th>브랜드</th><th>일시</th><th class="r">통화</th><th>상태</th><th class="r">비용</th><th></th></tr></thead><tbody>${L.slice(0, 40).map(l => `<tr><td>${esc(P.find(p => p.id === l.posting_id)?.brand || '')}</td><td>${fmtDT(l.connected_at)}</td><td class="r num">${l.duration_seconds}초</td><td><span class="pill ${ST[l.status]?.[0] || ''}">${ST[l.status]?.[1] || l.status}</span></td><td class="r num">${l.charge_amount ? '₩' + E.won(l.charge_amount) : '0'}</td><td>${l.is_qualified ? `<button class="btn sm" data-act="fr-resolve" data-v="${l.id}" data-ok="false" data-r="운영사 확인 · 무효">무효</button>` : ''}</td></tr>`).join('')}</tbody></table></div></div>`;
+}
 function vHqNotice() {
   const dr = S.noticeDraft || NOTICE_DRAFTS[0];
   return `<h1>공지 보내기</h1><p class="sub">보내면 모든 대표·점장에게 알림이 가고, 매장 브리핑 맨 위에 떠요.</p>
@@ -1158,7 +1227,7 @@ function vHqInq() {
 // ===== 시트 =====
 function openSheet(html) { const s = $('#sheet'); s.innerHTML = `<div class="in">${html}</div>`; s.hidden = false; enhanceInputs(s); }
 // 금액: 쉼표 + "13만 5,900원" 읽기 / 휴대폰: 010-0000-0000 / 사업자번호: 000-00-00000 (10자리)
-const MONEY = /^(start_cash|net_fee|cctv_fee|pos_fee|rent_etc|sales|card|transfer|expense|start|pay|taxi|pamt|price|amount|goal|rent|mgmt|elec|water|net|rate)$/;
+const MONEY = /^(invest|fee|edu_fee|interior_est|lead_limit_amt|start_cash|net_fee|cctv_fee|pos_fee|rent_etc|sales|card|transfer|expense|start|pay|taxi|pamt|price|amount|goal|rent|mgmt|elec|water|net|rate)$/;
 const digits = v => String(v ?? '').replace(/[^\d]/g, '');
 const fmtMoney = v => { const d = digits(v); return d ? (+d).toLocaleString('ko-KR') : ''; };
 const readWon = n => { if (!n) return ''; const e = Math.floor(n / 1e8), m = Math.floor(n % 1e8 / 1e4), r = n % 1e4; return [e ? `${e}억` : '', m ? `${m.toLocaleString('ko-KR')}만` : '', r ? r.toLocaleString('ko-KR') : ''].filter(Boolean).join(' ') + '원'; };
@@ -1233,7 +1302,7 @@ document.addEventListener('click', e => {
   if (a === 'onb') { S.onb = d.v || null; render(); }
   if (a === 'close') closeSheet();
   if (a === 'goto') { S.tab = d.t; S.sub = d.s || null; render(); scrollTo(0, 0); }
-  if (a === 'sub') { S.tab = d.v ? 'more' : 'home'; S.sub = d.v || null; closeSheet(); render(); scrollTo(0, 0); if (d.v === 'used') busy(async () => { S.used = await q(sb.from('used_items').select('*').order('created_at', { ascending: false }).limit(100)); render(); }); if (d.v === 'rot') busy(async () => { await loadRot(); render(); }); if (d.v === 'transfer') busy(listingsLoad); if (d.v === 'board') busy(async () => { S.board = await q(sb.rpc('job_board')); render(); }); if (d.v === 'notice') busy(async () => { S.notices = await q(sb.from('notices').select('*').order('created_at', { ascending: false }).limit(30)); try { localStorage.setItem('ev-notice', S.notices[0]?.id || '') } catch { } render(); }); if (d.v === 'edu') busy(loadEdu); if (d.v === 'inq') busy(async () => { S.inq = await q(sb.from('inquiries').select('*').eq('from_user', S.user.id).order('created_at', { ascending: false })); render(); }); }
+  if (a === 'sub') { S.tab = d.v ? 'more' : 'home'; S.sub = d.v || null; closeSheet(); render(); scrollTo(0, 0); if (d.v === 'used') busy(async () => { S.used = await q(sb.from('used_items').select('*').order('created_at', { ascending: false }).limit(100)); render(); }); if (d.v === 'rot') busy(async () => { await loadRot(); render(); }); if (d.v === 'transfer') busy(listingsLoad); if (d.v === 'franchise') busy(frLoad); if (d.v === 'board') busy(async () => { S.board = await q(sb.rpc('job_board')); render(); }); if (d.v === 'notice') busy(async () => { S.notices = await q(sb.from('notices').select('*').order('created_at', { ascending: false }).limit(30)); try { localStorage.setItem('ev-notice', S.notices[0]?.id || '') } catch { } render(); }); if (d.v === 'edu') busy(loadEdu); if (d.v === 'inq') busy(async () => { S.inq = await q(sb.from('inquiries').select('*').eq('from_user', S.user.id).order('created_at', { ascending: false })); render(); }); }
   if (a === 'mon') busy(async () => { S.m += +d.v; if (S.m > 12) { S.m = 1; S.y++; } if (S.m < 1) { S.m = 12; S.y--; } await reload(); });
   if (a === 'stab') { S.staffTab = d.v; render(); }
   if (a === 'empf') { S.empF = d.v; render(); }
@@ -1334,6 +1403,19 @@ document.addEventListener('click', e => {
   if (a === 'exam-del') { examKeep(); S.examDraft.splice(+d.v, 1); examSheet(); return; }
   if (a === 'exam-reset') busy(async () => { await q(sb.from('company_quiz').delete().eq('company_id', S.company.id)); S.cquiz = null; render(); toast('+EV 기본 시험으로 되돌렸어요'); });
   if (a === 'ndraft') { S.noticeDraft = NOTICE_DRAFTS[+d.v]; render(); return; }
+  if (a === 'fr-perm') busy(async () => { await q(sb.rpc('set_franchise_perm', { p_user: d.u, p_on: d.v === 'true' })); await reload(); toast(d.v === 'true' ? '가맹본사 권한을 줬어요' : '권한을 회수했어요'); });
+  if (a === 'fr-open') { frSheet(d.v); return; }
+  if (a === 'fr-lead') busy(() => frLeadSheet(d.v));
+  if (a === 'fr-bill') busy(() => pay('fr_bill', { order: d.v }));
+  if (a === 'fr-dispute') { const note = prompt('어떤 문제였나요? (예: 광고 전화, 잘못 걸린 전화, 같은 사람 반복)'); if (!note) return; busy(async () => { await q(sb.rpc('fr_dispute', { p_lead: d.v, p_note: note })); closeSheet(); toast('이의제기를 보냈어요. 운영사가 확인하면 알려드려요'); }); return; }
+  if (a === 'fr-resolve') busy(async () => { await q(sb.rpc('fr_resolve', { p_lead: d.v, p_valid: d.ok === 'true', p_reason: d.ok === 'true' ? null : (d.r || '운영사 확인 · 무효') })); await reload(); toast(d.ok === 'true' ? '유효로 확정했어요' : '무효 처리하고 비용을 뺐어요'); });
+  if (a === 'fr-track') busy(async () => { const v = prompt('추적 전화번호 (예: 0507-1234-5678)'); if (v == null) return; await q(sb.from('franchise_postings').update({ tracking_number: v.trim() || null }).eq('id', d.v)); await reload(); toast('추적번호를 저장했어요'); });
+  if (a === 'fr-logcall') busy(async () => { const f = $('#fr-call-form'), v = formVals(f); const r = await q(sb.rpc('fr_log_call_hq', { p_tracking: v.tracking, p_caller: v.caller, p_connected_at: new Date(v.at).toISOString(), p_seconds: +v.seconds || 0 })); await reload(); toast(`기록했어요 · ${{ qualified: '유효 리드 ₩50,000', short: '30초 미만 · 과금 없음', duplicate: '30일 내 재통화 · 과금 없음', limit: '한도 초과 · 과금 없음' }[r.status] || r.status}`); });
+  if (a === 'fr-new') { frForm(); return; }
+  if (a === 'fr-edit') { frForm((S.frMine || []).find(x => x.id === d.v) || {}); return; }
+  if (a === 'fr-pay') busy(() => pay('franchise', { post: d.v }));
+  if (a === 'fr-call') { sb.rpc('fr_hit', { p_post: d.v, p_kind: 'click' }).then(() => { }); return; }
+  if (a === 'fr-ask') busy(async () => { await q(sb.from('inquiries').insert({ from_user: S.user.id, store_id: S.store?.id || null, body: `[가맹 상담] ${(S.frList || []).find(x => x.id === d.v)?.brand || ''} 전화 상담 연결 부탁드려요` })); closeSheet(); toast('운영사에 연결을 요청했어요'); });
   if (a === 'feep') { S.feeP = +d.v; render(); return; }
   if (a === 'paypost') busy(() => pay('post', { post: d.p }));
   if (a === 'refund') busy(async () => { const { data, error } = await sb.functions.invoke('pay-refund', { body: { orderId: d.o } }); if (error || !data?.ok) return toast(data?.message || '환불에 실패했어요'); await reload(); toast(`₩${E.won(data.refunded)} 환불했어요`); });
@@ -1366,6 +1448,7 @@ document.addEventListener('change', e => {
   const t = e.target, d = t.dataset;
   if (t.dataset?.uf) { S.uf = { ...(S.uf || { c: '전체', r: '전체', st: '판매중', sort: 'new', min: '', max: '' }), [t.dataset.uf]: t.value }; render(); return; }
   if (t.name === 'photos' && t.files?.length) { const fs = [...(S.upFiles || []), ...[...t.files].map(f => ({ f, url: URL.createObjectURL(f) }))]; if (fs.length > 10) toast('사진은 10장까지예요. 앞의 10장만 올려요'); const keep = formVals(t.form); S.upFiles = fs.slice(0, 10); render(); const nf = $('#used-form'); if (nf) Object.entries(keep).forEach(([k, v]) => { const el = nf.elements[k]; if (el && el.type !== 'checkbox' && el.type !== 'file') el.value = v; }); return; }
+  if ((t.name === 'logo' || t.name === 'image') && t.files?.[0]) { const pv = $(t.name === 'logo' ? '#fr-logo-prev' : '#fr-img-prev'); if (pv) pv.innerHTML = `<img src="${URL.createObjectURL(t.files[0])}" alt="">`; return; }
   if (t.name === 'photo' && t.files?.[0]) { const pv = $('#photo-prev'); if (pv) pv.innerHTML = `<img src="${URL.createObjectURL(t.files[0])}" alt=""><small>다시 누르면 바꿔요</small>`; }
   if (t.closest('#post-form')) feeBox();
   if (t.id === 'store-sel') busy(async () => { S.store = S.stores.find(s => s.id === t.value); await loadStore(); render(); });
@@ -1418,6 +1501,13 @@ document.addEventListener('submit', e => {
       closeSheet(); await reload(); toast('저장했어요. 스케줄·급여에 바로 반영돼요');
     }
     if (f.classList.contains('oship')) { await q(sb.from('orders').update({ courier: v.courier || null, tracking: v.tracking || null, eta: v.eta || null, ...(v.tracking ? { status: '배송 중' } : {}) }).eq('id', f.dataset.o)); await reload(); return toast('배송 정보를 저장했어요. 매장에서 바로 보여요'); }
+    if (id === 'fr-form') {
+      const up = async (name, key) => { const file = f[name]?.files?.[0]; if (!file) return undefined; const path = `${S.user.id}/${Date.now()}_${key}.jpg`; await q(sb.storage.from('franchise').upload(path, await shrink(file), { contentType: 'image/jpeg' })); return sb.storage.from('franchise').getPublicUrl(path).data.publicUrl; };
+      if (!bizOk(v.biz_no)) return toast('사업자번호가 맞지 않아요');
+      const row = { brand: v.brand, corp_name: v.corp_name, biz_no: digits(v.biz_no), ceo: v.ceo, regions: v.regions, invest: +v.invest || 0, fee: +v.fee || 0, edu_fee: +v.edu_fee || 0, interior_est: +v.interior_est || 0, royalty: v.royalty, min_py: +v.min_py || null, address: v.address, homepage: v.homepage || null, phone: v.phone_fr.trim(), kakao: v.kakao || null, video: v.video || null, description: v.description, support: v.support || null, auto_renew: !!v.auto_renew, lead_limit_amt: +v.lead_limit_amt || null, lead_limit_n: +v.lead_limit_n || null, limit_action: v.limit_action };
+      const lg = await up('logo', 'logo'), im = await up('image', 'img'); if (lg) row.logo_url = lg; if (im) row.image_url = im;
+      let pid = f.dataset.id; if (pid) await q(sb.from('franchise_postings').update(row).eq('id', pid)); else pid = (await q(sb.from('franchise_postings').insert(row).select()))[0].id;
+      closeSheet(); await frLoad(); const cur = (S.frMine || []).find(x => x.id === pid); if (cur?.status === 'active') return toast('공고를 고쳤어요'); toast('저장했어요. 결제하면 바로 게시돼요'); return pay('franchise', { post: pid }); }
     if (id === 'notice-form') { await q(sb.from('notices').insert({ title: v.title.trim(), body: v.body.trim() })); S.notices = await q(sb.from('notices').select('*').order('created_at', { ascending: false }).limit(30)); render(); return toast('모든 매장에 공지를 보냈어요'); }
     if (id === 'equip-form') { const eq = {}; EQ.forEach(([k, , t]) => { const x = v[k]; if (x === undefined || x === '') return; eq[k] = typeof t === 'string' && t !== 'm' ? +x || 0 : x; }); await q(sb.from('stores').update({ equip: eq }).eq('id', S.store.id)); S.store.equip = eq; render(); return toast('저장했어요. 줄일 방법을 다시 계산했어요'); }
     if (f.classList.contains('pedit')) {
