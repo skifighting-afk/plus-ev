@@ -78,3 +78,15 @@ body.busy{cursor:progress}body.busy .btn{pointer-events:none;opacity:.7}
 h2.band{margin:22px 0 0;display:flex;justify-content:space-between;align-items:baseline}h2.band small{font-size:13px}
 .bar2{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;height:100%}.bar2>div{flex:1;display:flex;align-items:flex-end;gap:3px;width:100%;justify-content:center}.bar2 i{width:38%;max-width:26px;background:var(--s2);border-radius:5px 5px 2px 2px}.bar2 i.g{background:var(--green)}.bar2 small{font-size:11px;color:var(--muted)}
 .paywall{position:relative;margin-top:12px}.blurme{filter:blur(7px);pointer-events:none;user-select:none;opacity:.7}.paywall .over{position:absolute;inset:0;display:grid;place-items:center;padding:12px}.paywall .over .card{max-width:420px;text-align:center;box-shadow:0 10px 40px rgba(0,0,0,.5)}
+/* 테이블 로테이션 */
+.floor-wrap{overflow-x:auto}.floor{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:5px}
+.fcell{border:1px dashed var(--line);border-radius:10px;opacity:.5}.fcell[data-act]{cursor:pointer;opacity:1}
+.ftable{position:relative;border-radius:40px;background:radial-gradient(ellipse at center,#15563f 60%,#0f3d2d);border:3px solid #3b2a18;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;cursor:pointer;padding:4px}
+.ftable.off{filter:grayscale(.7);opacity:.7}.ftable .t{font-size:11px;font-weight:700;color:#d1fae5}.sel{outline:3px solid var(--gold);outline-offset:2px}
+.counter{border-radius:10px;background:var(--card2);border:1px solid var(--line2);display:grid;place-items:center;font-size:12px;color:var(--muted);cursor:pointer}
+.dchip{display:inline-flex;flex-direction:column;align-items:center;border:2px solid var(--line2);background:var(--card);border-radius:10px;padding:3px 9px;font-size:12px;font-weight:700;cursor:grab;color:var(--text);margin:2px}
+.dchip small{font-size:10.5px;color:var(--muted);font-family:Manrope}.dchip.due{border-color:var(--red);box-shadow:0 0 0 2px rgba(239,68,68,.35)}.dchip.picked{border-color:var(--gold);background:rgba(245,158,11,.15)}.dchip.dim{opacity:.55}
+.zone{margin-top:10px;border:1px dashed var(--line2);border-radius:12px;padding:10px;cursor:pointer}.zone>div{margin-top:6px;display:flex;flex-wrap:wrap}
+/* 마감·발주 */
+.bills{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}#close-out{display:grid}
+.shop{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}.sitem{border:1px solid var(--line);border-radius:12px;padding:10px;display:grid;gap:3px}.sitem .btn{margin-top:6px}

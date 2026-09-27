@@ -10,13 +10,13 @@ const fmtDT = d => new Date(d).toLocaleString('ko-KR', { month: 'numeric', day: 
 const man = n => `${E.won(n / 10000)}만`;
 function toast(m) { const t = $('#toast'); t.textContent = m; t.classList.add('on'); clearTimeout(toast.h); toast.h = setTimeout(() => t.classList.remove('on'), 2800); }
 async function q(p) { const { data, error } = await p; if (error) { toast(error.message); throw error; } return data; }
-const STORE_COLS = 'id,company_id,name,area,address,pyeong,tables,night_start,night_end,need_by_wd,join_code,created_at';
+const STORE_COLS = 'id,company_id,name,area,address,pyeong,tables,layout,night_start,night_end,need_by_wd,join_code,created_at';
 const PRICE = { basic: 25000, pro: 35000 };
 const CAT = { rent: '임대료', elec: '전기세', water: '수도세', net: '통신·보안', goods: '음료·소모품', card: '카드 수수료', labor: '기타 인건비', etc: '기타' };
 const SLOT = { OPEN: ['', '모집 중'], MATCHED: ['y', '채용 확정'], WORKING: ['g', '근무 중'], DONE: ['y', '근무 끝 · 확인 대기'], DISPUTED: ['r', '문제 신고 · 운영사 확인'], PAID: ['g', '지급 완료'], REFUND: ['', '미채용 환불'] };
 
 // ===== 상태 =====
-const S = { user: null, prof: null, mode: null, tab: null, sub: null, company: null, stores: [], store: null, members: [], tpl: [], ov: [], reports: [], hist: [], expenses: [], expAll: [], inc: [], joins: [], rank: null,
+const S = { user: null, prof: null, mode: null, tab: null, sub: null, company: null, stores: [], store: null, members: [], tpl: [], ov: [], reports: [], hist: [], expenses: [], expAll: [], inc: [], joins: [], rank: null, cart: {}, stock: [], orders: [],
   y: now.getFullYear(), m: now.getMonth() + 1, schedView: 'month', posts: [], board: [], tickets: 0, apps: [], slots: [], wallet: { balance: 0, available: 0 }, notis: [], inq: [], used: [], authMode: 'login', my: [] };
 const night = () => [t5(S.store?.night_start || '22:00'), t5(S.store?.night_end || '06:00')];
 const isOwner = () => S.myRole === 'owner';
@@ -59,6 +59,8 @@ async function loadStore() {
   S.rank = (await q(sb.rpc('store_rank', { p_store: st, p_from: first, p_to: last })))?.[0] || null;
   S.notis = await q(sb.from('notifications').select('*').order('created_at', { ascending: false }).limit(20));
   S.quests = await q(sb.from('store_quests').select('*').eq('store_id', st));
+  S.stock = await q(sb.from('stock').select('*').eq('store_id', st).order('item_id'));
+  S.orders = await q(sb.from('orders').select('*').eq('store_id', st).order('created_at', { ascending: false }).limit(30));
   await syncMetrics(); S.bench = await q(sb.rpc('bench', { p_store: st }));
 }
 // 이번 달·지난달 내 숫자를 익명 비교용으로 올림 (다른 매장은 평균만 받음)
@@ -94,6 +96,7 @@ async function loadHQ() {
   S.companies = await q(sb.from('companies').select('*').order('created_at', { ascending: false }));
   S.inq = await q(sb.from('inquiries').select('*').order('created_at', { ascending: false }).limit(100));
   S.hqProfiles = await q(sb.from('profiles').select('id,name,kind'));
+  S.hqOrders = await q(sb.from('orders').select('*').order('created_at', { ascending: false }).limit(50));
 }
 const payOf = p => E.payroll(p, S.y, S.m, S.tpl, S.ov, S.inc.filter(i => i.member_id === p.id).reduce((a, i) => a + i.amount, 0), TODAY, night());
 const laborOf = (y, m) => S.members.filter(p => p.role !== 'owner').reduce((a, p) => { const r = E.payroll(p, y, m, S.tpl, S.ov, 0, TODAY, night()); return a + r.fullGross * (p.contract === '4대' ? 1.105 : 1); }, 0);
@@ -117,6 +120,8 @@ function render() {
     hq: () => ({ dash: vHqDash, stores: vHqStores, data: vHqData, inq: vHqInq }[S.tab] || vHqDash)() };
   view.innerHTML = (V[S.mode] || vAuth)();
   if (S.mode === 'store' && S.tab === 'more' && S.sub === 'qr') startQR();
+  if (S.mode === 'store' && S.tab === 'more' && S.sub === 'rot' && S.rot) rotTick();
+  if (S.mode === 'store' && S.tab === 'sales') closeCalc();
   if (S.mode === 'store' && S.tab === 'jobs') feeBox();
 }
 
@@ -302,6 +307,92 @@ function vImprove() {
     ${staff.map(x => `<tr><td><b>${esc(x.p.nick)}</b> <small class="mut">${esc(x.p.job_role)}</small></td><td class="r num">${E.won(x.p.hourly_rate)}</td><td class="r num mut">${E.won(x.avg)}</td><td class="r num">${x.h.toFixed(0)}h</td><td class="r num ${x.mon > 0 ? 'down' : 'up'}">${x.mon > 0 ? '+' : ''}₩${E.won(x.mon)}</td></tr>`).join('')}</tbody></table></div>
     <p class="note">빨간색은 평균보다 비싼 사람이에요. 비싸다고 나쁜 건 아니에요 — 경력·실력이 좋으면 금·토 피크 시간에 배치하세요.</p></div>` : ''}`;
 }
+// ===== 테이블 로테이션 =====
+const MIN = 60000, mmss = ms => { const s = Math.max(0, Math.floor(ms / 1000)); return `${Math.floor(s / 60)}:${E.pad(s % 60)}`; };
+function defaultLayout(n) { n = Math.max(1, Math.min(24, +n || 6)); const L = []; for (let i = 0; i < n; i++) L.push({ id: 'T' + (i + 1), x: (i % 4) * 2, y: Math.floor(i / 4), w: 2 }); L.push({ id: 'C', x: 6, y: Math.ceil(n / 4), w: 2, counter: true }); return L; }
+const rotState = () => S.rot || (S.rot = { t: {}, brk: [], deal: 40, rest: 15 });
+const nickOf = id => S.members.find(m => m.id === id)?.nick || '?';
+async function loadRot() {
+  const r = await q(sb.from('store_rotation').select('state').eq('store_id', S.store.id).maybeSingle());
+  S.rot = { t: {}, brk: [], deal: 40, rest: 15, ...(r?.state || {}) }; S.layout = S.store.layout || defaultLayout(S.store.tables);
+}
+// ponytail: 마지막 저장이 이김(동시에 두 기기에서 바꾸면 늦은 쪽 기준). 여러 명이 동시에 쓰면 실시간 구독으로 바꾸기
+const saveRot = () => q(sb.from('store_rotation').upsert({ store_id: S.store.id, state: S.rot, updated_at: new Date().toISOString() }));
+function rotMove(mid, to) {
+  const R = rotState(), nowT = Date.now();
+  for (const k in R.t) if (R.t[k]?.m === mid) delete R.t[k];
+  R.brk = R.brk.filter(b => b.m !== mid);
+  if (to === 'BREAK') R.brk.push({ m: mid, since: nowT });
+  else if (to && to !== 'OFF') { const cur = R.t[to]; if (cur) R.brk.push({ m: cur.m, since: nowT }); R.t[to] = { m: mid, since: nowT }; }
+}
+function rotAuto() {
+  const R = rotState(), nowT = Date.now(), due = Object.entries(R.t).filter(([, v]) => nowT - v.since >= R.deal * MIN).sort((a, b) => a[1].since - b[1].since);
+  let n = 0; for (const [tid] of due) { const ready = R.brk.filter(b => nowT - b.since >= R.rest * MIN).sort((a, b) => a.since - b.since)[0]; if (!ready) break; rotMove(ready.m, tid); n++; }
+  return n;
+}
+function vRot() {
+  const R = rotState(), L = S.layout, rows = Math.max(3, ...L.map(i => i.y + 1)), nowT = Date.now(), edit = S.editLayout;
+  const [y, m, d] = TODAY.split('-').map(Number), dealers = S.members.filter(p => p.role !== 'owner'), busy = new Set([...Object.values(R.t).map(v => v.m), ...R.brk.map(b => b.m)]);
+  const today = dealers.filter(p => E.shiftOn(p.id, y, m, d, S.tpl, S.ov)), pool = dealers.filter(p => !busy.has(p.id)).sort((a, b) => today.includes(b) - today.includes(a));
+  const chip = (mid, since, lim) => `<button class="dchip ${nowT - since >= lim * MIN ? 'due' : ''} ${S.pick === mid ? 'picked' : ''}" draggable="true" data-act="pick" data-m="${mid}"><span>${esc(nickOf(mid))}</span><small data-since="${since}" data-lim="${lim}">${mmss(nowT - since)}</small></button>`;
+  const occ = {}; L.forEach(it => { for (let k = 0; k < it.w; k++) occ[`${it.x + k},${it.y}`] = 1; });
+  let cells = ''; for (let yy = 0; yy < rows + (edit ? 1 : 0); yy++) for (let xx = 0; xx < 8; xx++) if (!occ[`${xx},${yy}`]) cells += `<div class="fcell" ${edit ? `data-act="cell" data-v="${xx},${yy}"` : ''} style="grid-column:${xx + 1};grid-row:${yy + 1}"></div>`;
+  const items = L.map(it => { const pos = `grid-column:${it.x + 1}/span ${it.w};grid-row:${it.y + 1}`, sel = S.selItem === it.id ? 'sel' : '';
+    if (it.counter) return `<div class="counter ${sel}" ${edit ? `data-act="item" data-v="C"` : ''} style="${pos}">카운터</div>`;
+    const v = R.t[it.id]; return `<div class="ftable ${v ? '' : 'off'} ${sel}" data-act="${edit ? 'item' : 'drop'}" data-v="${it.id}" style="${pos}"><span class="t">${it.id}</span>${v && !edit ? chip(v.m, v.since, R.deal) : ''}</div>`; }).join('');
+  const dueN = Object.values(R.t).filter(v => nowT - v.since >= R.deal * MIN).length;
+  return `${storeHead('테이블 로테이션')}<button class="btn sm" data-act="sub" data-v="">← 더보기</button>
+  <div class="grid2"><div class="card kpi"><div class="l">딜링 중</div><div class="v num">${Object.keys(R.t).length}명</div></div><div class="card kpi"><div class="l">휴식 중</div><div class="v num">${R.brk.length}명</div></div>
+    <div class="card kpi"><div class="l">교대할 사람</div><div class="v num ${dueN ? 'down' : 'up'}">${dueN}명</div></div>
+    <div class="card"><div class="l mut" style="font-size:12px">교대 시간 (분)</div><div class="row" style="margin-top:6px;flex-wrap:nowrap"><label class="fl" style="flex:1">딜링<input type="number" min="5" step="5" value="${R.deal}" data-rot="deal"></label><label class="fl" style="flex:1">휴식<input type="number" min="5" step="5" value="${R.rest}" data-rot="rest"></label></div></div></div>
+  <div class="card"><h3>매장 테이블 <span class="row">${edit ? '<button class="btn sm" data-act="lay-add">+ 테이블</button><button class="btn sm red" data-act="lay-del">선택 삭제</button><button class="btn sm pri" data-act="lay-save">배치 저장</button>' : `${dueN ? '<button class="btn sm gold" data-act="rot-auto">⟳ 자동 교대</button>' : ''}<button class="btn sm" data-act="lay-edit">배치 편집</button>`}</span></h3>
+    <p class="note" style="margin-top:0">${edit ? '테이블이나 카운터를 누른 뒤 옮길 빈칸을 누르세요.' : `딜러를 누르고 테이블을 누르면 앉아요 (끌어다 놓아도 돼요). <b class="down">빨간 테두리</b>는 ${R.deal}분이 지나 교대할 사람이에요.`}</p>
+    <div class="floor-wrap"><div class="floor" style="grid-template-rows:repeat(${rows + (edit ? 1 : 0)},64px)">${cells}${items}</div></div>
+    ${edit ? '' : `<div class="zone" data-act="drop" data-v="BREAK"><b>☕ 휴식 · 대기 (${R.rest}분)</b><div>${R.brk.map(b => chip(b.m, b.since, R.rest)).join('') || '<small class="mut">여기로 옮기면 휴식 시간이 재져요</small>'}</div></div>
+    <div class="zone" data-act="drop" data-v="OFF"><b>🙋 출근 전·대기 명단</b> <small class="mut">오늘 스케줄 있는 사람 먼저</small><div>${pool.map(p => `<button class="dchip ${S.pick === p.id ? 'picked' : ''} ${today.includes(p) ? '' : 'dim'}" draggable="true" data-act="pick" data-m="${p.id}"><span>${esc(p.nick)}</span><small>${esc(p.job_role || '')}</small></button>`).join('') || '<small class="mut">모두 배치됐어요</small>'}</div></div>`}</div>`;
+}
+function rotTick() { clearInterval(S.rotTimer); S.rotTimer = setInterval(() => { const els = document.querySelectorAll('[data-since]'); if (!els.length) return clearInterval(S.rotTimer); const nowT = Date.now(); els.forEach(el => { const ms = nowT - +el.dataset.since; el.textContent = mmss(ms); el.closest('.dchip')?.classList.toggle('due', ms >= +el.dataset.lim * MIN); }); }, 1000); }
+
+// ===== 재고·발주 =====
+const SHOP = [{ id: 1, c: 'drink', n: '캔 콜라 245ml', u: '30캔', p: 21000, sp: 18900 }, { id: 2, c: 'drink', n: '캔 사이다 245ml', u: '30캔', p: 20000, sp: 17900 }, { id: 3, c: 'drink', n: '에너지드링크 250ml', u: '24캔', p: 42000, sp: 37800 }, { id: 4, c: 'drink', n: '생수 500ml', u: '20병', p: 8900, sp: 7900 }, { id: 5, c: 'drink', n: '음료 디스펜서 시럽', u: '5L', p: 38000, sp: 33000 },
+  { id: 6, c: 'alc', n: '생맥주 20L 케그', u: '1통', p: 89000, sp: 82000 }, { id: 7, c: 'alc', n: '병맥주 330ml', u: '24병', p: 36000, sp: 32400 },
+  { id: 8, c: 'snack', n: '감자칩 대용량', u: '12봉', p: 28000, sp: 24500 }, { id: 9, c: 'snack', n: '믹스너트 1kg', u: '1봉', p: 21000, sp: 18500 }, { id: 10, c: 'snack', n: '팝콘 업소용', u: '10봉', p: 16000, sp: 13900 },
+  { id: 11, c: 'supply', n: '플라스틱 카드 12덱', u: '1박스', p: 186000, sp: 149000 }, { id: 12, c: 'supply', n: '세라믹 칩 500pcs', u: '1세트', p: 420000, sp: 339000 }, { id: 13, c: 'supply', n: '딜러 조끼', u: '1벌', p: 39000, sp: 29000 }, { id: 14, c: 'supply', n: '맞춤 테이블 펠트', u: '1장', p: 260000, sp: 210000 }];
+const SHOP_CAT = { drink: '음료', snack: '간식', supply: '소모품', alc: '주류' }, BILLS = [50000, 10000, 5000, 1000, 500, 100];
+const item = id => SHOP.find(p => p.id === +id);
+const restockQty = s => Math.max(1, Math.ceil(s.min * 2 - s.qty));
+function stockCard() {
+  const low = S.stock.filter(s => s.qty < s.min), missing = SHOP.filter(p => !S.stock.some(s => s.item_id === p.id));
+  return `<div class="card"><h3>재고 <small>남은 수량만 고쳐주세요</small></h3>
+    ${low.length ? `<div class="promo" style="background:rgba(239,68,68,.08)"><span>부족한 품목 <b class="down">${low.length}개</b></span><button class="btn sm gold" data-act="restock-all">한 번에 발주 담기</button></div>` : ''}
+    ${S.stock.length ? `<div class="tbl"><table style="min-width:0"><thead><tr><th>품목</th><th class="r">남은 수량</th><th class="r">적정</th><th class="r">버틸 날</th><th></th></tr></thead><tbody>
+    ${S.stock.map(s => { const p = item(s.item_id), days = s.use_per_day ? Math.floor(s.qty / s.use_per_day) : 99; return `<tr><td><b>${esc(p?.n)}</b><br><small class="mut">${esc(p?.u)} 단위</small></td><td class="r"><input type="number" min="0" step="0.5" data-stock="${s.item_id}" value="${+s.qty}" style="width:64px;padding:6px"></td><td class="r"><input type="number" min="0" step="0.5" data-stockmin="${s.item_id}" value="${+s.min}" style="width:56px;padding:6px"></td><td class="r num ${days <= 2 ? 'down' : ''}">${days > 30 ? '충분' : days + '일'}</td><td>${s.qty < s.min ? `<button class="btn sm" data-act="cart" data-v="${s.item_id}" data-n="${restockQty(s)}">담기</button>` : '<span class="pill g">충분</span>'}</td></tr>`; }).join('')}</tbody></table></div>` : '<p class="mut" style="margin:0 0 8px">관리할 품목을 추가하세요.</p>'}
+    ${missing.length ? `<div class="row" style="margin-top:10px"><select id="stock-add" style="flex:1">${missing.map(p => `<option value="${p.id}">${esc(p.n)} (${esc(p.u)})</option>`).join('')}</select><button class="btn sm" data-act="stock-add">품목 추가</button></div>` : ''}
+    <p class="note">버틸 날은 하루 평균 쓰는 양으로 계산해요. 적정 수량보다 적으면 발주에 담을 수 있어요.</p></div>`;
+}
+function closeCalc() {
+  const f = $('#report-form'); if (!f) return; const v = n => +f.elements[n]?.value || 0, counted = BILLS.reduce((a, b) => a + b * v('b' + b), 0), cashSales = v('sales') - v('card') - v('transfer'), expected = v('start') + cashSales - v('expense'), diff = counted - expected, any = BILLS.some(b => f.elements['b' + b].value !== '');
+  $('#close-out').innerHTML = `<div class="li"><span class="mut">현금 매출 (매출 − 카드 − 이체)</span><span class="num">₩${E.won(cashSales)}</span></div><div class="li"><span class="mut">금고에 있어야 할 돈</span><span class="num">₩${E.won(expected)}</span></div>
+    ${any ? `<div class="li"><span class="mut">센 돈</span><span class="num">₩${E.won(counted)}</span></div><div class="li"><b>차액</b><b class="num ${Math.abs(diff) >= 10000 ? 'down' : diff ? 'warn' : 'up'}">${diff ? (diff > 0 ? '+' : '−') + '₩' + E.won(Math.abs(diff)) : '딱 맞아요'}</b></div>${Math.abs(diff) >= 10000 ? '<p class="note down" style="margin:0">1만 원 넘게 차이 나요. 저장하면 대표님께 알림이 가요.</p>' : ''}` : '<p class="note" style="margin:0">금고 현금을 세서 장수를 넣으면 차액을 계산해요.</p>'}`;
+  f.dataset.diff = any ? diff : ''; f.dataset.cash = cashSales;
+}
+function vOrder() {
+  const cart = Object.entries(S.cart).filter(([, n]) => n > 0).map(([id, n]) => ({ ...item(id), q: n })), pay = cart.filter(i => i.c !== 'alc'), alc = cart.filter(i => i.c === 'alc'), tot = pay.reduce((a, i) => a + i.sp * i.q, 0);
+  const freq = {}; S.orders.forEach(o => o.items.forEach(i => freq[i.id] = (freq[i.id] || 0) + 1)); const fav = Object.entries(freq).sort((a, b) => b[1] - a[1]).slice(0, 4).map(([id]) => item(id)).filter(Boolean);
+  return `${storeHead('발주')}<button class="btn sm" data-act="sub" data-v="">← 더보기</button>
+  <div class="card"><h3>이렇게 주문돼요</h3><div class="li"><div><b>1. 담고 주문 요청</b><small>+EV가 파트너 도매처에 한 번에 넣어요</small></div></div><div class="li"><div><b>2. 확인 연락</b><small>운영사가 재고·배송일을 확인해 알림으로 알려드려요</small></div></div><div class="li"><div><b>3. 도착</b><small>상태가 바뀔 때마다 알림이 가요</small></div></div>
+    <p class="note">앱 안 결제(토스)는 정식 오픈 때 붙어요. 지금은 주문 요청 후 운영사가 결제 방법을 안내해요. 가격은 파트너 계약 전 예시 가격이에요.</p></div>
+  <div class="card"><label class="tog"><span><b>🧾 세금계산서 발행</b><small>사업자 번호로 전자세금계산서를 발행해 드려요</small></span><input type="checkbox" id="tax-inv" ${S.taxInv !== false ? 'checked' : ''}></label></div>
+  ${fav.length ? `<div class="card"><h3>자주 주문한 상품</h3><div class="row">${fav.map(p => `<button class="btn sm" data-act="cart" data-v="${p.id}">↻ ${esc(p.n)}</button>`).join('')}</div></div>` : ''}
+  <div class="card"><h3>상품</h3><div class="seg" style="margin-bottom:10px">${Object.entries(SHOP_CAT).map(([k, l]) => `<button data-act="scat" data-v="${k}" aria-pressed="${(S.shopCat || 'drink') === k}">${l}</button>`).join('')}</div>
+    <div class="shop">${SHOP.filter(p => p.c === (S.shopCat || 'drink')).map(p => `<div class="sitem"><small class="mut">+EV 파트너</small><b>${esc(p.n)}</b><small class="mut">${esc(p.u)}</small><div><s class="mut num" style="font-size:12px">₩${E.won(p.p)}</s> <b class="num up">₩${E.won(p.sp)}</b></div><button class="btn sm" data-act="cart" data-v="${p.id}">담기${S.cart[p.id] ? ` (${S.cart[p.id]})` : ''}</button></div>`).join('')}</div>
+    ${(S.shopCat || 'drink') === 'alc' ? '<p class="note">주류는 법상 면허 있는 도매업체만 팔 수 있어요. +EV는 주문만 대신 넣어주고, 결제는 도매업체로 바로 가요.</p>' : ''}</div>
+  <div class="card"><h3>주문서</h3>${cart.length ? `${pay.map(i => `<div class="li"><span>${esc(i.n)} <span class="row" style="display:inline-flex;gap:4px"><button class="btn sm" data-act="cart" data-v="${i.id}" data-n="-1">−</button><b class="num">${i.q}</b><button class="btn sm" data-act="cart" data-v="${i.id}">+</button></span></span><span class="num">₩${E.won(i.sp * i.q)}</span></div>`).join('')}
+    ${tot ? `<div class="li"><b>+EV 주문 합계</b><b class="num">₩${E.won(tot)}</b></div>` : ''}
+    ${alc.length ? `<small class="mut">주류 · 도매업체 직접 결제</small>${alc.map(i => `<div class="li"><span>${esc(i.n)} × ${i.q} <button class="btn sm" data-act="cart" data-v="${i.id}" data-n="-1">−</button></span><span class="num">₩${E.won(i.sp * i.q)}</span></div>`).join('')}` : ''}
+    <button class="btn pri full" data-act="order" style="margin-top:12px">주문 요청하기</button>` : '<p class="mut" style="margin:0">담은 상품이 없어요.</p>'}</div>
+  <div class="card"><h3>주문 기록</h3>${S.orders.map(o => `<div class="li"><div><b>${o.items.map(i => `${esc(item(i.id)?.n)}×${i.q}`).join(', ')}</b><small>${fmtDT(o.created_at)} · ₩${E.won(o.total)}</small></div><span class="pill ${o.status === '도착' ? 'g' : 'y'}">${esc(o.status)}</span></div>`).join('') || '<div class="empty">아직 주문이 없어요</div>'}</div>`;
+}
 function vSched() {
   const need = S.store.need_by_wd || [3, 4, 3, 4, 6, 7, 2], D = E.daysIn(S.y, S.m), lead = E.wdOf(S.y, S.m, 1), staff = S.members.filter(p => p.role !== 'owner');
   if (!staff.length) return `${storeHead('스케줄')}<div class="card empty">먼저 직원을 등록해 주세요 <button class="btn sm pri" data-tab="staff">직원 등록</button></div>`;
@@ -339,12 +430,15 @@ function vSales() {
     <label class="fl">날짜<input type="date" name="date" value="${TODAY}" max="${TODAY}"></label>
     <div class="grid2"><label class="fl">총매출 (원)<input name="sales" type="number" inputmode="numeric" required value="${r0.sales ?? ''}"></label><label class="fl">엔트리 수<input name="entries" type="number" value="${r0.entries ?? ''}"></label>
     <label class="fl">카드<input name="card" type="number" value="${r0.card ?? ''}"></label><label class="fl">계좌이체<input name="transfer" type="number" value="${r0.transfer ?? ''}"></label>
-    <label class="fl">현금<input name="cash" type="number" value="${r0.cash ?? ''}"></label><label class="fl">오늘 지출 (소모품 등)<input name="expense" type="number" value="${r0.expense ?? ''}"></label></div>
-    <label class="fl">메모<input name="memo" value="${esc(r0.memo || '')}"></label><button class="btn pri full">저장</button></form>
+    <label class="fl">현금으로 쓴 돈 (소모품 등)<input name="expense" type="number" value="${r0.expense ?? ''}"></label><label class="fl">시작 시재 (영업 전 금고)<input name="start" type="number" step="10000" value="${S.lastStart ?? 300000}"></label></div>
+    <small class="mut">금고 현금 세기 · 장수만 넣으세요</small><div class="bills">${BILLS.map(b => `<label class="fl">${E.won(b)}원<input name="b${b}" type="number" min="0" inputmode="numeric"></label>`).join('')}</div>
+    <div id="close-out"></div>
+    <label class="fl">메모<input name="memo" value="${esc(r0.memo || '')}" placeholder="차액이 있으면 이유를 적어주세요"></label><button class="btn pri full">보고하고 마감하기</button></form>
+  ${stockCard()}
   <form class="f card" id="expense-form"><h3>고지서·기타 비용 <small>계산서·월간 손익에 들어가요</small></h3>
     <div class="grid2"><label class="fl">항목<select name="cat">${Object.entries(CAT).filter(([k]) => k !== 'card').map(([v, l]) => `<option value="${v}">${l}</option>`).join('')}</select></label><label class="fl">금액 (원)<input name="amount" type="number" required></label></div>
     <label class="fl">날짜<input type="date" name="date" value="${TODAY}"></label><button class="btn full">비용 추가</button></form>
-  <div class="card"><h3>${S.m}월 보고 기록 <small>${S.reports.length}일</small></h3>${S.reports.map(r => `<div class="li"><div><b>${r.report_date.slice(5).replace('-', '/')}</b><small>엔트리 ${r.entries ?? '-'} · 카드 ${E.won(r.card)} · 현금 ${E.won(r.cash)}${r.memo ? ' · ' + esc(r.memo) : ''}</small></div><b class="num">₩${E.won(r.sales)}</b></div>`).join('') || '<div class="empty">아직 기록이 없어요</div>'}</div>
+  <div class="card"><h3>${S.m}월 보고 기록 <small>${S.reports.length}일</small></h3>${S.reports.map(r => `<div class="li"><div><b>${r.report_date.slice(5).replace('-', '/')}</b><small>엔트리 ${r.entries ?? '-'} · 카드 ${E.won(r.card)} · 현금 ${E.won(r.cash)}${r.cash_diff ? ` · <span class="${Math.abs(r.cash_diff) >= 10000 ? 'down' : 'warn'}">금고 ${r.cash_diff > 0 ? '+' : '−'}${E.won(Math.abs(r.cash_diff))}</span>` : r.cash_diff === 0 ? ' · 금고 딱 맞음' : ''}${r.memo ? ' · ' + esc(r.memo) : ''}</small></div><b class="num">₩${E.won(r.sales)}</b></div>`).join('') || '<div class="empty">아직 기록이 없어요</div>'}</div>
   <div class="card"><h3>${S.m}월 비용 <small>${S.expenses.length}건</small></h3>${S.expenses.map(x => `<div class="li"><div><b>${CAT[x.category] || x.category}</b><small>${x.spent_on} · ${x.source === 'close' ? '마감 지출' : '직접 입력'}</small></div><span class="row"><span class="num">₩${E.won(x.amount)}</span><button class="btn sm" data-act="exp-del" data-id="${x.id}">삭제</button></span></div>`).join('') || '<div class="empty">비용 기록이 없어요</div>'}</div>`;
 }
 function vStaff() {
@@ -418,7 +512,7 @@ async function manage(postId, kind) {
 }
 function vMore() {
   const sub = S.sub;
-  if (!sub) return `${storeHead('더보기')}<div class="card menu">${[['improve', '✦', '매장 개선', '우리 매장 순위 · 경고등 · 매달 처방 · 퀘스트'], ['pnl', '📈', '월간 손익', '매달 매출·인건비·비용·남는 돈'], ['qr', '📍', '출퇴근 코드', '카운터 화면에 띄워두세요'], ['settings', '⚙️', '매장 설정', '요금제 · 매장 정보 · 매장 추가'], ['inq', '💬', '운영사 문의', '궁금한 점을 보내면 답해드려요'], ['used', '🔁', '중고 장터', '홀덤펍끼리 사고팔기'], ...(isOwner() ? [['transfer', '🤝', '점포 양도양수', '대표님만 보여요']] : [])].map(([k, i, t, d]) => `<button class="mi" ${k === 'improve' ? 'data-tab="improve"' : `data-act="sub" data-v="${k}"`}><span>${i}</span><span><b>${t}</b><small>${d}</small></span><span>›</span></button>`).join('')}</div>`;
+  if (!sub) return `${storeHead('더보기')}<div class="card menu">${[['improve', '✦', '매장 개선', '우리 매장 순위 · 경고등 · 매달 처방 · 퀘스트'], ['rot', '🔄', '테이블 로테이션', '딜러 교대·휴식 타이머'], ['order', '📦', '발주', '음료·간식·홀덤 소모품 주문'], ['pnl', '📈', '월간 손익', '매달 매출·인건비·비용·남는 돈'], ['qr', '📍', '출퇴근 코드', '카운터 화면에 띄워두세요'], ['settings', '⚙️', '매장 설정', '요금제 · 매장 정보 · 매장 추가'], ['inq', '💬', '운영사 문의', '궁금한 점을 보내면 답해드려요'], ['used', '🔁', '중고 장터', '홀덤펍끼리 사고팔기'], ...(isOwner() ? [['transfer', '🤝', '점포 양도양수', '대표님만 보여요']] : [])].map(([k, i, t, d]) => `<button class="mi" ${k === 'improve' ? 'data-tab="improve"' : `data-act="sub" data-v="${k}"`}><span>${i}</span><span><b>${t}</b><small>${d}</small></span><span>›</span></button>`).join('')}</div>`;
   const back = `<button class="btn sm" data-act="sub" data-v="">← 더보기</button>`;
   if (sub === 'pnl') {
     const months = Array.from({ length: 6 }, (_, i) => { const dt = new Date(S.y, S.m - 6 + i, 1); return [dt.getFullYear(), dt.getMonth() + 1]; }).map(([yy, mm]) => ({ yy, mm, s: monthSummary(yy, mm) }));
@@ -448,6 +542,8 @@ function vMore() {
     <div class="card"><h3>사업자 정보</h3><div class="li"><span>사업자등록번호</span><span class="num">${esc((c.biz_no || '').replace(/(\d{3})(\d{2})(\d{5})/, '$1-$2-$3'))}</span></div><div class="li"><span>확인 상태</span><span class="pill ${c.biz_verified ? 'g' : 'y'}">${c.biz_verified ? '확인 완료' : '운영사 확인 중'}</span></div></div>` : ''}`;
   }
   if (sub === 'inq') return `${storeHead('운영사 문의')}${back}${inqBlock()}`;
+  if (sub === 'rot') return S.rot ? vRot() : `${storeHead('테이블 로테이션')}<div class="boot">불러오는 중…</div>`;
+  if (sub === 'order') return vOrder();
   if (sub === 'used') return `${storeHead('중고 장터')}${back}${usedBlock()}`;
   if (sub === 'transfer') return `${storeHead('점포 양도양수')}${back}${transferBlock()}`;
   return '';
@@ -535,7 +631,8 @@ function vHqDash() {
   const st = S.stats || [], sales = st.reduce((a, x) => a + +x.sales, 0), open = (S.inq || []).filter(x => !x.reply).length;
   return `<h1>운영사</h1><p class="sub">${S.y}년 ${S.m}월</p><div class="grid2"><div class="card kpi"><div class="l">입점 매장</div><div class="v num">${st.length}곳</div></div><div class="card kpi"><div class="l">사업자 확인 대기</div><div class="v num warn">${(S.companies || []).filter(c => !c.biz_verified).length}곳</div></div>
   <div class="card kpi"><div class="l">이번 달 매장 매출 합계</div><div class="v num">₩${man(sales)}</div></div><div class="card kpi"><div class="l">답변 대기 문의</div><div class="v num ${open ? 'down' : ''}">${open}건</div></div></div>
-  <div class="card"><h3>요금제 현황</h3>${['trial', 'basic', 'pro'].map(k => `<div class="li"><span>${{ trial: '무료 체험', basic: '베이직', pro: '프로' }[k]}</span><b class="num">${(S.companies || []).filter(c => c.plan === k).length}곳</b></div>`).join('')}<p class="note">예상 월 구독 매출 ₩${E.won((S.companies || []).reduce((a, c) => a + (PRICE[c.plan] || 0), 0))}</p></div>`;
+  <div class="card"><h3>요금제 현황</h3>${['trial', 'basic', 'pro'].map(k => `<div class="li"><span>${{ trial: '무료 체험', basic: '베이직', pro: '프로' }[k]}</span><b class="num">${(S.companies || []).filter(c => c.plan === k).length}곳</b></div>`).join('')}<p class="note">예상 월 구독 매출 ₩${E.won((S.companies || []).reduce((a, c) => a + (PRICE[c.plan] || 0), 0))}</p></div>
+  <div class="card"><h3>발주 요청 <small>${(S.hqOrders || []).filter(o => o.status !== '도착').length}건 진행 중</small></h3>${(S.hqOrders || []).map(o => { const st = (S.stats || []).find(x => x.store_id === o.store_id); return `<div class="li"><div><b>${esc(st?.store || '매장')}</b> <small>${o.items.map(i => `${esc(item(i.id)?.n)}×${i.q}${i.alc ? '(주류)' : ''}`).join(', ')} · ₩${E.won(o.total)} · ${o.tax_invoice ? '세금계산서' : '계산서 없음'} · ${fmtDT(o.created_at)}</small></div><span class="row">${['접수', '준비 중', '배송 중', '도착'].map(s => `<button class="btn sm ${o.status === s ? 'pri' : ''}" data-act="ostat" data-o="${o.id}" data-v="${s}">${s}</button>`).join('')}</span></div>`; }).join('') || '<div class="empty">발주 요청이 없어요</div>'}</div>`;
 }
 function vHqStores() {
   return `<h1>입점 매장</h1><div class="card">${(S.companies || []).map(c => `<div class="li"><div><b>${esc(c.name)}</b>${c.brand ? ` <small class="mut">${esc(c.brand)}</small>` : ''}<small>사업자 ${esc(c.biz_no || '')} · ${{ trial: '무료 체험', basic: '베이직', pro: '프로' }[c.plan]} · ${new Date(c.created_at).toLocaleDateString('ko-KR')}</small></div>${c.biz_verified ? '<span class="pill g">확인 완료</span>' : `<button class="btn sm pri" data-act="verify" data-c="${c.id}">사업자 확인</button>`}</div>`).join('') || '<div class="empty">아직 매장이 없어요</div>'}</div>`;
@@ -569,7 +666,7 @@ document.addEventListener('click', e => {
   if (a === 'onb') { S.onb = d.v || null; render(); }
   if (a === 'close') closeSheet();
   if (a === 'goto') { S.tab = d.t; S.sub = d.s || null; render(); scrollTo(0, 0); }
-  if (a === 'sub') { S.sub = d.v || null; render(); scrollTo(0, 0); if (d.v === 'used') busy(async () => { S.used = await q(sb.from('used_items').select('*').order('created_at', { ascending: false }).limit(50)); render(); }); if (d.v === 'inq') busy(async () => { S.inq = await q(sb.from('inquiries').select('*').eq('from_user', S.user.id).order('created_at', { ascending: false })); render(); }); }
+  if (a === 'sub') { S.sub = d.v || null; render(); scrollTo(0, 0); if (d.v === 'used') busy(async () => { S.used = await q(sb.from('used_items').select('*').order('created_at', { ascending: false }).limit(50)); render(); }); if (d.v === 'rot') busy(async () => { await loadRot(); render(); }); if (d.v === 'inq') busy(async () => { S.inq = await q(sb.from('inquiries').select('*').eq('from_user', S.user.id).order('created_at', { ascending: false })); render(); }); }
   if (a === 'mon') busy(async () => { S.m += +d.v; if (S.m > 12) { S.m = 1; S.y++; } if (S.m < 1) { S.m = 12; S.y--; } await reload(); });
   if (a === 'sview') { S.schedView = d.v; render(); }
   if (a === 'edit-d') { S.edit = { memberId: d.m, date: d.d }; shiftSheet(S.edit); }
@@ -604,6 +701,24 @@ document.addEventListener('click', e => {
   if (a === 'apply') busy(async () => { if (S.tickets < 1) return toast('지원권이 없어요'); await q(sb.rpc('apply_job', { p_post: d.p })); toast('지원했어요! 매장이 채용하면 알림이 와요'); await reload(); });
   if (a === 'uside') { S.uside = d.v; render(); }
   if (a === 'sell-save') busy(async () => { await q(sb.from('transfer_leads').insert({ company_id: S.company.id, store_id: S.store.id, answers: S.sellA })); S.sellSaved = true; render(); toast('상담을 신청했어요. 담당자가 연락드려요'); });
+  if (a === 'pick') { S.pick = S.pick === d.m ? null : d.m; render(); }
+  if (a === 'drop' && S.pick) { const mid = S.pick; S.pick = null; rotMove(mid, d.v); render(); busy(saveRot); }
+  if (a === 'rot-auto') { const n = rotAuto(); render(); busy(saveRot); toast(n ? `${n}명 교대했어요` : '휴식을 마친 사람이 없어요'); }
+  if (a === 'lay-edit') { S.editLayout = true; S.selItem = null; render(); }
+  if (a === 'item') { S.selItem = S.selItem === d.v ? null : d.v; render(); }
+  if (a === 'cell' && S.selItem) { const [x, y] = d.v.split(',').map(Number), it = S.layout.find(i => i.id === S.selItem); if (it.x !== undefined && S.layout.every(o => o === it || o.y !== y || o.x + o.w <= x || x + it.w <= o.x) && x + it.w <= 8) { it.x = x; it.y = y; S.selItem = null; } else toast('들어갈 자리가 없어요'); render(); }
+  if (a === 'lay-add') { const ids = S.layout.filter(i => !i.counter).map(i => +i.id.slice(1)), id = 'T' + ((ids.length ? Math.max(...ids) : 0) + 1), rows = Math.max(...S.layout.map(i => i.y)) + 2; let spot = null;
+    for (let y = 0; y < rows && !spot; y++) for (let x = 0; x <= 6 && !spot; x += 1) if (S.layout.every(o => o.y !== y || o.x + o.w <= x || x + 2 <= o.x)) spot = { x, y };
+    S.layout.push({ id, w: 2, ...spot }); render(); }
+  if (a === 'lay-del') { if (!S.selItem || S.selItem === 'C') return toast('지울 테이블을 먼저 누르세요'); const R = rotState(); if (R.t[S.selItem]) rotMove(R.t[S.selItem].m, 'BREAK'); S.layout = S.layout.filter(i => i.id !== S.selItem); S.selItem = null; render(); }
+  if (a === 'lay-save') busy(async () => { await q(sb.rpc('set_layout', { p_store: S.store.id, p_layout: S.layout })); S.store.layout = S.layout; S.editLayout = false; S.selItem = null; await saveRot(); render(); toast('배치를 저장했어요'); });
+  if (a === 'stock-add') busy(async () => { await q(sb.from('stock').insert({ store_id: S.store.id, item_id: +$('#stock-add').value, qty: 0, min: 2, use_per_day: .3 })); await reload(); });
+  if (a === 'cart') { const n = +(d.n || 1); S.cart[d.v] = Math.max(0, (S.cart[d.v] || 0) + n); if (!S.cart[d.v]) delete S.cart[d.v]; if (S.tab === 'more' && S.sub === 'order') render(); else toast(`${item(d.v).n} ${n}개 담았어요 · 더보기 → 발주`); }
+  if (a === 'restock-all') { S.stock.filter(s => s.qty < s.min).forEach(s => S.cart[s.item_id] = (S.cart[s.item_id] || 0) + restockQty(s)); S.tab = 'more'; S.sub = 'order'; render(); scrollTo(0, 0); }
+  if (a === 'scat') { S.shopCat = d.v; render(); }
+  if (a === 'order') busy(async () => { const items = Object.entries(S.cart).map(([id, n]) => ({ id: +id, q: n, price: item(id).sp, alc: item(id).c === 'alc' })), total = items.filter(i => !i.alc).reduce((x, i) => x + i.price * i.q, 0);
+    await q(sb.from('orders').insert({ store_id: S.store.id, items, total, tax_invoice: $('#tax-inv')?.checked !== false })); S.cart = {}; await reload(); toast('주문을 요청했어요. 운영사가 확인하고 알려드려요'); });
+  if (a === 'ostat') busy(async () => { await q(sb.from('orders').update({ status: d.v }).eq('id', d.o)); await reload(); toast(`${d.v}(으)로 바꿨어요`); });
   if (a === 'quest') busy(async () => { const k = d.k, mon = thisMonth(), on = S.quests.some(x => x.month === mon && x.key === k);
     if (on) await q(sb.from('store_quests').delete().eq('store_id', S.store.id).eq('month', mon).eq('key', k)); else await q(sb.from('store_quests').insert({ store_id: S.store.id, month: mon, key: k }));
     S.quests = await q(sb.from('store_quests').select('*').eq('store_id', S.store.id)); render(); toast(on ? '체크를 풀었어요' : '+150 XP! 다음 달 숫자로 효과를 확인해 드려요'); });
@@ -611,15 +726,21 @@ document.addEventListener('click', e => {
   if (a === 'ask-pro') toast('요금제는 대표님 앱의 매장 설정에서 바꿀 수 있어요');
   if (a === 'verify') busy(async () => { await q(sb.from('companies').update({ biz_verified: true }).eq('id', d.c)); await reload(); toast('사업자 확인을 완료했어요'); });
 });
+document.addEventListener('dragstart', e => { const c = e.target.closest?.('[data-act=pick]'); if (c) S.pick = c.dataset.m; });
+document.addEventListener('dragover', e => { if (e.target.closest?.('[data-act=drop]')) e.preventDefault(); });
+document.addEventListener('drop', e => { const z = e.target.closest?.('[data-act=drop]'); if (z && S.pick) { e.preventDefault(); const mid = S.pick; S.pick = null; rotMove(mid, z.dataset.v); render(); busy(saveRot); } });
 function download(name, rows) {
   const blob = new Blob(['﻿' + rows.map(r => r.map(v => `"${String(v ?? '').replace(/"/g, '""')}"`).join(',')).join('\r\n')], { type: 'text/csv' });
   const l = document.createElement('a'); l.href = URL.createObjectURL(blob); l.download = name; l.click();
 }
-document.addEventListener('input', e => { if (e.target.closest('#post-form')) feeBox(); });
+document.addEventListener('input', e => { if (e.target.closest('#post-form')) feeBox(); if (e.target.closest('#report-form')) closeCalc(); });
 document.addEventListener('change', e => {
   const t = e.target, d = t.dataset;
   if (t.closest('#post-form')) feeBox();
   if (t.id === 'store-sel') busy(async () => { S.store = S.stores.find(s => s.id === t.value); await loadStore(); render(); });
+  if (d.rot) { const R = rotState(); R[d.rot] = Math.max(5, +t.value || 5); render(); busy(saveRot); }
+  if (d.stock || d.stockmin) busy(async () => { const id = +(d.stock || d.stockmin), row = S.stock.find(s => s.item_id === id), patch = d.stock ? { qty: +t.value || 0 } : { min: +t.value || 0 }; Object.assign(row, patch); await q(sb.from('stock').update(patch).eq('store_id', S.store.id).eq('item_id', id)); render(); });
+  if (t.id === 'tax-inv') S.taxInv = t.checked;
   if (d.need !== undefined) busy(async () => { const need = [...(S.store.need_by_wd || [3, 4, 3, 4, 6, 7, 2])]; need[+d.need] = +t.value || 0; await q(sb.rpc('set_need', { p_store: S.store.id, p_need: need })); S.store.need_by_wd = need; render(); });
   if (d.inc) busy(async () => { const month = E.ymd(S.y, S.m, 1); await q(sb.from('incentives').delete().eq('member_id', d.inc).eq('month', month)); if (+t.value) await q(sb.from('incentives').insert({ member_id: d.inc, month, amount: +t.value, reason: '' })); await reload(); toast('인센티브를 반영했어요'); });
 });
@@ -642,10 +763,10 @@ document.addEventListener('submit', e => {
       closeSheet(); await reload(); toast('스케줄을 저장했어요. 급여에 바로 반영돼요');
     }
     if (id === 'report-form') {
-      await q(sb.from('daily_reports').upsert({ store_id: S.store.id, report_date: v.date, sales: +v.sales || 0, entries: +v.entries || null, card: +v.card || 0, cash: +v.cash || 0, transfer: +v.transfer || 0, expense: +v.expense || 0, memo: v.memo || null, reported_by: S.user.id }));
+      await q(sb.from('daily_reports').upsert({ store_id: S.store.id, report_date: v.date, sales: +v.sales || 0, entries: +v.entries || null, card: +v.card || 0, cash: +f.dataset.cash || 0, transfer: +v.transfer || 0, expense: +v.expense || 0, cash_diff: f.dataset.diff === '' || f.dataset.diff == null ? null : +f.dataset.diff, memo: v.memo || null, reported_by: S.user.id }));
       await q(sb.from('expenses').delete().eq('store_id', S.store.id).eq('spent_on', v.date).eq('source', 'close'));
       if (+v.expense) await q(sb.from('expenses').insert({ store_id: S.store.id, spent_on: v.date, category: 'goods', amount: +v.expense, source: 'close' }));
-      await reload(); toast('마감을 저장했어요. 수고하셨어요');
+      S.lastStart = +v.start || S.lastStart; await reload(); toast(Math.abs(+f.dataset.diff || 0) >= 10000 ? '마감했어요. 금고 차액을 대표님께 알렸어요' : '마감을 저장했어요. 수고하셨어요');
     }
     if (id === 'expense-form') { await q(sb.from('expenses').insert({ store_id: S.store.id, category: v.cat, amount: +v.amount, spent_on: v.date || TODAY, source: 'bill' })); await reload(); toast('비용을 추가했어요'); }
     if (id === 'staff-form') {
