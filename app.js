@@ -10,9 +10,9 @@ const fmtDT = d => new Date(d).toLocaleString('ko-KR', { month: 'numeric', day: 
 const man = n => `${E.won(n / 10000)}만`;
 function toast(m) { const t = $('#toast'); t.textContent = m; t.classList.add('on'); clearTimeout(toast.h); toast.h = setTimeout(() => t.classList.remove('on'), 2800); }
 async function q(p) { const { data, error } = await p; if (error) { toast(error.message); throw error; } return data; }
-const STORE_COLS = 'id,company_id,name,area,address,pyeong,tables,layout,night_start,night_end,need_by_wd,join_code,created_at';
+const STORE_COLS = 'id,company_id,name,area,address,pyeong,tables,layout,night_start,night_end,need_by_wd,join_code,created_at,goal,fixed';
 const PRICE = { basic: 25000, pro: 35000 };
-const CAT = { rent: '임대료', elec: '전기세', water: '수도세', net: '통신·보안', goods: '음료·소모품', card: '카드 수수료', labor: '기타 인건비', etc: '기타' };
+const CAT = { rent: '임대료', mgmt: '관리비', elec: '전기세', water: '수도세', net: '통신·보안', goods: '음료·소모품', card: '카드 수수료', labor: '기타 인건비', etc: '기타' };
 const SLOT = { OPEN: ['', '모집 중'], MATCHED: ['y', '채용 확정'], WORKING: ['g', '근무 중'], DONE: ['y', '근무 끝 · 확인 대기'], DISPUTED: ['r', '문제 신고 · 운영사 확인'], PAID: ['g', '지급 완료'], REFUND: ['', '미채용 환불'] };
 
 // ===== 결제 (토스페이먼츠) =====
@@ -199,35 +199,74 @@ function monthSummary(y, m) {
   const exp = {}; S.expAll.filter(x => x.spent_on >= f && x.spent_on <= l).forEach(x => exp[x.category] = (exp[x.category] || 0) + x.amount);
   const card = rs.reduce((a, r) => a + (r.card || 0), 0) * 0.016 * (cur && n ? E.daysIn(y, m) / n : 1);
   if (!exp.card && card) exp.card = card;
+  if (n) Object.entries(S.store?.fixed || {}).forEach(([k, v]) => { if (+v && !exp[k]) exp[k] = +v; });
   const urgent = S.posts.filter(p => p.kind === 'urgent' && p.created_at.slice(0, 10) >= f && p.created_at.slice(0, 10) <= l).reduce((a, p) => a + (p.paid_amount || 0), 0);
   const labor = laborOf(y, m) + urgent, cost = labor + Object.values(exp).reduce((a, v) => a + v, 0);
-  return { n, sales, proj, exp, labor, urgent, cost, left: proj - cost, bep: proj ? Math.ceil(cost / (proj / E.daysIn(y, m))) : null };
+  const D = E.daysIn(y, m), el = cur ? Math.max(1, now.getDate() - 1) : D;
+  return { n, sales, proj, exp, labor, urgent, cost, left: proj - cost, el, earned: sales - cost * el / D, bep: proj ? Math.ceil(cost / (proj / D)) : null };
+}
+const FIXED = [['rent', '임대료'], ['mgmt', '관리비'], ['elec', '전기세'], ['water', '수도세'], ['net', '통신·보안']];
+const goalSuggest = () => { const p = new Date(S.y, S.m - 2, 1), L = monthSummary(p.getFullYear(), p.getMonth() + 1), M = monthSummary(S.y, S.m), base = Math.max(L.sales, M.proj); return base ? { v: Math.ceil(base * 1.08 / 1e6) * 1e6, base: L.sales ? L.sales : M.proj, from: L.sales ? '지난달 매출' : '이번 달 예상' } : null; };
+// 오늘 해야 할 일 — 목표·마감·재고·처방에서 매일 새로 뽑음
+function todayTodo(M, goal) {
+  const T = [], [y, m, d] = TODAY.split('-').map(Number), w = E.wdOf(y, m, d), D = E.daysIn(y, m), left = D - d + 1;
+  const yd = new Date(y, m - 1, d - 1), ydk = E.ymd(yd.getFullYear(), yd.getMonth() + 1, yd.getDate());
+  if (!S.hist.some(r => r.report_date === ydk)) T.push(['🧾', '어제 마감 입력하기', '입력해야 목표 달성률이 맞아요', 'sales']);
+  const same = S.hist.filter(r => { const [a, b, c] = r.report_date.split('-').map(Number); return E.wdOf(a, b, c) === w; }).slice(0, 6), avgW = same.length ? same.reduce((a, r) => a + r.sales, 0) / same.length : 0;
+  if (goal && S.y === y && S.m === m) {
+    const need = Math.max(0, goal - M.sales) / left;
+    if (!need) T.push(['🎉', '이번 달 목표를 이미 넘었어요', `지금부터 버는 건 전부 목표 초과분이에요`]);
+    else if (avgW && need > avgW * 1.05) { const r = S.bench?.ready && !S.bench.locked ? rxOf(S.bench).rev[0] : null;
+      T.push(['🎯', `오늘 매출 ₩${man(need)} 만들기`, `평소 ${E.WD[w]}요일보다 ₩${man(need - avgW)} 더 필요해요 · ${r ? esc(r[1]) : '단골 손님께 오늘 게임 안내 문자 보내기'}`, r ? 'improve' : null]); }
+    else T.push(['🎯', `오늘 매출 ₩${man(need)}이면 목표 페이스예요`, avgW ? `평소 ${E.WD[w]}요일 ₩${man(avgW)} — 지금처럼만 하면 돼요` : '매일 마감을 넣으면 요일별로 알려드려요']);
+  }
+  const low = S.stock.filter(s => s.qty < s.min).length; if (low) T.push(['📦', `재고 부족 ${low}개 발주하기`, S.stock.filter(s => s.qty < s.min).map(s => item(s.item_id)?.n).slice(0, 2).join(', '), 'order']);
+  const B = S.bench; if (B?.ready && !B.locked) { const rx = rxOf(B), mon = thisMonth(), undone = [...rx.rev, ...rx.cost].filter(r => !S.quests.some(q => q.month === mon && q.key === r[0]));
+    if (undone.length) T.push(['✅', `이번 달 꼭 할 일 ${undone.length}개 남음`, `${esc(undone[0][1])} · 월 ₩${man(undone[0][3])}`, 'improve']); }
+  return T;
+}
+function goalCard(M) {
+  const goal = +S.store.goal || 0, sg = goalSuggest(), cur = S.y === now.getFullYear() && S.m === now.getMonth() + 1, D = E.daysIn(S.y, S.m);
+  if (!goal) return `<div class="card goal"><h3>🎯 ${S.m}월 목표 매출</h3>${sg ? `<p style="margin:0 0 10px">${sg.from} ₩${man(sg.base)}보다 8% 높은 <b class="num" style="font-size:22px">₩${man(sg.v)}</b>을 추천해요.</p>` : '<p class="mut">마감이 쌓이면 목표를 추천해 드려요.</p>'}
+    ${isOwner() ? `<div class="row">${sg ? `<button class="btn pri" data-act="goal-set" data-v="${sg.v}">이걸로 정하기</button>` : ''}<button class="btn" data-act="goal">직접 정하기</button></div>` : '<p class="note">목표는 대표님이 정해요.</p>'}</div>`;
+  const pct = M.sales / goal * 100, pp = M.proj / goal * 100, pace = cur ? M.el / D * 100 : 100, gapP = M.proj - goal, T = cur ? todayTodo(M, goal) : [];
+  return `<div class="card goal"><div class="row between"><h3 style="margin:0">🎯 ${S.m}월 목표 <b class="num">₩${man(goal)}</b></h3>${isOwner() ? '<button class="btn sm" data-act="goal">바꾸기</button>' : ''}</div>
+    <div class="gnum"><b class="num">${Math.floor(pct)}%</b><span>달성 · ₩${man(M.sales)}</span></div>
+    <div class="gbar"><i style="width:${Math.min(100, pct)}%"></i>${cur ? `<em style="left:${pace}%" title="오늘 기준 있어야 할 위치"></em>` : ''}</div>
+    <div class="row between gsub"><small>${cur ? `오늘까지 있어야 할 곳 ${Math.round(pace)}%` : ''}</small><small>월말 예상 <b class="num ${gapP >= 0 ? 'up' : 'down'}">${Math.round(pp)}%</b> ${gapP >= 0 ? `(+₩${man(gapP)} 초과)` : `(₩${man(-gapP)} 부족)`}</small></div>
+    ${T.length ? `<div class="todo"><small class="mut">오늘 할 일 · ${now.getMonth() + 1}월 ${now.getDate()}일</small>${T.map(t => `<div class="td" ${t[3] ? `data-act="goto" data-t="${t[3] === 'order' ? 'more' : t[3]}" ${t[3] === 'order' ? 'data-s="order"' : ''} role="button"` : ''}><span class="ti">${t[0]}</span><div><b>${t[1]}</b><small>${t[2]}</small></div>${t[3] ? '<span class="mut">›</span>' : ''}</div>`).join('')}</div>` : ''}</div>`;
+}
+function fixedCard() {
+  const fx = S.store.fixed || {}, sum = FIXED.reduce((a, [k]) => a + (+fx[k] || 0), 0);
+  return `<div class="card"><div class="row between"><h3 style="margin:0">고정비 <small>한 달 ₩${E.won(sum)} · 하루 ₩${E.won(sum / E.daysIn(S.y, S.m))}</small></h3>${isOwner() ? '<button class="btn sm" data-act="fixed">수정</button>' : ''}</div>
+    <div class="fxg">${FIXED.map(([k, n]) => `<div><small>${n}</small><b class="num">${+fx[k] ? '₩' + man(+fx[k]) : '-'}</b></div>`).join('')}</div>
+    <p class="note">매일 하루치씩 나눠서 남는 돈에서 빠져요. 그 달 실제 고지서를 넣으면 고지서 금액으로 바뀌어요.</p></div>`;
 }
 function vHome() {
-  const M = monthSummary(S.y, S.m), [y, m, d] = TODAY.split('-').map(Number), pro = S.company?.plan !== 'basic';
+  const M = monthSummary(S.y, S.m), [y, m, d] = TODAY.split('-').map(Number), cur = S.y === y && S.m === m;
   const todayList = S.members.filter(p => p.role !== 'owner').map(p => ({ p, t: E.shiftOn(p.id, y, m, d, S.tpl, S.ov) })).filter(x => x.t);
-  const months = Array.from({ length: 6 }, (_, i) => { const dt = new Date(S.y, S.m - 6 + i, 1); return [dt.getFullYear(), dt.getMonth() + 1]; }).map(([yy, mm]) => ({ yy, mm, s: monthSummary(yy, mm) }));
-  const mx = Math.max(1, ...months.map(x => x.s.proj)), R = S.rank;
+  const months = Array.from({ length: 6 }, (_, i) => { const dt = new Date(S.y, S.m - 6 + i, 1); return [dt.getFullYear(), dt.getMonth() + 1]; }).map(([yy, mm]) => ({ yy, mm, s: monthSummary(yy, mm) })).filter(x => x.s.n);
+  const mx = Math.max(1, ...months.map(x => Math.abs(x.s.left)));
   return `${storeHead('브리핑')}
   ${rankBar()}
   <div style="margin-top:10px">${monthNav()}</div>
-  <div class="grid2"><div class="card kpi"><div class="l">${S.m}월 매출 (보고 ${M.n}일)</div><div class="v num">₩${E.won(M.sales)}</div></div><div class="card kpi"><div class="l">월말 예상</div><div class="v num up">${M.n >= 3 || M.proj !== M.sales ? '₩' + E.won(M.proj) : '<small class="mut" style="font-size:13px">보고 3일부터 보여요</small>'}</div></div></div>
-  <div class="card"><h3>${S.m}월 계산서 <small>월말 예상 기준</small></h3>
+  ${goalCard(M)}
+  <div class="grid2"><div class="card kpi"><div class="l">${cur ? `오늘까지 남은 돈 (${M.el}일)` : `${S.m}월 남은 돈`}</div><div class="v num ${M.earned >= 0 ? 'up' : 'down'}">${M.earned < 0 ? '−' : ''}₩${man(Math.abs(M.earned))}</div></div><div class="card kpi"><div class="l">${cur ? '월말 예상 남는 돈' : `${S.m}월 매출`}</div><div class="v num ${cur ? (M.left >= 0 ? 'up' : 'down') : ''}">${cur ? (M.n >= 3 ? `${M.left < 0 ? '−' : ''}₩${man(Math.abs(M.left))}` : '<small class="mut" style="font-size:13px">마감 3일부터 보여요</small>') : '₩' + man(M.sales)}</div></div></div>
+  <div class="card"><h3>${S.m}월 계산서 <small>${cur ? '월말 예상 기준' : '확정'}</small></h3>
     <div class="li"><b>매출</b><b class="num">₩${E.won(M.proj)}</b></div>
     <div class="li"><span class="mut">− 인건비 (스케줄·4대보험 사업주분·긴급 구인 포함)</span><span class="num">₩${E.won(M.labor)}</span></div>
     ${Object.entries(M.exp).map(([k, v]) => `<div class="li"><span class="mut">− ${CAT[k] || k}</span><span class="num">₩${E.won(v)}</span></div>`).join('')}
-    <div class="li"><b>= 남는 돈</b><b class="num ${M.left >= 0 ? 'up' : 'down'}" style="font-size:20px">₩${E.won(M.left)}</b></div>
-    <p class="note">${M.bep && M.bep <= E.daysIn(S.y, S.m) ? `손익분기: <b class="up">${S.m}월 ${M.bep}일</b>에 넘어요.` : '이번 달은 손익분기를 못 넘어요.'} 고지서는 매출 탭에서 넣으면 바로 반영돼요.</p></div>
+    <div class="li"><b>= 남는 돈</b><b class="num ${M.left >= 0 ? 'up' : 'down'}" style="font-size:20px">${M.left < 0 ? '−' : ''}₩${E.won(Math.abs(M.left))}${M.left < 0 ? ' 적자' : ''}</b></div>
+    <p class="note">${M.bep && M.bep <= E.daysIn(S.y, S.m) ? `손익분기: <b class="up">${S.m}월 ${M.bep}일</b>에 넘어요.` : '이번 달은 손익분기를 못 넘어요.'}</p></div>
   ${lightsCard(false)}
-  <div class="card"><h3>월별 매출 <small>최근 6개월</small></h3><div class="bars">${months.map(x => `<div class="bar"><em class="num">${x.s.proj ? man(x.s.proj) : '-'}</em><i style="height:${Math.max(2, x.s.proj / mx * 100)}%"></i><small>${x.mm}월</small></div>`).join('')}</div></div>
+  ${months.length ? `<div class="card"><h3>월별 손익 <small>매출 − 비용 = 남은 돈</small></h3><div class="pnl">${months.map(x => `<div class="pr"><span class="mut">${x.mm}월</span><span class="num">₩${man(x.s.proj)}</span><span class="num mut">−₩${man(x.s.cost)}</span><span class="pb"><i class="${x.s.left >= 0 ? 'g' : 'r'}" style="width:${Math.max(3, Math.abs(x.s.left) / mx * 100)}%"></i></span><b class="num ${x.s.left >= 0 ? 'up' : 'down'}">${x.s.left < 0 ? '−' : '+'}₩${man(Math.abs(x.s.left))}</b></div>`).join('')}</div>${months.at(-1).yy === y && months.at(-1).mm === m ? '<p class="note">이번 달은 월말 예상이에요.</p>' : ''}</div>` : ''}
+  ${fixedCard()}
   <div class="card"><h3>오늘 근무 <small>${todayList.length}명</small></h3>${todayList.map(({ p, t }) => `<div class="li"><div><b>${esc(p.nick)}</b><small>${esc(p.job_role || '')}</small></div><span class="num">${t5(t.s)}–${t5(t.e)}</span></div>`).join('') || '<div class="empty">오늘 근무자가 없어요</div>'}</div>
   ${S.members.some(p => p.role !== 'owner') ? '' : `<div class="card"><h3>처음 할 일</h3><div class="li"><div><b>① 직원 등록</b><small>시급·계약·계좌까지</small></div><button class="btn sm pri" data-tab="staff">하러 가기</button></div><div class="li"><div><b>② 스케줄 짜기</b><small>요일 기본 + 날짜별 수정</small></div><button class="btn sm" data-tab="sched">하러 가기</button></div><div class="li"><div><b>③ 매일 매출 보고</b></div><button class="btn sm" data-tab="sales">하러 가기</button></div></div>`}
   ${S.joins.length ? `<div class="card" style="border-color:rgba(245,158,11,.5)"><h3>소속 신청 ${S.joins.length}건 <button class="btn sm pri" data-tab="staff">확인</button></h3></div>` : ''}
   ${S.notis.length ? `<div class="card"><h3>알림</h3>${S.notis.slice(0, 5).map(x => `<div class="li"><span>${esc(x.body)}</span><small>${fmtDT(x.created_at)}</small></div>`).join('')}</div>` : ''}`;
 }
-// ===== 매장 개선 (프로) — 순위·경고등·처방·퀘스트 =====
-const TIERS = [[5, '💎 다이아'], [10, '🏆 플래티넘'], [25, '🥇 골드'], [50, '🥈 실버'], [101, '🥉 브론즈']];
-const tierIdx = p => TIERS.findIndex(t => p <= t[0]);
+// ===== 매장 개선 (프로) — 순위·경고등·처방·꼭 할 일 =====
 const pctOf = (a, b) => (a - b) / b * 100;
 const thisMonth = () => E.ymd(now.getFullYear(), now.getMonth() + 1, 1);
 function lightsOf(B) {
@@ -253,32 +292,46 @@ function rxOf(B) {
   const top = L => L.filter(x => x[3] >= 10000).sort((x, y) => y[3] - x[3]).slice(0, 3);
   return { rev: top(R), cost: top(C) };
 }
-function gameOf(B, rx) {
-  const mon = thisMonth(), done = new Set(S.quests.filter(x => x.month === mon).map(x => x.key)), keys = [...rx.rev, ...rx.cost].map(r => r[0]);
-  const xp = S.quests.length * 150 + S.hist.length * 10, lv = Math.floor(xp / 500) + 1;
-  const dates = new Set(S.hist.map(r => r.report_date)); let streak = 0;
-  for (let d = new Date(now); ; d.setDate(d.getDate() - 1)) { const k = E.ymd(d.getFullYear(), d.getMonth() + 1, d.getDate()); if (dates.has(k)) streak++; else if (k !== TODAY) break; }
-  const ms = Array.from({ length: 6 }, (_, i) => { const dt = new Date(now.getFullYear(), now.getMonth() - 6 + i, 1); return monthSummary(dt.getFullYear(), dt.getMonth() + 1); }).filter(x => x.n);
-  let up = 0; for (let i = ms.length - 1; i > 0 && ms[i].left > ms[i - 1].left; i--) up++;
-  return { done, doneN: keys.filter(k => done.has(k)).length, total: keys.length, xp, lv, streak, up };
-}
 function rankBar() {
   const B = S.bench; if (!B) return '';
   if (!B.ready) return `<div class="card rankbar"><div><b>우리 매장 순위</b><small class="mut" style="display:block">${B.why === 'mine' ? '매출 보고가 7일 쌓이면 비슷한 매장과 비교해 드려요' : '비교할 매장이 3곳 이상 모이면 보여요'}</small></div></div>`;
   if (B.locked) return `<div class="card rankbar"><div><b>우리 매장 순위</b><small class="mut" style="display:block">비슷한 매장 ${B.n}곳 중</small></div><div class="num mosaic" style="font-size:22px;font-weight:800">상위 18%</div>
     ${isOwner() ? `<button class="btn sm gold" data-act="goto" data-t="improve">프로(월 ${E.won(PRICE.pro)}원)로 보기</button>` : '<button class="btn sm" data-act="ask-pro">대표님께 요청</button>'}</div>`;
   return `<div class="card rankbar"><div><b>우리 매장 순위</b><small class="mut" style="display:block">비슷한 매장 ${B.n}곳 중 · ${+B.month.slice(5, 7)}월</small></div>
-    <div class="rkv"><small>매출</small><b class="num">상위 ${B.s_pct}%</b></div><div class="rkv"><small>순이익</small><b class="num">상위 ${B.h_pct}%</b></div><div class="rkv"><small>등급</small><b>${TIERS[tierIdx(B.s_pct)][1]}</b></div>
+    <div class="rkv"><small>매출</small><b class="num">상위 ${B.s_pct}%</b></div><div class="rkv"><small>순이익</small><b class="num">상위 ${B.h_pct}%</b></div>
     <button class="btn sm" data-tab="improve">매장 개선 →</button></div>`;
 }
+const LIGHT_RX = { util: 'rev_util', elec: 'cost_elec', lr: 'cost_lr', sr: 'cost_sr', gr: 'cost_gr', npy: 'cost_net' };
+// full=false(홈): 내 숫자·얼마 아낄 수 있는지만. 평균과 고치는 법은 매장 개선(프로)에서
 function lightsCard(full) {
   const B = S.bench; if (!B?.ready || B.locked) return '';
-  const L = lightsOf(B), bad = L.filter(x => x.lv && x.lv !== 'g').length, rx = rxOf(B), gain = rx.rev.reduce((a, r) => a + r[3], 0) + rx.cost.reduce((a, r) => a + r[3], 0);
-  const val = (v, u) => u === '원' ? '₩' + E.won(v) : v.toFixed(1) + '%';
-  return `<div class="card" style="border-color:${bad ? 'rgba(239,68,68,.45)' : 'var(--line)'}"><h3>우리 매장 경고등 <small>비슷한 매장 ${B.n}곳과 비교</small></h3><div class="lights">
-    ${L.map(x => `<div class="light"><div><b>${x.na ? '⚪' : { r: '🔴', y: '🟡', g: '🟢' }[x.lv]} ${x.n}</b><small>${x.na ? (x.key === 'util' ? '매출 보고에 엔트리 수를 넣으면 켜져요' : x.key === 'elec' || x.key === 'npy' ? '고지서를 넣으면 켜져요 (매출 탭)' : '데이터가 쌓이면 켜져요') : `내 매장 ${val(x.mine, x.unit)} · 평균 ${val(x.avg, x.unit)}`}</small></div>${x.na ? '' : `<span class="pill ${x.lv}">${{ r: '위험', y: '주의', g: '좋음' }[x.lv]}</span>`}</div>`).join('')}</div>
+  const L = lightsOf(B), rx = rxOf(B), all = [...rx.rev, ...rx.cost], bad = L.filter(x => x.lv && x.lv !== 'g'), gain = all.reduce((a, r) => a + r[3], 0);
+  const val = (v, u) => u === '원' ? '₩' + E.won(v) : v.toFixed(1) + '%', fix = x => all.find(r => r[0] === LIGHT_RX[x.key]);
+  const sorted = [...L].sort((a, b) => ({ r: 0, y: 1, g: 2 }[a.lv] ?? 3) - ({ r: 0, y: 1, g: 2 }[b.lv] ?? 3));
+  const row = x => { const r = fix(x); if (x.na) return `<div class="lt na"><span class="dot">⚪</span><div><b>${x.n}</b><small>${x.key === 'util' ? '마감에 엔트리 수를 넣으면 켜져요' : x.key === 'elec' || x.key === 'npy' ? '고정비에 금액을 넣으면 켜져요' : '데이터가 쌓이면 켜져요'}</small></div></div>`;
+    const gap = Math.abs(pctOf(x.mine, x.avg));
+    return `<div class="lt ${x.lv}"><span class="dot">${{ r: '🔴', y: '🟡', g: '🟢' }[x.lv]}</span><div><b>${x.n} <span class="num">${val(x.mine, x.unit)}</span></b>
+      <small>${full ? `평균 ${val(x.avg, x.unit)} · ${x.lv === 'g' ? `평균보다 ${gap.toFixed(0)}% 좋아요` : `평균보다 ${gap.toFixed(0)}% ${x.key === 'util' ? '낮아요' : '높아요'}`}` : x.lv === 'g' ? '좋아요' : `평균과 비교 <span class="mosaic">00.0%</span>`}</small>
+      ${x.lv !== 'g' && r ? `<div class="fix">${full ? `→ <b>${esc(r[1])}</b>` : '→ 고치면'} <b class="up num">월 ${r[0].startsWith('rev') ? '+' : '−'}₩${man(r[3])}</b></div>` : ''}</div>${x.lv !== 'g' ? `<span class="pill ${x.lv}">${{ r: '위험', y: '주의' }[x.lv]}</span>` : ''}</div>`; };
+  return `<div class="card" style="border-color:${bad.length ? 'rgba(239,68,68,.45)' : 'var(--line)'}"><h3>우리 매장 경고등 <small>${bad.length ? `고칠 곳 <b class="down">${bad.length}개</b>` : '모두 좋아요'}</small></h3>
+    ${!full && gain ? `<div class="bigwin"><small>경고등을 고치면 매달</small><b class="num">+₩${man(gain)}</b><small>더 남아요</small></div>` : ''}
+    <div class="lts">${sorted.map(row).join('')}</div>
     ${!+B.mine.pyeong || !B.mine.tables ? `<p class="note">매장 평수·테이블 수를 넣으면 평당 비교가 정확해져요. <button class="btn sm" data-act="goto" data-t="more" data-s="settings">매장 설정</button></p>` : ''}
-    ${!full && gain ? `<div class="promo"><span>${bad ? `경고등 <b class="down">${bad}개</b>를 고치면` : '처방대로 하면'} 매달 약 <b class="up">+₩${man(gain)}</b>이 더 남아요.</span><button class="btn sm pri" data-tab="improve">고치는 법 보기 →</button></div>` : ''}</div>`;
+    ${!full && gain ? `<button class="btn pri full" data-tab="improve" style="margin-top:10px">무엇을 어떻게 고치는지 보기 →</button>` : ''}</div>`;
+}
+// 처방 효과 그래프: 지금 그대로(점선) vs 처방 실행(초록) — 벌어지는 만큼 칠함
+function rxChart(labels, a, b) {
+  const W = 340, H = 180, L = 14, R = 88, T = 18, Bm = 26, all = [...a, ...b], mn0 = Math.min(...all), mx0 = Math.max(...all), pad = (mx0 - mn0 || Math.abs(mx0) || 1) * .25, lo = mn0 < 0 ? Math.min(mn0, 0) - pad : mn0 - pad, hi = mx0 + pad, sp = hi - lo;
+  const sx = i => L + i * (W - L - R) / (a.length - 1), sy = v => T + (hi - v) / sp * (H - T - Bm), pts = s => s.map((v, i) => `${sx(i).toFixed(1)},${sy(v).toFixed(1)}`).join(' ');
+  const n = a.length - 1; let ya = sy(a[n]), yb = sy(b[n]); if (ya - yb < 16) ya = yb + 16;
+  return `<svg class="rxchart" viewBox="0 0 ${W} ${H}" role="img" aria-label="처방 실행 시 남는 돈 변화"><defs><linearGradient id="rxg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#34D399" stop-opacity=".5"/><stop offset="1" stop-color="#34D399" stop-opacity=".04"/></linearGradient></defs>
+    ${lo < 0 ? `<line x1="${L}" x2="${W - R}" y1="${sy(0)}" y2="${sy(0)}" stroke="var(--red)" stroke-opacity=".5" stroke-dasharray="2 3"/><text x="${W - R + 4}" y="${sy(0) + 4}" font-size="10" fill="var(--red)">적자선</text>` : ''}
+    <polygon points="${pts(b)} ${a.map((v, i) => `${sx(i).toFixed(1)},${sy(v).toFixed(1)}`).reverse().join(' ')}" fill="url(#rxg)"/>
+    <polyline points="${pts(a)}" fill="none" stroke="var(--muted)" stroke-width="2" stroke-dasharray="5 4"/>
+    <polyline points="${pts(b)}" fill="none" stroke="#34D399" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
+    ${b.map((v, i) => `<circle cx="${sx(i)}" cy="${sy(v)}" r="${i === n ? 5 : 3.5}" fill="#34D399" stroke="var(--card)" stroke-width="2"/>`).join('')}
+    <text x="${sx(n) + 9}" y="${yb + 4}" font-size="13" font-weight="800" fill="#34D399">₩${man(b[n])}</text><text x="${sx(n) + 9}" y="${ya + 4}" font-size="11" fill="var(--muted)">₩${man(a[n])}</text>
+    ${labels.map((l, i) => `<text x="${sx(i)}" y="${H - 6}" font-size="11" fill="var(--muted)" text-anchor="middle">${l}</text>`).join('')}</svg>`;
 }
 function radar(sc) {
   const K = [['s_sales', '평당 매출'], ['s_profit', '수익률'], ['s_labor', '인건비 효율'], ['s_fixed', '고정비 관리'], ['s_util', '테이블 가동']], R = 80, cx = 110, cy = 100;
@@ -297,27 +350,24 @@ function vImprove() {
     <div class="over"><div class="card"><div class="mut" style="font-size:12px">✦ 매장 개선 · 프로 요금제(월 ${E.won(PRICE.pro)}원)</div><h2 style="margin:10px 0 4px">내 매장은 비슷한 매장 ${B.n}곳 중<br>상위 몇 %일까요?</h2><div class="num mosaic" style="font-size:30px;font-weight:800;margin:6px 0">상위 ??%</div>
       <p class="mut" style="font-size:14px">비슷한 매장들과 비교해서 <b>무엇을 해야 하는지</b> 알려드려요. 매달 새 처방과 지난달 실행 결과까지요.</p>
       ${isOwner() ? '<button class="btn pri full" data-act="goto" data-t="more" data-s="settings">프로로 올리기</button>' : '<button class="btn full" data-act="ask-pro">대표님께 요청하기</button>'}</div></div></div>`;
-  const m = B.mine, a = B.avg, rx = rxOf(B), G = gameOf(B, rx), revSum = rx.rev.reduce((x, r) => x + r[3], 0), costSum = rx.cost.reduce((x, r) => x + r[3], 0);
-  const ti = tierIdx(B.s_pct), nx = ti > 0 ? TIERS[ti - 1] : null, cut = nx && B.cut?.[String(nx[0])], gap = cut ? Math.max(0, cut - m.sales) : 0;
+  const m = B.mine, a = B.avg, rx = rxOf(B), revSum = rx.rev.reduce((x, r) => x + r[3], 0), costSum = rx.cost.reduce((x, r) => x + r[3], 0), mon = thisMonth();
+  const done = new Set(S.quests.filter(x => x.month === mon).map(x => x.key)), must = [...rx.rev.map(r => [r[0], r[1], r[2], r[3], r[4], 'r']), ...rx.cost.map(r => [r[0], r[1], r[2], r[3], r[4], 'c'])].sort((x, y) => y[3] - x[3]), doneN = must.filter(r => done.has(r[0])).length, doneSum = must.filter(r => done.has(r[0])).reduce((x, r) => x + r[3], 0);
   const hist = Array.from({ length: 4 }, (_, i) => { const dt = new Date(now.getFullYear(), now.getMonth() - 3 + i, 1); return monthSummary(dt.getFullYear(), dt.getMonth() + 1); }).filter(x => x.n);
   const g = hist.length >= 2 ? Math.min(1.1, Math.max(.9, (hist.at(-1).proj / hist[0].proj) ** (1 / (hist.length - 1)))) : 1, cur = hist.at(-1) || monthSummary(S.y, S.m);
   const base = [1, 2, 3].map(i => cur.proj * g ** i), nowL = base.map(v => v - cur.cost), after = base.map((v, i) => v + revSum * (i ? 1 : .5) - (cur.cost - costSum * (i ? 1 : .6)));
-  const mn = [1, 2, 3].map(i => (now.getMonth() + i) % 12 + 1), mx = Math.max(1, ...nowL, ...after);
-  const quest = (r, t) => { const on = G.done.has(r[0]); return `<button class="quest ${on ? 'on' : ''}" data-act="quest" data-k="${r[0]}"><span class="qc">${on ? '✓' : ''}</span><span class="qt"><b>${esc(r[1])}</b><small>${t === 'r' ? '매출 월 +' : '비용 월 −'}₩${man(r[3])}</small></span><span class="qx">+150 XP</span></button>`; };
+  const mn = [1, 2, 3].map(i => (now.getMonth() + i) % 12 + 1);
+  const mustRow = r => { const on = done.has(r[0]); return `<button class="must ${on ? 'on' : ''}" data-act="quest" data-k="${r[0]}"><span class="qc">${on ? '✓' : ''}</span><span class="qt"><b>${esc(r[1])}</b><small>${r[5] === 'r' ? '매출 늘리기' : '비용 줄이기'}${on ? ' · 했어요' : ''}</small></span><span class="amt num">월 ${r[5] === 'r' ? '+' : '−'}₩${man(r[3])}</span></button>`; };
   const rxCard = (r, i, t) => `<div class="card rx"><div class="n ${t}">${i + 1}</div><div><b>${esc(r[1])}</b><p>${esc(r[2])}</p>${r[4] ? `<button class="btn sm" data-act="partner" data-v="${esc(r[4])}">${esc(r[4])} 견적 받기</button>` : ''}</div><span class="num ${t === 'r' ? 'up' : ''}" style="white-space:nowrap">월 ${t === 'r' ? '+' : '−'}₩${man(r[3])}</span></div>`;
   const cmpRow = (n, mine, avg, top, good) => `<tr><td>${n}</td><td class="r num ${good ? 'up' : 'down'}">${mine}</td><td class="r num mut">${avg}</td><td class="r num mut">${top}</td></tr>`;
   const wdMax = Math.max(1, ...(m.wd || []), ...(a.wd || [])), weak = (m.wd || []).indexOf(Math.min(...(m.wd || []).filter(v => v > 0)));
   const staff = S.members.filter(p => p.role !== 'owner' && p.hourly_rate && B.rates?.[p.job_role]).map(p => { const r = payOf(p), avg = B.rates[p.job_role], d = p.hourly_rate - avg; return { p, avg, d, h: r.hours, mon: d * r.hours }; }).sort((x, y) => y.mon - x.mon);
   return `${head}${rankBar()}
-  <div class="card game"><div class="row between"><div><small class="mut">${esc(S.store.name)} · 이번 시즌</small><div class="glv">Lv.${G.lv} <span>${TIERS[ti][1]} 매장</span></div></div>
-    <div style="text-align:right">${nx ? `<small class="mut">다음 등급 ${nx[1]} (상위 ${nx[0]}%)까지</small><b class="num" style="display:block">${gap ? `매출 +₩${man(gap)}` : '거의 다 왔어요'}</b>` : '<b>최고 등급이에요</b>'}</div></div>
-    <div class="xpbar"><i style="width:${G.xp % 500 / 5}%"></i><span>${G.xp % 500} / 500 XP</span></div>
-    <div class="badges">${G.up >= 2 ? `<span>🔥 ${G.up}개월 연속 순이익 상승</span>` : ''}${G.streak >= 3 ? `<span>🧾 마감 ${G.streak}일 연속</span>` : ''}${G.doneN >= 3 ? '<span class="new">💡 이번 달 퀘스트 3개 완료</span>' : '<span class="lock">🔒 퀘스트 3개 완료하면 배지</span>'}</div>
-    <p class="note">경험치는 매출 보고 1일 10XP, 처방 실행 1개 150XP예요.</p></div>
-  ${G.total ? `<div class="card"><h3>⚔️ 이번 달 퀘스트 <small>${G.doneN}/${G.total} 완료</small></h3><div class="quests">${rx.rev.map(r => quest(r, 'r')).join('')}${rx.cost.map(r => quest(r, 'c')).join('')}</div><p class="note">한 일을 체크하면 경험치가 쌓여요. 효과는 다음 달 실제 숫자로 확인할 수 있어요.</p></div>` : ''}
-  ${revSum + costSum ? `<div class="card" style="border-color:rgba(16,185,129,.5)"><small class="mut">처방대로 하면</small><div class="num up" style="font-size:24px;font-weight:800;margin-top:4px">${mn[2]}월 남는 돈 ₩${man(after[2])}</div><p class="mut" style="margin:4px 0 10px">지금 그대로면 ₩${man(nowL[2])} → <b class="up">매달 +₩${man(after[2] - nowL[2])}</b> 더 남아요</p>
-    <div class="bars">${[0, 1, 2].map(i => `<div class="bar2"><div><i style="height:${Math.max(2, nowL[i] / mx * 100)}%"></i><i class="g" style="height:${Math.max(2, after[i] / mx * 100)}%"></i></div><small>${mn[i]}월</small></div>`).join('')}</div>
-    <p class="note"><span style="color:var(--s2)">■</span> 지금 그대로 · <span style="color:var(--green)">■</span> 처방 실행. 최근 흐름으로 계산했고 첫 달은 효과를 절반만 반영해요.</p></div>` : '<div class="card"><h3>👏 지금은 고칠 곳이 거의 없어요</h3><p class="mut" style="margin:0">모든 항목이 비슷한 매장 평균보다 좋아요. 지금처럼만 유지하세요.</p></div>'}
+  ${must.length ? `<div class="card mustcard"><div class="mhead"><div><small>${S.m}월 꼭 해야 할 일 · ${doneN}/${must.length} 완료</small><div class="mbig">다 하면 매달 <b class="num">+₩${man(revSum + costSum)}</b></div></div>${doneN ? `<div class="mdone"><small>지금까지</small><b class="num">+₩${man(doneSum)}</b></div>` : ''}</div>
+    <div class="mprog"><i style="width:${doneN / must.length * 100}%"></i></div>
+    <div class="musts">${must.map(mustRow).join('')}</div><p class="note">한 일은 눌러서 체크하세요. 효과는 다음 달 실제 숫자로 확인해 드려요. 자세한 방법은 아래에 있어요.</p></div>` : ''}
+  ${revSum + costSum ? `<div class="card" style="border-color:rgba(16,185,129,.5)"><small class="mut">처방대로 하면 ${mn[2]}월에</small><div class="num up" style="font-size:26px;font-weight:800;margin-top:2px">매달 +₩${man(after[2] - nowL[2])} 더 남아요</div><p class="mut" style="margin:2px 0 6px">지금 그대로 ₩${man(nowL[2])} → 처방 실행 <b class="up">₩${man(after[2])}</b></p>
+    ${rxChart(['이번 달', ...mn.map(x => x + '월')], [cur.left, ...nowL], [cur.left, ...after])}
+    <p class="note"><span style="color:var(--muted)">- - -</span> 지금 그대로 · <span style="color:#34D399">━</span> 처방 실행. 최근 흐름으로 계산했고 첫 달은 효과를 절반만 반영해요.</p></div>` : '<div class="card"><h3>👏 지금은 고칠 곳이 거의 없어요</h3><p class="mut" style="margin:0">모든 항목이 비슷한 매장 평균보다 좋아요. 지금처럼만 유지하세요.</p></div>'}
   <div class="card"><h3>5가지 점수 <small>100점 만점 · <b style="color:#34D399">초록</b> 내 매장 · <b style="color:#F59E0B">점선</b> 비슷한 매장 중간</small></h3>${radar(B.score)}</div>
   ${lightsCard(true)}
   ${rx.rev.length ? `<h2 class="band">📈 매출 늘리기 <small class="mut">월 +₩${man(revSum)}</small></h2>${rx.rev.map((r, i) => rxCard(r, i, 'r')).join('')}` : ''}
@@ -576,7 +626,7 @@ async function manage(postId, kind) {
 }
 function vMore() {
   const sub = S.sub;
-  if (!sub) return `${storeHead('더보기')}<div class="card menu">${[['improve', '✦', '매장 개선', '우리 매장 순위 · 경고등 · 매달 처방 · 퀘스트'], ['rot', '🔄', '테이블 로테이션', '딜러 교대·휴식 타이머'], ['order', '📦', '발주', '음료·간식·홀덤 소모품 주문'], ['edu', '🎓', '교육', '신입 딜러 교육 · 사장님 강의'], ['pnl', '📈', '월간 손익', '매달 매출·인건비·비용·남는 돈'], ['qr', '📍', '출퇴근 코드', '카운터 화면에 띄워두세요'], ['settings', '⚙️', '매장 설정', '요금제 · 매장 정보 · 매장 추가'], ['inq', '💬', '운영사 문의', '궁금한 점을 보내면 답해드려요'], ['used', '🔁', '중고 장터', '홀덤펍끼리 사고팔기'], ...(isOwner() ? [['transfer', '🤝', '점포 양도양수', '대표님만 보여요']] : [])].map(([k, i, t, d]) => `<button class="mi" ${k === 'improve' ? 'data-tab="improve"' : `data-act="sub" data-v="${k}"`}><span>${i}</span><span><b>${t}</b><small>${d}</small></span><span>›</span></button>`).join('')}</div>`;
+  if (!sub) return `${storeHead('더보기')}<div class="card menu">${[['improve', '✦', '매장 개선', '우리 매장 순위 · 경고등 · 이번 달 꼭 할 일'], ['rot', '🔄', '테이블 로테이션', '딜러 교대·휴식 타이머'], ['order', '📦', '발주', '음료·간식·홀덤 소모품 주문'], ['edu', '🎓', '교육', '신입 딜러 교육 · 사장님 강의'], ['pnl', '📈', '월간 손익', '매달 매출·인건비·비용·남는 돈'], ['qr', '📍', '출퇴근 코드', '카운터 화면에 띄워두세요'], ['settings', '⚙️', '매장 설정', '요금제 · 매장 정보 · 매장 추가'], ['inq', '💬', '운영사 문의', '궁금한 점을 보내면 답해드려요'], ['used', '🔁', '중고 장터', '홀덤펍끼리 사고팔기'], ...(isOwner() ? [['transfer', '🤝', '점포 양도양수', '대표님만 보여요']] : [])].map(([k, i, t, d]) => `<button class="mi" ${k === 'improve' ? 'data-tab="improve"' : `data-act="sub" data-v="${k}"`}><span>${i}</span><span><b>${t}</b><small>${d}</small></span><span>›</span></button>`).join('')}</div>`;
   const back = `<button class="btn sm" data-act="sub" data-v="">← 더보기</button>`;
   if (sub === 'pnl') {
     const months = Array.from({ length: 6 }, (_, i) => { const dt = new Date(S.y, S.m - 6 + i, 1); return [dt.getFullYear(), dt.getMonth() + 1]; }).map(([yy, mm]) => ({ yy, mm, s: monthSummary(yy, mm) }));
@@ -597,7 +647,7 @@ function vMore() {
     <div class="card"><h3>요금제 ${trial != null ? `<small class="warn">무료 체험 D-${trial} · 끝나면 고른 요금제로 이어져요</small>` : ''}</h3><div class="plans">
       <div class="plan ${c.plan === 'basic' ? 'cur' : ''}"><b>베이직</b><b class="num">월 ₩${E.won(PRICE.basic)}</b><small>매장 관리 전부 — 매출 기록 · 직원 스케줄 · 급여 계산 · 출퇴근 · 구인 · 로테이션 · 발주</small>${c.plan === 'basic' ? '<span class="pill">지금 요금제</span>' : isOwner() ? '<button class="btn sm" data-act="plan-down">베이직으로 바꾸기</button>' : ''}</div>
       <div class="plan ${c.plan !== 'basic' ? 'cur' : ''}"><span class="pill y">추천</span><b>프로</b><b class="num">월 ₩${E.won(PRICE.pro)}</b><small>베이직 전부 + ✦ 매장 개선 (우리 매장 순위 · 경고등 · 매달 처방 · 퀘스트 · 레벨)</small>${c.plan === 'pro' ? '<span class="pill g">지금 요금제</span>' : isOwner() ? '<button class="btn sm gold" data-act="plan" data-v="pro">프로로 올리기</button>' : '<button class="btn sm" data-act="ask-owner" data-v="프로 요금제">대표님께 요청</button>'}</div></div>
-      ${S.downgrade ? (G => `<div class="card" style="border-color:var(--red);margin-top:10px"><b>베이직으로 바꾸면 이렇게 돼요</b><ul style="margin:8px 0;padding-left:18px;font-size:14px"><li>우리 매장 순위·경고등·매달 처방이 잠겨요</li>${G ? `<li>매장 레벨 Lv.${G.lv}${G.up >= 2 ? `과 🔥 ${G.up}개월 연속 상승 기록` : ''}이 멈춰요</li>` : ''}<li>퀘스트 경험치가 더 쌓이지 않아요</li></ul><div class="row"><button class="btn pri" data-act="plan-keep">프로 그대로 쓰기</button><button class="btn" data-act="plan" data-v="basic">그래도 베이직으로</button></div><p class="note">기록은 그대로 남아서 다시 프로로 오면 이어져요.</p></div>`)(S.bench?.ready && !S.bench.locked ? gameOf(S.bench, rxOf(S.bench)) : null) : ''}
+      ${S.downgrade ? (rx => `<div class="card" style="border-color:var(--red);margin-top:10px"><b>베이직으로 바꾸면 이렇게 돼요</b><ul style="margin:8px 0;padding-left:18px;font-size:14px"><li>우리 매장 순위·경고등·매달 처방이 잠겨요</li>${rx && rx.rev.length + rx.cost.length ? `<li>이번 달 꼭 할 일 ${rx.rev.length + rx.cost.length}개 (다 하면 매달 +₩${man([...rx.rev, ...rx.cost].reduce((a, r) => a + r[3], 0))})를 볼 수 없어요</li>` : ''}</ul><div class="row"><button class="btn pri" data-act="plan-keep">프로 그대로 쓰기</button><button class="btn" data-act="plan" data-v="basic">그래도 베이직으로</button></div><p class="note">기록은 그대로 남아서 다시 프로로 오면 이어져요.</p></div>`)(S.bench?.ready && !S.bench.locked ? rxOf(S.bench) : null) : ''}
       <p class="note">프로는 카드로 30일씩 결제해요 (매장 수 × ₩${E.won(PRICE.pro)}). ${c.paid_until ? `${new Date(c.paid_until).toLocaleDateString('ko-KR')}까지 결제돼 있어요. ` : ''}베이직으로 내리는 건 언제든 무료예요.</p>${payNote()}</div>
     <form class="f card" id="store-form"><h3>매장 정보</h3><label class="fl">매장 이름<input name="name" value="${esc(S.store.name)}" ${isOwner() ? '' : 'disabled'}></label><label class="fl">지역<input name="area" value="${esc(S.store.area || '')}" ${isOwner() ? '' : 'disabled'}></label>
       <div class="grid2"><label class="fl">평수<input type="number" name="py" min="1" step="0.1" value="${S.store.pyeong ?? ''}" placeholder="예: 32" ${isOwner() ? '' : 'disabled'}></label><label class="fl">테이블 수<input type="number" name="tables" min="1" value="${S.store.tables ?? ''}" placeholder="예: 7" ${isOwner() ? '' : 'disabled'}></label></div>
@@ -823,7 +873,10 @@ document.addEventListener('click', e => {
   if (a === 'quiz-start') { S.quizOn = true; render(); }
   if (a === 'quest') busy(async () => { const k = d.k, mon = thisMonth(), on = S.quests.some(x => x.month === mon && x.key === k);
     if (on) await q(sb.from('store_quests').delete().eq('store_id', S.store.id).eq('month', mon).eq('key', k)); else await q(sb.from('store_quests').insert({ store_id: S.store.id, month: mon, key: k }));
-    S.quests = await q(sb.from('store_quests').select('*').eq('store_id', S.store.id)); render(); toast(on ? '체크를 풀었어요' : '+150 XP! 다음 달 숫자로 효과를 확인해 드려요'); });
+    S.quests = await q(sb.from('store_quests').select('*').eq('store_id', S.store.id)); render(); toast(on ? '체크를 풀었어요' : '잘했어요! 다음 달 숫자로 효과를 확인해 드려요'); });
+  if (a === 'goal') openSheet(`<h2>${S.m}월 목표 매출</h2><form class="f" id="goal-form"><label class="fl">목표 (원)<input name="goal" type="number" min="0" step="100000" required value="${+S.store.goal || goalSuggest()?.v || ''}"></label>${goalSuggest() ? `<p class="note">추천: ₩${E.won(goalSuggest().v)} (${goalSuggest().from}보다 8% 높게)</p>` : ''}<button class="btn pri full">저장</button></form>`);
+  if (a === 'goal-set') busy(async () => { await q(sb.from('stores').update({ goal: +d.v }).eq('id', S.store.id)); S.store.goal = +d.v; await reload(); toast('목표를 정했어요'); });
+  if (a === 'fixed') openSheet(`<h2>한 달 고정비</h2><form class="f" id="fixed-form">${FIXED.map(([k, n]) => `<label class="fl">${n} (원)<input name="${k}" type="number" min="0" step="1000" value="${+(S.store.fixed || {})[k] || ''}"></label>`).join('')}<p class="note">한 번 넣으면 매달 자동으로 반영돼요.</p><button class="btn pri full">저장</button></form>`);
   if (a === 'partner') busy(async () => { await q(sb.from('inquiries').insert({ from_user: S.user.id, store_id: S.store.id, body: `[${d.v}] 견적 요청 — ${S.store.name} (${S.store.pyeong || '?'}평). 연락 부탁드려요.` })); toast(`${d.v} 견적을 요청했어요. 운영사가 연락드려요`); });
   if (a === 'ask-pro') toast('요금제는 대표님 앱의 매장 설정에서 바꿀 수 있어요');
   if (a === 'verify') busy(async () => { await q(sb.rpc('hq_verify', { p_company: d.c })); await reload(); toast('사업자 확인을 완료했어요'); });
@@ -888,6 +941,8 @@ document.addEventListener('submit', e => {
     if (id === 'inq-form') { await q(sb.from('inquiries').insert({ from_user: S.user.id, store_id: S.store?.id || null, body: v.body })); S.inq = await q(sb.from('inquiries').select('*').eq('from_user', S.user.id).order('created_at', { ascending: false })); render(); toast('운영사에 보냈어요. 답변이 오면 알림이 와요'); }
     if (id === 'used-form') { await q(sb.from('used_items').insert({ seller: S.user.id, store_id: S.store?.id || null, side: S.uside || 'sell', title: v.title, price: +v.price || 0, area: v.area || null, body: v.body || null })); S.used = await q(sb.from('used_items').select('*').order('created_at', { ascending: false }).limit(50)); render(); toast('올렸어요'); }
     if (id === 'sell-form') { S.sellA = [...(S.sellA || []), v.a]; render(); }
+    if (id === 'goal-form') { await q(sb.from('stores').update({ goal: +v.goal || null }).eq('id', S.store.id)); S.store.goal = +v.goal || null; closeSheet(); await reload(); toast('목표를 저장했어요'); }
+    if (id === 'fixed-form') { const fixed = Object.fromEntries(FIXED.map(([k]) => [k, +v[k] || 0]).filter(x => x[1])); await q(sb.from('stores').update({ fixed }).eq('id', S.store.id)); S.store.fixed = fixed; closeSheet(); await reload(); toast('고정비를 저장했어요'); }
     if (id === 'store-form') { await q(sb.from('stores').update({ name: v.name, area: v.area || null, pyeong: +v.py || null, tables: +v.tables || null, night_start: v.ns, night_end: v.ne }).eq('id', S.store.id)); await boot(); toast('저장했어요'); }
     if (id === 'addstore-form') { await q(sb.from('stores').insert({ company_id: S.company.id, name: v.name, area: v.area || null })); await boot(); toast('매장을 추가했어요. 위에서 매장을 골라 전환하세요'); }
     if (f.dataset.inq) { await q(sb.from('inquiries').update({ reply: v.reply, replied_at: new Date().toISOString() }).eq('id', f.dataset.inq)); await reload(); toast('답변을 보냈어요'); }
