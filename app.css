@@ -221,3 +221,6 @@ label.fl{align-content:start}.grid2>label.fl{grid-template-rows:1fr auto;align-c
 .qedit{border:1px solid var(--line);border-radius:12px;padding:10px;display:grid;gap:8px}.qedit legend{font-size:13px;font-weight:700;display:flex;gap:8px;align-items:center}.qo{display:flex;gap:6px;align-items:center}.qo input[type=radio]{width:18px;height:18px;flex:none}
 .counter{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;line-height:1.1;text-align:center;padding:2px;overflow:hidden}.counter span{font-size:16px}.counter small{font-size:10.5px;white-space:nowrap}
 .nw{white-space:nowrap}.stk .sn{min-width:0}.fl>.row>input{flex:1;min-width:0}
+.nbanner{display:flex;align-items:center;gap:12px;width:100%;text-align:left;cursor:pointer;color:var(--text);border-color:rgba(59,130,246,.5);background:linear-gradient(135deg,rgba(59,130,246,.14),var(--card) 60%)}.nbanner>span:first-child{font-size:22px}.nbanner div{flex:1}.nbanner small{display:block;color:var(--muted);font-size:12px}
+.notice .nb{margin-top:8px;font-size:14px;line-height:1.6;color:var(--text)}.sellopt{margin-top:8px;flex-wrap:wrap}.chip{user-select:none}
+.cell:not(.csel) .chip.add{display:none}
