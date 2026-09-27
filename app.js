@@ -160,12 +160,20 @@ const TABS = {
   dealer: [['jobs', '📣', '구인'], ['mywork', '🃏', '내 근무'], ['wallet', '👛', '지갑'], ['me', '🙂', '내 정보']],
   hq: [['dash', '📊', '대시보드'], ['stores', '🏢', '매장'], ['goods', '📦', '상품'], ['data', '🗂', '데이터'], ['inq', '💬', '문의함'], ['notice', '📢', '공지'], ['fr', '🏢', '가맹']]
 };
+// 탭·상단 아이콘: 이모지 대신 단색 선 아이콘 (기기마다 같은 모양)
+const ICON = { home: '<path d="M3 11l9-8 9 8v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/>', sched: '<path d="M4 5h16v15H4zM4 10h16M8 3v4M16 3v4"/>', sales: '<circle cx="12" cy="12" r="9"/><path d="M8 9l1.5 6 2.5-5 2.5 5L16 9M8 12h8"/>',
+  staff: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0M16 4.5a3.5 3.5 0 0 1 0 7M21.5 20a6.5 6.5 0 0 0-5-6.3"/>', jobs: '<path d="M3 10v4h3l8 5V5L6 10H3zM18 9a4 4 0 0 1 0 6"/>', market: '<path d="M5 8h14l-1 12H6L5 8zM9 8V6a3 3 0 0 1 6 0v2"/>',
+  work: '<path d="M4 5h16v15H4zM4 10h16M8 3v4M16 3v4M9 15l2 2 4-4"/>', attend: '<path d="M12 21s-6-5.3-6-10a6 6 0 0 1 12 0c0 4.7-6 10-6 10z"/><circle cx="12" cy="11" r="2.5"/>', wallet: '<path d="M3 7h16a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7zM3 7a2 2 0 0 1 2-2h12M16 13h5v4h-5a2 2 0 0 1 0-4z"/>',
+  me: '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>', mywork: '<rect x="6" y="3" width="12" height="18" rx="2"/><path d="M12 8l2.5 3.5L12 15l-2.5-3.5z"/>', dash: '<path d="M4 20V4M4 20h16M8 16v-5M12 16V8M16 16v-3"/>',
+  stores: '<path d="M4 21V8l8-5 8 5v13M9 21v-6h6v6M4 21h16"/>', goods: '<path d="M3 8l9-5 9 5v8l-9 5-9-5V8zM3 8l9 5 9-5M12 13v8"/>', data: '<ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v12c0 1.7 3.6 3 8 3s8-1.3 8-3V6M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/>',
+  inq: '<path d="M4 5h16v11H9l-5 4V5z"/>', notice: '<path d="M3 10v4h3l8 5V5L6 10H3zM18 9a4 4 0 0 1 0 6"/>', fr: '<path d="M3 21h18M5 21V9h5v12M14 21V4h5v17"/>', settings: '<path d="M4 7h9M17 7h3M4 17h3M11 17h9M4 12h13"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/><circle cx="19" cy="12" r="2"/>' };
+const svg = k => `<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICON[k]}</svg>`;
 function render() {
   clearInterval(S.qrTimer);
   const tabs = TABS[S.mode], nav = $('#tabs'); nav.hidden = !tabs;
   const g = S.mode === 'store' ? groupOf() : S.tab;
-  if (tabs) nav.innerHTML = tabs.map(([k, i, l]) => `<button ${k === 'market' ? 'data-act="sub" data-v="used"' : `data-tab="${k}"`} ${g === k ? 'aria-current="page"' : ''}><span>${i}</span>${l}</button>`).join('');
-  $('#top-r').innerHTML = S.user ? `${S.mode === 'store' ? `<button class="btn sm icon ${S.sub === 'notice' ? 'on' : ''}" data-act="sub" data-v="notice" title="운영사 공지">📢</button><button class="btn sm icon ${S.sub === 'inq' ? 'on' : ''}" data-act="sub" data-v="inq" title="운영사 문의">💬</button><button class="btn sm icon ${S.sub === 'settings' ? 'on' : ''}" data-act="sub" data-v="settings" title="매장 설정">⚙️</button>` : ''}<button class="btn sm" data-act="logout">로그아웃</button>` : '';
+  if (tabs) nav.innerHTML = tabs.map(([k, i, l]) => `<button ${k === 'market' ? 'data-act="sub" data-v="used"' : `data-tab="${k}"`} ${g === k ? 'aria-current="page"' : ''}><span>${ICON[k] ? svg(k) : i}</span>${l}</button>`).join('');
+  $('#top-r').innerHTML = S.user ? `${S.mode === 'store' ? `<button class="btn sm icon ${S.sub === 'notice' ? 'on' : ''}" data-act="sub" data-v="notice" title="운영사 공지" aria-label="운영사 공지">${svg('notice')}</button><button class="btn sm icon ${S.sub === 'inq' ? 'on' : ''}" data-act="sub" data-v="inq" title="운영사 문의" aria-label="운영사 문의">${svg('inq')}</button><button class="btn sm icon ${S.sub === 'settings' ? 'on' : ''}" data-act="sub" data-v="settings" title="매장 설정" aria-label="매장 설정">${svg('settings')}</button>` : ''}<button class="btn sm" data-act="logout">로그아웃</button>` : '';
   const V = { auth: vAuth, onboard: vOnboard,
     store: () => ((S.tab === 'more' && S.sub === 'daily' ? vDaily : 0) || ({ improve: vImprove, home: vHome, sched: vSched, sales: vSales, staff: vStaff, jobs: vJobs, more: vMore }[S.tab] || vHome))(),
     staff: () => ({ learn: vLearn, work: vWork, attend: vAttend, jobs: vBoard, wallet: vWallet, me: vMe }[S.tab] || vWork)(),
@@ -262,15 +270,15 @@ function todayTodo(M, goal) {
 }
 function goalCard(M) {
   const goal = goalOf(S.y, S.m), sg = goalSuggest(), cur = S.y === now.getFullYear() && S.m === now.getMonth() + 1, D = E.daysIn(S.y, S.m), [ny, nm] = nextMon();
-  const nextAsk = cur && isOwner() && now.getDate() >= D - 7 && !goalOf(ny, nm) ? `<div class="promo" style="margin-top:10px"><span>🗓 ${nm}월 목표를 미리 정해 두세요. 1일부터 바로 달성률이 보여요.</span><button class="btn sm pri" data-act="goal" data-y="${ny}" data-m="${nm}">${nm}월 목표 정하기</button></div>` : '';
-  if (!goal) return `<div class="card goal"><h3>🎯 ${S.m}월 목표 매출</h3>${sg ? `<p style="margin:0 0 10px">${sg.from} ₩${man(sg.base)}보다 8% 높은 <b class="num" style="font-size:22px">₩${man(sg.v)}</b>을 추천해요.</p>` : '<p class="mut">마감이 쌓이면 목표를 추천해 드려요.</p>'}
+  const nextAsk = cur && isOwner() && now.getDate() >= D - 7 && !goalOf(ny, nm) ? `<div class="promo" style="margin-top:10px"><span>${nm}월 목표를 미리 정해 두세요. 1일부터 바로 달성률이 보여요.</span><button class="btn sm pri" data-act="goal" data-y="${ny}" data-m="${nm}">${nm}월 목표 정하기</button></div>` : '';
+  if (!goal) return `<div class="card goal"><h3>${S.m}월 목표 매출</h3>${sg ? `<p style="margin:0 0 10px">${sg.from} ₩${man(sg.base)}보다 8% 높은 <b class="num" style="font-size:22px">₩${man(sg.v)}</b>을 추천해요.</p>` : '<p class="mut">마감이 쌓이면 목표를 추천해 드려요.</p>'}
     ${isOwner() ? `<div class="row">${sg ? `<button class="btn pri" data-act="goal-set" data-v="${sg.v}">이걸로 정하기</button>` : ''}<button class="btn" data-act="goal">직접 정하기</button></div>` : '<p class="note">목표는 대표님이 정해요.</p>'}${nextAsk}</div>`;
   const pct = M.sales / goal * 100, pp = M.proj / goal * 100, pace = cur ? M.el / D * 100 : 100, gapP = M.proj - goal, T = cur ? todayTodo(M, goal) : [];
-  return `<div class="card goal"><div class="row between"><h3 style="margin:0">🎯 ${S.m}월 목표 <b class="num">₩${man(goal)}</b></h3>${isOwner() ? '<button class="btn sm" data-act="goal">바꾸기</button>' : ''}</div>
+  return `<div class="card goal"><div class="row between"><h3 style="margin:0">${S.m}월 목표 <b class="num">₩${man(goal)}</b></h3>${isOwner() ? '<button class="btn sm" data-act="goal">바꾸기</button>' : ''}</div>
     <div class="gnum"><b class="num">${Math.floor(pct)}%</b><span>달성 · ₩${man(M.sales)}</span></div>
     <div class="gbar"><i style="width:${Math.min(100, pct)}%"></i>${cur ? `<em style="left:${pace}%" title="오늘 기준 있어야 할 위치"></em>` : ''}</div>
-    <div class="row between gsub"><small>${cur ? `오늘까지 있어야 할 곳 ${Math.round(pace)}%` : ''}</small><small>월말 예상 <b class="num ${gapP >= 0 ? 'up' : 'down'}">${Math.round(pp)}%</b> ${gapP >= 0 ? `(+₩${man(gapP)} 초과)` : `(₩${man(-gapP)} 부족)`}</small></div>
-    ${nextAsk}${T.length ? `<div class="todo"><small class="mut">오늘 할 일 · ${now.getMonth() + 1}월 ${now.getDate()}일</small>${T.map(t => `<div class="td" ${t[3] ? `data-act="goto" data-t="${t[3] === 'order' ? 'more' : t[3]}" ${t[3] === 'order' ? 'data-s="order"' : ''} role="button"` : ''}><span class="ti">${t[0]}</span><div><b>${t[1]}</b><small>${t[2]}</small></div>${t[3] ? '<span class="mut">›</span>' : ''}</div>`).join('')}</div>` : ''}</div>`;
+    <div class="row between gsub"><small>${cur ? `오늘까지 있어야 할 곳 ${Math.round(pace)}%` : ''}</small><small>월말 예상 <b class="num ${gapP >= 0 ? 'up' : 'warn'}">${Math.round(pp)}%</b> ${gapP >= 0 ? `(+₩${man(gapP)} 초과)` : `(₩${man(-gapP)} 부족)`}</small></div>
+    ${nextAsk}${T.length ? `<div class="todo"><small class="mut">오늘 할 일 · ${now.getMonth() + 1}월 ${now.getDate()}일</small>${T.map(t => `<div class="td" ${t[3] ? `data-act="goto" data-t="${t[3] === 'order' ? 'more' : t[3]}" ${t[3] === 'order' ? 'data-s="order"' : ''} role="button"` : ''}><div><b>${t[1]}</b><small>${t[2]}</small></div>${t[3] ? '<span class="mut">›</span>' : ''}</div>`).join('')}</div>` : ''}</div>`;
 }
 function selfCard() {
   const ms = [0, 1, 2].map(i => { const t = new Date(S.y, S.m - 1 - i, 1); return { m: t.getMonth() + 1, s: monthSummary(t.getFullYear(), t.getMonth() + 1) }; });
@@ -301,36 +309,40 @@ function topStrip(M) {
   const today = r0 ? [`₩${man(r0.sales)}`, `마감 완료 · 엔트리 ${r0.entries || 0}`, 'up'] : S.open ? [`${staffN}명 근무`, `${fmtDT(S.open.opened_at).split(' ').slice(-2).join(' ')} 오픈 · 적정 ${need}명`, staffN < need ? 'down' : ''] : [`${staffN}명 근무 예정`, `아직 오픈 전 · 적정 ${need}명`, staffN < need ? 'down' : ''];
   const B = S.bench, L = B?.ready && !B.locked ? lightsOf(B).filter(x => x.lv === 'r' || x.lv === 'y').sort((a, b) => (a.lv === 'r' ? 0 : 1) - (b.lv === 'r' ? 0 : 1)) : [], rx = L.length ? [...rxOf(B).rev, ...rxOf(B).cost].find(r => r[0] === LIGHT_RX[L[0].key]) : null;
   const goal = goalOf(S.y, S.m), gap = goal ? M.proj - goal : 0, D = E.daysIn(y, m), short = Array.from({ length: D - d + 1 }, (_, i) => E.ymd(y, m, d + i)).filter(k => S.members.filter(p => p.role !== 'owner' && E.shiftOn(p.id, y, m, +k.slice(8), S.tpl, S.ov)).length < needOn(k, S.store.need_by_wd || [3, 4, 3, 4, 6, 7, 2])).length;
-  const prob = L.length ? [L[0].n, rx ? `고치면 월 ${rx[0].startsWith('rev') ? '+' : '−'}₩${man(rx[3])}` : '평균보다 나빠요', 'down', 'improve'] : goal && gap < 0 ? [`목표 ₩${man(-gap)} 부족`, '월말 예상 기준', 'down', 'home'] : short ? [`인원 부족 ${short}일`, '이번 달 남은 날 중', 'down', 'sched'] : M.left < 0 ? ['이번 달 적자', '비용이 매출보다 커요', 'down', 'home'] : ['없어요 👍', '지금처럼만 하세요', 'up', null];
+  const prob = L.length ? [L[0].n, rx ? `고치면 월 ${rx[0].startsWith('rev') ? '+' : '−'}₩${man(rx[3])}` : '평균보다 나빠요', 'down', 'improve'] : goal && gap < 0 ? [`목표 ₩${man(-gap)} 부족`, '월말 예상 기준', 'down', 'home'] : short ? [`인원 부족 ${short}일`, '이번 달 남은 날 중', 'down', 'sched'] : M.left < 0 ? ['이번 달 적자', '비용이 매출보다 커요', 'down', 'home'] : ['없어요', '지금처럼만 하세요', 'up', null];
   return `<div class="top3"><div class="card kpi"><div class="l">오늘 현황</div><div class="v num ${today[2]}">${today[0]}</div><small class="mut">${today[1]}</small></div>
     <div class="card kpi"><div class="l">이번 달 예상 순이익</div><div class="v num ${M.left >= 0 ? 'up' : 'down'}">${M.n >= 3 ? `${M.left < 0 ? '−' : ''}₩${man(Math.abs(M.left))}` : '<small class="mut" style="font-size:13px">마감 3일부터</small>'}</div><small class="mut">매출 ₩${man(M.proj)} − 비용 ₩${man(M.cost)}</small></div>
     <button class="card kpi ${prob[3] ? 'go' : ''}" ${prob[3] ? `data-tab="${prob[3]}"` : ''}><div class="l">지금 가장 큰 문제</div><div class="v ${prob[2]}" style="font-size:16px">${esc(prob[0])}</div><small class="mut">${esc(prob[1])}${prob[3] ? ' ›' : ''}</small></button></div>`;
 }
 function vHome() {
-  const M = monthSummary(S.y, S.m), [y, m, d] = TODAY.split('-').map(Number), cur = S.y === y && S.m === m;
+  const M = monthSummary(S.y, S.m), [y, m, d] = TODAY.split('-').map(Number), cur = S.y === y && S.m === m, hasStaff = S.members.some(p => p.role !== 'owner');
   const months = Array.from({ length: 6 }, (_, i) => { const dt = new Date(S.y, S.m - 6 + i, 1); return [dt.getFullYear(), dt.getMonth() + 1]; }).map(([yy, mm]) => ({ yy, mm, s: monthSummary(yy, mm) })).filter(x => x.s.n);
   const mx = Math.max(1, ...months.map(x => Math.abs(x.s.left)));
   const nt = S.noticeTop, seen = (() => { try { return localStorage.getItem('ev-notice') } catch { return null } })(), newN = nt && nt.id !== seen && Date.now() - new Date(nt.created_at) < 14 * 864e5;
-  return `${storeHead('브리핑')}${newN ? `<button class="card nbanner" data-act="sub" data-v="notice"><span>📢</span><div><small>운영사에서 새 소식이 왔어요</small><b>${esc(nt.title)}</b></div><span class="mut">›</span></button>` : ''}
+  // 주 컬럼: 오늘·이번 달 판단에 필요한 것 / 보조 컬럼: 참고 정보 (모바일에선 같은 순서로 세로)
+  return `<div class="home"><div class="hhead">${storeHead('브리핑')}${newN ? `<button class="card nbanner" data-act="sub" data-v="notice"><span class="ntag">공지</span><div><small>운영사에서 새 소식이 왔어요</small><b>${esc(nt.title)}</b></div><span class="mut">›</span></button>` : ''}</div>
+  <div class="hmain">
   ${cur ? topStrip(M) : ''}
   ${rankBar()}
-  <div style="margin-top:10px">${monthNav()}</div>
+  <div class="sech"><h2>${S.m}월 손익</h2>${monthNav()}</div>
   ${goalCard(M)}
-  <div class="grid2"><div class="card kpi"><div class="l">${cur ? `오늘까지 남은 돈 (${M.el}일)` : `${S.m}월 남은 돈`}</div><div class="v num ${M.earned >= 0 ? 'up' : 'down'}">${M.earned < 0 ? '−' : ''}₩${man(Math.abs(M.earned))}</div></div><div class="card kpi"><div class="l">${cur ? '월말 예상 남는 돈' : `${S.m}월 매출`}</div><div class="v num ${cur ? (M.left >= 0 ? 'up' : 'down') : ''}">${cur ? (M.n >= 3 ? `${M.left < 0 ? '−' : ''}₩${man(Math.abs(M.left))}` : '<small class="mut" style="font-size:13px">마감 3일부터 보여요</small>') : '₩' + man(M.sales)}</div></div></div>
-  <div class="card"><h3>${S.m}월 계산서 <small>${cur ? '월말 예상 기준' : '확정'}</small></h3>
+  <div class="card bill"><h3>${S.m}월 계산서 <small>${cur ? '월말 예상 기준' : '확정'}</small></h3>
+    ${cur ? `<div class="lead"><small>오늘까지 남은 돈 (${M.el}일)</small><b class="num ${M.earned >= 0 ? 'up' : 'down'}">${M.earned < 0 ? '−' : ''}₩${man(Math.abs(M.earned))}</b></div>` : ''}
     <div class="li"><b>매출</b><b class="num">₩${E.won(M.proj)}</b></div>
     <div class="li"><span class="mut">− 인건비 (스케줄·4대보험 사업주분·긴급 구인 포함)</span><span class="num">₩${E.won(M.labor)}</span></div>
     ${Object.entries(M.exp).map(([k, v]) => `<div class="li"><span class="mut">− ${CAT[k] || k}</span><span class="num">₩${E.won(v)}</span></div>`).join('')}
-    <div class="li"><b>= 남는 돈</b><b class="num ${M.left >= 0 ? 'up' : 'down'}" style="font-size:20px">${M.left < 0 ? '−' : ''}₩${E.won(Math.abs(M.left))}${M.left < 0 ? ' 적자' : ''}</b></div>
+    <div class="li sum"><b>= 남는 돈</b><b class="num ${M.left >= 0 ? 'up' : 'down'}">${M.n >= 3 || !cur ? `${M.left < 0 ? '−' : ''}₩${E.won(Math.abs(M.left))}${M.left < 0 ? ' 적자' : ''}` : '<small class="mut" style="font-size:13px">마감 3일부터 보여요</small>'}</b></div>
     <p class="note">${M.bep && M.bep <= E.daysIn(S.y, S.m) ? `손익분기: <b class="up">${S.m}월 ${M.bep}일</b>에 넘어요.` : '이번 달은 손익분기를 못 넘어요.'}</p></div>
   ${lightsCard(false)}
   ${selfCard()}
+  </div><div class="hside">
   ${months.length ? `<div class="card"><h3>월별 손익 <small>매출 − 비용 = 남은 돈</small></h3><div class="pnl">${months.map(x => `<div class="pr"><span class="mut">${x.mm}월</span><span class="num">₩${man(x.s.proj)}</span><span class="num mut">−₩${man(x.s.cost)}</span><span class="pb"><i class="${x.s.left >= 0 ? 'g' : 'r'}" style="width:${Math.max(3, Math.abs(x.s.left) / mx * 100)}%"></i></span><b class="num ${x.s.left >= 0 ? 'up' : 'down'}">${x.s.left < 0 ? '−' : '+'}₩${man(Math.abs(x.s.left))}</b></div>`).join('')}</div>${months.at(-1).yy === y && months.at(-1).mm === m ? '<p class="note">이번 달은 월말 예상이에요.</p>' : ''}</div>` : ''}
   ${fixedCard()}
-  ${S.members.some(p => p.role !== 'owner') ? `<div class="card"><div class="row between"><h3 style="margin:0">오늘 근무표 <small>${m}월 ${d}일 (${E.WD[E.wdOf(y, m, d)]})</small></h3><button class="btn sm" data-act="day-open" data-d="${TODAY}">스케줄 →</button></div>${dayTimeline(TODAY, true)}</div>` : ''}
-  ${S.members.some(p => p.role !== 'owner') ? '' : `<div class="card"><h3>처음 할 일</h3><div class="li"><div><b>① 직원 등록</b><small>시급·계약·계좌까지</small></div><button class="btn sm pri" data-tab="staff">하러 가기</button></div><div class="li"><div><b>② 스케줄 짜기</b><small>요일 기본 + 날짜별 수정</small></div><button class="btn sm" data-tab="sched">하러 가기</button></div><div class="li"><div><b>③ 매일 매출 보고</b></div><button class="btn sm" data-tab="sales">하러 가기</button></div></div>`}
+  ${hasStaff ? `<div class="card"><div class="row between"><h3 style="margin:0">오늘 근무표 <small>${m}월 ${d}일 (${E.WD[E.wdOf(y, m, d)]})</small></h3><button class="btn sm" data-act="day-open" data-d="${TODAY}">스케줄 →</button></div>${dayTimeline(TODAY, true)}</div>` : ''}
+  ${hasStaff ? '' : `<div class="card"><h3>처음 할 일</h3><div class="li"><div><b>① 직원 등록</b><small>시급·계약·계좌까지</small></div><button class="btn sm pri" data-tab="staff">하러 가기</button></div><div class="li"><div><b>② 스케줄 짜기</b><small>요일 기본 + 날짜별 수정</small></div><button class="btn sm" data-tab="sched">하러 가기</button></div><div class="li"><div><b>③ 매일 매출 보고</b></div><button class="btn sm" data-tab="sales">하러 가기</button></div></div>`}
   ${S.joins.length ? `<div class="card" style="border-color:rgba(245,158,11,.5)"><h3>소속 신청 ${S.joins.length}건 <button class="btn sm pri" data-tab="staff">확인</button></h3></div>` : ''}
-  ${S.notis.length ? `<div class="card"><h3>알림</h3>${S.notis.slice(0, 5).map(x => `<div class="li"><span>${esc(x.body)}</span><small>${fmtDT(x.created_at)}</small></div>`).join('')}</div>` : ''}`;
+  ${S.notis.length ? `<div class="card"><h3>알림</h3>${S.notis.slice(0, 5).map(x => `<div class="li"><span>${esc(x.body)}</span><small>${fmtDT(x.created_at)}</small></div>`).join('')}</div>` : ''}
+  </div></div>`;
 }
 // ===== 매장 개선 (프로) — 순위·경고등·처방·꼭 할 일 =====
 const pctOf = (a, b) => (a - b) / b * 100;
@@ -381,7 +393,7 @@ function lightsCard(full) {
     return `<div class="lt ${x.lv}"><span class="dot">${{ r: '🔴', y: '🟡', g: '🟢' }[x.lv]}</span><div><b>${x.n} <span class="num">${val(x.mine, x.unit)}</span></b>
       <small>${full ? `평균 ${val(x.avg, x.unit)} · ${x.lv === 'g' ? `평균보다 ${gap.toFixed(0)}% 좋아요` : `평균보다 ${gap.toFixed(0)}% ${x.key === 'util' ? '낮아요' : '높아요'}`}` : x.lv === 'g' ? `평균 ${val(x.avg, x.unit)} · ${gap.toFixed(0)}% 좋아요` : `평균 ${val(x.avg, x.unit)} · ${gap.toFixed(0)}% ${x.key === 'util' ? '낮아요' : '높아요'}`}</small>
       ${x.lv !== 'g' && r ? `<div class="fix">${full ? `→ <b>${esc(r[1])}</b> ·` : '→ 이걸 고치면'} <b class="up num">월 ${r[0].startsWith('rev') ? `+₩${man(r[3])} 더` : `₩${man(r[3])} 절감`}</b></div>` : ''}</div>${x.lv !== 'g' ? `<span class="pill ${x.lv}">${{ r: '위험', y: '주의' }[x.lv]}</span>` : ''}</div>`; };
-  return `<div class="card" style="border-color:${bad.length ? 'rgba(239,68,68,.45)' : 'var(--line)'}"><h3>우리 매장 경고등 <small>${bad.length ? `고칠 곳 <b class="down">${bad.length}개</b>` : '모두 좋아요'}</small></h3>
+  return `<div class="card lcard" ${full && bad.length ? 'style="border-color:rgba(239,68,68,.45)"' : ''}><h3>우리 매장 경고등 <small>${bad.length ? `고칠 곳 <b class="down">${bad.length}개</b>` : '모두 좋아요'}</small></h3>
     ${!full && gain ? `<div class="bigwin"><small>경고등을 고치면 매달</small><b class="num">+₩${man(gain)}</b><small>더 남아요</small></div>` : ''}
     <div class="lts">${sorted.map(row).join('')}</div>
     ${!+B.mine.pyeong || !B.mine.tables ? `<p class="note">매장 평수·테이블 수를 넣으면 평당 비교가 정확해져요. <button class="btn sm" data-act="goto" data-t="more" data-s="settings">매장 설정</button></p>` : ''}
