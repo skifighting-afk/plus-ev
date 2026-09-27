@@ -181,3 +181,25 @@ small.won{display:block;min-height:15px;margin-top:3px;font-size:11.5px;color:#3
 #top-r .btn{white-space:nowrap}@media (max-width:480px){.brand small{display:none}}
 .fl>.row{flex-wrap:wrap}.fl>.row small.won{flex-basis:100%;margin-top:0}
 .filters{display:grid;gap:6px;margin-top:10px}
+/* 재고 −/+ */
+.stks{display:grid;gap:6px;margin-top:10px}.stk{display:grid;grid-template-columns:40px 1fr auto;gap:10px;align-items:center;padding:8px 10px;border:1px solid var(--line);border-radius:12px;background:var(--card2)}.stk.lo{border-color:rgba(239,68,68,.55)}
+.stk .si{width:40px;height:40px;border-radius:10px;overflow:hidden;background:var(--card);display:grid;place-items:center}.stk .si img{width:100%;height:100%;object-fit:cover}.stk .si .ph{font-size:22px}
+.stk .sn b{display:block;font-size:14px}.stk .sn small{color:var(--muted);font-size:12px}.lnk{border:0;background:var(--card);color:var(--text);border-radius:6px;width:20px;height:20px;margin:0 3px;cursor:pointer;font-weight:800}
+.step{display:flex;align-items:center;border:1px solid var(--line2);border-radius:12px;overflow:hidden}.step button{border:0;background:var(--card);color:var(--text);width:40px;height:40px;font-size:20px;font-weight:700;cursor:pointer}.step button:active{background:var(--line2)}.step b{min-width:38px;text-align:center;font-size:17px}
+/* 발주 상품 사진 */
+.sitem .simg{display:block;width:100%;aspect-ratio:4/3;border:0;padding:0;border-radius:10px;overflow:hidden;background:var(--card);cursor:pointer;margin-bottom:6px}.sitem .simg img{width:100%;height:100%;object-fit:cover}.sitem .simg .ph{font-size:40px;display:grid;place-items:center;height:100%}
+button.sitem{font:inherit;color:var(--text);text-align:left;cursor:pointer}.sitem.off{opacity:.5}
+/* 오픈 */
+.openbar{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;border-color:rgba(16,185,129,.45)}
+/* 일 매출 달력 */
+.dsum{display:grid;grid-template-columns:repeat(auto-fit,minmax(90px,1fr));gap:6px;margin-bottom:10px}.dsum div{background:var(--card2);border-radius:10px;padding:8px 10px}.dsum small{display:block;color:var(--muted);font-size:11px}.dsum b{font-size:14px}
+.dcal .dcell{position:relative;min-height:58px;border:1px solid var(--line);border-radius:10px;padding:4px 5px;background:var(--card2);display:flex;flex-direction:column;gap:1px;overflow:hidden}.dcal .dcell.has{cursor:pointer}.dcal .dcell.today{outline:2px solid var(--green)}
+.dcell .dn2{font-size:11px;font-weight:800}.dcell small{position:relative;z-index:1;font-size:11px;white-space:nowrap}.dcell i{position:absolute;left:0;right:0;bottom:0;background:rgba(16,185,129,.18)}.dcell.warn{border-color:rgba(245,158,11,.6)}.dcell.bad{border-color:rgba(239,68,68,.7)}
+/* 스케줄 선택 */
+.chip.sel{outline:2px solid #FCD34D;outline-offset:1px}.cell.csel{outline:2px dashed #FCD34D}.chip[draggable=true]{cursor:grab}.clipbar.sel{background:#2a2410;border-color:#FCD34D}
+.tl.fit>div{min-width:0}.tl.fit .tlh,.tl.fit .tlr{grid-template-columns:52px 1fr}.tl.fit .tlt .bar{font-size:10.5px;padding:0 4px}
+/* 양도양수 요금 */
+.fee-hero{text-align:center;background:linear-gradient(160deg,rgba(16,185,129,.16),var(--card) 70%);border-color:rgba(16,185,129,.45)}.fee-hero h2{font-size:26px;line-height:1.3;margin:6px 0}
+.fees{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;margin:12px 0}.fee{position:relative;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px}.fee>small{color:var(--muted)}.fee>b{display:block;font-size:32px;font-weight:800;font-family:Manrope;margin:4px 0 8px}.fee>b span{font-size:14px;color:var(--muted);margin-left:2px}
+.fee ul{margin:0;padding-left:18px;font-size:13.5px;line-height:1.8}.fee.best{border-color:#FCD34D;background:linear-gradient(160deg,rgba(252,211,77,.12),var(--card) 60%)}.fee.best .pill{position:absolute;top:-10px;right:12px}
+.clipbar.sel{position:static;min-height:48px;margin:0 0 8px;padding:6px 10px;font-size:13px;flex-wrap:nowrap}.clipbar.sel>span:first-child{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.clipbar.idle{background:var(--card2);border-color:var(--line)}
