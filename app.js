@@ -66,7 +66,7 @@ function vAuth() {
     <label class="fl">이메일<input name="email" type="email" required autocomplete="email"></label>
     <label class="fl">비밀번호 <input name="pw" type="password" minlength="6" required autocomplete="${up ? 'new-password' : 'current-password'}"></label>
     <button class="btn pri full" type="submit">${up ? '가입하기' : '로그인'}</button></form>
-  <p class="note">${up ? '가입하면 이메일로 확인 메일이 가요. 메일의 버튼을 누르면 바로 시작돼요.' : ''}</p></div>`;
+  <p class="note">${up ? '가입하면 바로 시작돼요.' : ''}</p></div>`;
 }
 // ----- 첫 설정 -----
 function vOnboard() {
@@ -276,7 +276,7 @@ document.addEventListener('submit', e => {
   e.preventDefault(); const f = e.target, v = Object.fromEntries(new FormData(f)), id = f.id;
   busy(async () => {
     if (id === 'auth-form') {
-      if (S.authMode === 'signup') { const { data, error } = await sb.auth.signUp({ email: v.email, password: v.pw, options: { data: { name: v.name }, emailRedirectTo: location.origin } }); if (error) return toast(error.message); if (!data.session) toast('확인 메일을 보냈어요. 메일의 버튼을 눌러주세요'); }
+      if (S.authMode === 'signup') { const { data, error } = await sb.auth.signUp({ email: v.email, password: v.pw, options: { data: { name: v.name }, emailRedirectTo: location.origin + location.pathname } }); if (error) return toast(error.message); if (!data.session) toast('확인 메일을 보냈어요. 메일의 버튼을 눌러주세요'); }
       else { const { error } = await sb.auth.signInWithPassword({ email: v.email, password: v.pw }); if (error) toast(error.message.includes('Invalid') ? '이메일이나 비밀번호가 달라요' : error.message); }
     }
     if (id === 'owner-form') { await q(sb.rpc('create_company', { p_name: v.name, p_brand: v.brand || null, p_biz_no: v.biz, p_store: v.store, p_area: v.area || null, p_nick: v.nick })); await q(sb.from('profiles').update({ name: v.nick }).eq('id', S.user.id)); toast('매장을 만들었어요! 2주 무료로 시작해요'); await boot(); }
