@@ -179,3 +179,5 @@ small.won{display:block;min-height:15px;margin-top:3px;font-size:11.5px;color:#3
 .hero-cover{margin:-4px -4px 12px}
 .lesson summary{grid-template-columns:56px 1fr auto}
 #top-r .btn{white-space:nowrap}@media (max-width:480px){.brand small{display:none}}
+.fl>.row{flex-wrap:wrap}.fl>.row small.won{flex-basis:100%;margin-top:0}
+.filters{display:grid;gap:6px;margin-top:10px}

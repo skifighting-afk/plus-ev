@@ -615,7 +615,7 @@ function vStaff() {
     <div class="acct">${p.bank_name ? `🏦 <b>${esc(p.bank_name)}</b> <span class="num">${esc(p.bank_acct || '')}</span> <small class="mut">예금주 ${esc(p.bank_holder || '-')}</small>${p.bank_acct ? `<button class="btn sm" data-act="copy" data-v="${esc(p.bank_acct)}">계좌 복사</button>` : ''}` : '<span class="mut">🏦 계좌 미등록</span>'}</div></div>`).join('') || `<div class="card empty">${all.length ? '해당하는 직원이 없어요' : '아직 직원이 없어요'}</div>`}
   <div class="card"><h3>매장 가입코드 <small>직원·딜러가 앱에서 이 코드로 소속 신청해요</small></h3><div class="row between"><b class="num" style="font-size:24px;letter-spacing:.12em">${esc(S.store.join_code)}</b><button class="btn sm" data-act="copy" data-v="${esc(S.store.join_code)}">복사</button></div>
     <p class="note">점장 권한은 앱에 가입해 소속된 직원에게만 줄 수 있어요. 점장은 자기 매장의 스케줄·매출·구인을 관리해요.</p></div>` : `
-  <div class="row between" style="margin:12px 0 8px">${monthNav()}<button class="btn sm pri" data-act="csv">📥 엑셀 파일</button></div>
+  <div class="row between" style="margin:12px 0 8px">${monthNav()}<span class="row"><button class="btn sm" data-act="pay-copy">📋 이체 목록 복사</button><button class="btn sm pri" data-act="csv">📥 엑셀</button></span></div>
   ${rows.length ? `<div class="card paysum"><div><small>${S.m}월 실지급 합계 <span class="mut">(어제까지)</span></small><b class="num">₩${E.won(sum('net'))}</b></div><div class="ps3"><div><small>지급총액</small><b class="num">₩${man(sum('gross'))}</b></div><div><small>공제</small><b class="num down">−₩${man(sum('ded'))}</b></div><div><small>월말 예상</small><b class="num">₩${man(sum('fullGross'))}</b></div></div></div>
   <p class="legend">${[['기본급', '#10B981'], ['야간', '#6366F1'], ['연장', '#F59E0B'], ['주휴', '#3B82C4'], ['인센티브', '#EC4899']].map(([n, c]) => `<span><i style="background:${c}"></i>${n}</span>`).join('')} <span class="mut">· 이름을 누르면 자세히</span></p>
   ${rows.sort((a, b) => b.r.net - a.r.net).map(({ p, r }) => { const parts = [['기본급', r.base, '#10B981'], ['야간', r.np, '#6366F1'], ['연장', r.otp, '#F59E0B'], ['주휴', r.juhu, '#3B82C4'], ['인센티브', r.inc, '#EC4899']], tot = Math.max(1, r.gross);
@@ -808,7 +808,7 @@ function vWork() {
   ${S.slots.length ? `<div class="card"><h3>긴급 근무</h3>${S.slots.map(s => `<div class="slot"><span><b>${esc(s.title)}</b><br><small class="mut">${esc(s.store_name)} · ${t5(s.start_t)}–${t5(s.end_t)}</small></span><span class="row"><span class="pill ${SLOT[s.status][0]}">${SLOT[s.status][1]}</span>${s.status === 'WORKING' ? `<button class="btn sm pri" data-act="dslot" data-s="${s.slot_id}">근무 완료</button>` : ''}</span></div>`).join('')}</div>` : ''}
   <div class="card"><h3>이번 주</h3>${E.WD.map((w, i) => { const dd = wk0 + i, ok = dd >= 1 && dd <= E.daysIn(y, m), t = ok ? E.shiftOn(me.id, y, m, dd, S.tpl, S.ov) : null; return `<div class="li ${dd === d ? 'today' : ''}"><div><b>${w}</b><small>${ok ? `${m}/${dd}` : ''}</small></div>${t ? `<span class="num"><b>${t5(t.s)} – ${t5(t.e)}</b></span>` : '<span class="mut">휴무</span>'}</div>`; }).join('')}</div>
   <div class="card"><h3>${S.m}월 달력 ${monthNav()}</h3><div class="cal">${E.WD.map(w => `<div class="h">${w}</div>`).join('')}${'<div></div>'.repeat(E.wdOf(S.y, S.m, 1))}${cal}</div></div>
-  <div class="card"><h3>${S.m}월 급여 예상 <small>세전 ₩${E.won(r.fullGross)}</small></h3><div class="li"><span class="mut">기본급·야간·연장·주휴 (어제까지)</span><span class="num">₩${E.won(r.base)} · ${E.won(r.np)} · ${E.won(r.otp)} · ${E.won(r.juhu)}</span></div><div class="li"><span class="mut">인센티브</span><span class="num">₩${E.won(r.inc)}</span></div><div class="li"><span class="mut">공제 (${me.contract === '4대' ? '4대보험' : '3.3%'})</span><span class="num down">−₩${E.won(r.ded)}</span></div></div>`;
+  <div class="card"><h3>${S.m}월 급여 <small>어제까지 · 월말 예상 세전 ₩${E.won(r.fullGross)}</small></h3>${[['기본급', r.base], ['야간수당', r.np], ['연장수당', r.otp], ['주휴수당', r.juhu], ['인센티브', r.inc]].map(([n, v]) => `<div class="li"><span class="mut">${n}</span><span class="num">₩${E.won(v)}</span></div>`).join('')}<div class="li"><span class="mut">공제 (${me.contract === '4대' ? '4대보험' : '3.3%'})</span><span class="num down">−₩${E.won(r.ded)}</span></div><div class="li"><b>지금까지 실수령</b><b class="num up" style="font-size:18px">₩${E.won(r.net)}</b></div></div>`;
 }
 function vAttend() {
   const last = S.att?.[0];
@@ -818,19 +818,27 @@ function vAttend() {
 }
 
 // ===== 딜러 =====
+const hoursOf = (s, e) => { const a = E.toMin(s); let b = E.toMin(e); if (b <= a) b += 1440; return (b - a) / 60; };
 function jobCard(j) {
-  const applied = S.apps.some(a => a.post_id === j.id), slots = j.slots || [], pays = slots.map(s => s.pay);
+  const applied = S.apps.some(a => a.post_id === j.id), slots = j.slots || [], pays = slots.map(s => s.pay), open = slots.filter(s => s.status === 'OPEN').length;
+  const s0 = slots[0], hrs = s0 ? hoursOf(s0.start, s0.end) : 0, same = slots.every(s => s.start === s0?.start && s.end === s0?.end);
   return `<div class="job ${j.kind === 'urgent' ? 'urgent' : ''}"><div class="row between"><div class="row">${j.kind === 'urgent' ? `<span class="pill r">🚨 긴급 · ${Math.max(0, Math.ceil((new Date(j.expires_at) - Date.now()) / 36e5))}시간 남음</span>` : ''}${j.flash ? '<span class="spark">✨ 반짝</span>' : ''}${j.top ? '<span class="pill y">📌</span>' : ''}<small class="mut">${esc(j.job_role)}</small></div>
     <span class="pay">${pays.length ? `일당 ₩${E.won(Math.min(...pays))}${pays.length > 1 && Math.max(...pays) !== Math.min(...pays) ? '~' + E.won(Math.max(...pays)) : ''}` : esc(j.pay_text || '')}</span></div>
   <h4>${esc(j.title)}</h4>${j.body ? `<div style="font-size:14px">${esc(j.body)}</div>` : ''}
   ${j.incentive || j.prefer ? `<div class="jx">${j.incentive ? `<span>💰 인센티브 · ${esc(j.incentive)}</span>` : ''}${j.prefer ? `<span>⭐ 우대 · ${esc(j.prefer)}</span>` : ''}</div>` : ''}
+  <div class="meta"><span>${esc(j.store_name)} · ${esc(j.area || '')}</span><span>${slots.length ? (same ? `${t5(s0.start)}–${t5(s0.end)} · ${hrs}시간` : slots.map(s => `${t5(s.start)}–${t5(s.end)}`).join(' / ')) : esc(j.work_time || '')}</span>
+    ${slots.length && hrs ? `<span class="up">시급으로 약 ₩${E.won(Math.round(Math.min(...pays) / hrs / 10) * 10)}</span>` : ''}${slots.length > 1 ? `<span>${open}/${slots.length}자리 남음</span>` : ''}${j.taxi_amt ? `<span class="up">🚕 택시비 ₩${E.won(j.taxi_amt)}</span>` : ''}</div>
   ${j.address ? `<a class="jaddr" href="${mapUrl(j.address)}" target="_blank" rel="noopener">📍 ${esc(j.address)} <b>네이버 지도 ›</b></a>` : ''}
-  <div class="meta"><span>${esc(j.store_name)} · ${esc(j.area || '')}</span><span>${slots.length ? slots.map(s => `${t5(s.start)}–${t5(s.end)}`).join(' / ') : esc(j.work_time || '')}</span>${j.taxi_amt ? `<span class="up">🚕 택시비 ₩${E.won(j.taxi_amt)}</span>` : ''}</div>
   ${applied ? '<span class="pill g">지원 완료 · 매장 확인 중</span>' : `<button class="btn ${j.kind === 'urgent' ? 'gold' : 'pri'}" data-act="apply" data-p="${j.id}">🎟 지원권 1장으로 지원</button>`}</div>`;
 }
 function vBoard() {
+  const F = S.jf || { k: '전체', r: '전체', a: '전체' }, areas = [...new Set(S.board.map(j => (j.area || '').split(' ').slice(0, 2).join(' ')).filter(Boolean))];
+  const list = S.board.filter(j => (F.k === '전체' || (F.k === '긴급') === (j.kind === 'urgent')) && (F.r === '전체' || j.job_role === F.r) && (F.a === '전체' || (j.area || '').startsWith(F.a)));
+  const chip = (key, v) => `<button class="fchip ${F[key] === v ? 'on' : ''}" data-act="jf" data-k="${key}" data-v="${v}">${v === '긴급' ? '🚨 긴급' : v}</button>`;
   return `<div class="row between"><h1>구인</h1><span class="pill y">🎟 지원권 ${S.tickets}장</span></div><p class="sub">지원하면 지원권 1장이 잠기고, 채용돼 연락처가 열리면 사용돼요. 안 뽑히거나 매장이 취소하면 돌아와요.</p>
-  ${S.board.map(jobCard).join('') || '<div class="card empty">지금 올라온 공고가 없어요</div>'}`;
+  <div class="filters"><div class="chips">${['전체', '긴급', '상시'].map(v => chip('k', v)).join('')}</div><div class="chips">${['전체', '딜러', '플로어', '매니저'].map(v => chip('r', v)).join('')}</div>${areas.length > 1 ? `<div class="chips">${['전체', ...areas].map(v => chip('a', v)).join('')}</div>` : ''}</div>
+  <p class="mut" style="font-size:13px;margin:8px 2px">${list.length}개 공고</p>
+  ${list.map(jobCard).join('') || `<div class="card empty">${S.board.length ? '조건에 맞는 공고가 없어요' : '지금 올라온 공고가 없어요'}</div>`}`;
 }
 function vMyWork() {
   const L = { applied: ['', '매장 확인 중'], hired: ['g', '채용됐어요'], rejected: ['', '아쉽게 안 됐어요'], cancelled: ['y', '매장 취소 · 지원권 반환'], expired: ['', '마감 · 지원권 반환'] };
@@ -962,6 +970,7 @@ document.addEventListener('click', e => {
   if (a === 'staff-del') busy(async () => { if (!confirm('퇴사 처리할까요? 급여 기록은 남아요.')) return; await q(sb.from('members').update({ active: false }).eq('id', $('#staff-form').dataset.m)); closeSheet(); await reload(); toast('퇴사 처리했어요'); });
   if (a === 'join-open') joinSheet(d.r);
   if (a === 'mgr') busy(async () => { await q(sb.rpc('set_manager', { p_member: d.m, p_on: d.v === 'true' })); await reload(); toast(d.v === 'true' ? '점장 권한을 줬어요' : '점장 권한을 회수했어요'); });
+  if (a === 'pay-copy') { const t = S.members.filter(p => p.role !== 'owner').map(p => { const r = payOf(p); return `${p.bank_holder || p.real_name || p.nick}\t${p.bank_name || '-'}\t${p.bank_acct || '-'}\t${r.net}`; }).join('\n'); navigator.clipboard?.writeText(t).then(() => toast('예금주·은행·계좌·금액을 복사했어요. 은행 앱 대량이체에 붙여넣으세요'), () => toast('복사가 막혀 있어요')); }
   if (a === 'copy') { navigator.clipboard?.writeText(d.v).then(() => toast('복사했어요'), () => toast(d.v)); }
   if (a === 'exp-del') busy(async () => { await q(sb.from('expenses').delete().eq('id', d.id)); closeSheet(); await reload(); toast('삭제했어요'); });
   if (a === 'exp-new') openSheet(`<h2>고지서·기타 비용</h2><form class="f" id="expense-form"><div class="grid2"><label class="fl">항목<select name="cat">${Object.entries(CAT).filter(([k]) => k !== 'card').map(([v, l]) => `<option value="${v}">${l}</option>`).join('')}</select></label><label class="fl">금액 (원)<input name="amount" type="number" inputmode="numeric" required></label></div><label class="fl">날짜<input type="date" name="date" value="${TODAY}"></label><button class="btn pri full">추가</button></form>`);
@@ -982,6 +991,7 @@ document.addEventListener('click', e => {
   if (a === 'dslot') busy(async () => { await q(sb.rpc('slot_act', { p_slot: d.s, p_act: 'done' })); toast('근무 완료를 알렸어요. 수고하셨어요!'); await reload(); });
   if (a === 'apply') busy(async () => { if (S.tickets < 1) return toast('지원권이 없어요'); await q(sb.rpc('apply_job', { p_post: d.p })); toast('지원했어요! 매장이 채용하면 알림이 와요'); await reload(); });
   if (a === 'uside') { S.uside = d.v; render(); }
+  if (a === 'jf') { S.jf = { ...(S.jf || { k: '전체', r: '전체', a: '전체' }), [d.k]: d.v }; render(); }
   if (a === 'usedf') { S.usedF = d.v; render(); }
   if (a === 'used-new') { S.usedNew = !S.usedNew; render(); }
   if (a === 'used-open') usedSheet(d.v);
@@ -1075,7 +1085,8 @@ document.addEventListener('submit', e => {
       await q(sb.from('daily_reports').upsert({ store_id: S.store.id, report_date: v.date, sales: +v.sales || 0, entries: +v.entries || null, card: +v.card || 0, cash: +f.dataset.cash || 0, transfer: +v.transfer || 0, expense: +v.expense || 0, cash_diff: f.dataset.diff === '' || f.dataset.diff == null ? null : +f.dataset.diff, memo: v.memo || null, reported_by: S.user.id }));
       await q(sb.from('expenses').delete().eq('store_id', S.store.id).eq('spent_on', v.date).eq('source', 'close'));
       if (+v.expense) await q(sb.from('expenses').insert({ store_id: S.store.id, spent_on: v.date, category: 'goods', amount: +v.expense, source: 'close' }));
-      S.lastStart = +v.start || S.lastStart; await reload(); toast(Math.abs(+f.dataset.diff || 0) >= 10000 ? '마감했어요. 금고 차액을 대표님께 알렸어요' : '마감을 저장했어요. 수고하셨어요');
+      S.lastStart = +v.start || S.lastStart; await reload(); const M = monthSummary(S.y, S.m), g = +S.store.goal;
+      toast(Math.abs(+f.dataset.diff || 0) >= 10000 ? '마감했어요. 금고 차액을 대표님께 알렸어요' : g ? `마감했어요. 이번 달 목표 ${Math.floor(M.sales / g * 100)}% 달성 (₩${man(M.sales)} / ₩${man(g)})` : '마감을 저장했어요. 수고하셨어요');
     }
     if (id === 'quiz-form') { const r = await q(sb.rpc('submit_quiz', { p_answers: QUIZ.map((_, i) => +v['q' + i]) })); S.quizRes = r; S.quizOn = false; render(); scrollTo(0, 0); toast(r.passed ? `합격! ${r.score}/5 · 대표님께 결과가 갔어요` : `${r.score}/5 · 4개 이상이면 합격이에요. 다시 도전해요`); }
     if (id === 'bank-form') { await q(sb.from('profiles').update({ bank_name: v.bank || null, bank_acct: (v.acct || '').replace(/[^0-9-]/g, '') || null, bank_holder: v.holder || null }).eq('id', S.user.id)); S.prof = await q(sb.from('profiles').select('*').eq('id', S.user.id).maybeSingle()); render(); toast('계좌를 저장했어요'); }
