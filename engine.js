@@ -64,9 +64,9 @@ export function payroll(p, y, m, tpl, ov, inc, today, night) {
 }
 
 // 공고 요금 (알바몬 가격 수준, 부가세 포함)
-export const FEES = { FLASH_DAY: 3300, TOP_DAY: 12000, URGENT_POST: 10000, MATCH: 0.05, JUMP: { 0: 0, 2: 3000, 5: 5000, 8: 7000 }, DISC: { 3: 0, 5: 0, 7: 0.1, 15: 0.15, 30: 0.2 }, BASE: { 3: 5500, 5: 6900, 7: 8800, 15: 14900, 30: 24900 } };
+export const FEES = { FLASH_DAY: 3300, TOP_DAY: 12000, URGENT_POST: 10000, MATCH: 0.05, JUMP: { 0: 0, 2: 3000, 5: 5000, 8: 7000 }, DISC: { 14: 0.1, 30: 0.2 }, BASE: { 14: 8800, 30: 16500 } };
 // 공고 등록비 — 서버 post_base 와 같음. 알바몬 즉시 등록(8,800원/7일) 기준
-export const postBase = d => d >= 30 ? 24900 : d >= 15 ? 14900 : d >= 7 ? 8800 : d >= 5 ? 6900 : 5500;
+export const postBase = d => d >= 30 ? 16500 : 8800; // 알바몬 즉시등록 8,800원(14일) 기준, 30일은 2배 미만
 // 결제 계산서 한 줄씩 [항목, 금액]. 서버 post_fee와 같은 식이어야 함
 export function feeLines(kind, { pay = 0, heads = 1, flash, top, jump = 0, days = 7 }) {
   heads = Math.max(1, heads);
