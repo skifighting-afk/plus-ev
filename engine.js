@@ -64,6 +64,15 @@ export function payroll(p, y, m, tpl, ov, inc, today, night) {
 }
 
 // 공고 요금 (알바몬 가격 수준, 부가세 포함)
-export const FEES = { URGENT: 29900, FLASH_DAY: 9900, TOP_DAY: 33000, HEAD: 5900, POST: 15000, MATCH: 0.06, JUMP: { 0: 0, 2: 22000, 5: 25000, 8: 28000 }, DISC: { 3: 0, 5: 0, 7: 0.1, 15: 0.15, 30: 0.2 } };
-export const urgentFee = ({ flash, heads, pay }) => FEES.URGENT + (flash ? FEES.FLASH_DAY : 0) + FEES.HEAD * Math.max(0, heads - 1) + pay + floor10(pay * FEES.MATCH);
-export const hireFee = ({ days, jump, flash, top, heads }) => FEES.POST + Math.round((FEES.JUMP[jump] + (flash ? FEES.FLASH_DAY : 0) + (top ? FEES.TOP_DAY : 0)) * days * (1 - FEES.DISC[days]) / 100) * 100 + FEES.HEAD * Math.max(0, heads - 1);
+export const FEES = { FLASH_DAY: 9900, TOP_DAY: 12000, HEAD: 5900, POST: 15000, MATCH: 0.15, JUMP: { 0: 0, 2: 3000, 5: 5000, 8: 7000 }, DISC: { 3: 0, 5: 0, 7: 0.1, 15: 0.15, 30: 0.2 } };
+// 결제 계산서 한 줄씩 [항목, 금액]. 서버 post_fee와 같은 식이어야 함
+export function feeLines(kind, { pay = 0, heads = 1, flash, top, jump = 0, days = 7 }) {
+  heads = Math.max(1, heads);
+  if (kind === 'urgent') return [[`일당 ${won(pay)}원 × ${heads}명`, pay * heads], [`매칭 수수료 15% (${heads}명)`, heads * floor10(pay * FEES.MATCH)], ...(flash ? [['✨ 반짝 강조', FEES.FLASH_DAY]] : [])];
+  const daily = top ? FEES.TOP_DAY : FEES.JUMP[jump] || 0, ad = (daily + (flash ? FEES.FLASH_DAY : 0)) * days, disc = Math.round(ad * (1 - (FEES.DISC[days] || 0)) / 100) * 100 - ad;
+  return [['기본 게시비', FEES.POST], ...(top ? [[`📌 상단 고정 ${won(FEES.TOP_DAY)}원 × ${days}일 (끌올 포함)`, FEES.TOP_DAY * days]] : daily ? [[`⬆ 자동 끌올 하루 ${jump}회 ${won(daily)}원 × ${days}일`, daily * days]] : []),
+    ...(flash ? [[`✨ 반짝 ${won(FEES.FLASH_DAY)}원 × ${days}일`, FEES.FLASH_DAY * days]] : []), ...(disc ? [[`${days}일 묶음 할인 ${FEES.DISC[days] * 100}%`, disc]] : []), ...(heads > 1 ? [[`추가 인원 ${heads - 1}명 × ${won(FEES.HEAD)}원`, FEES.HEAD * (heads - 1)]] : [])];
+}
+const sumL = L => L.reduce((a, x) => a + x[1], 0);
+export const urgentFee = o => sumL(feeLines('urgent', o));
+export const hireFee = o => sumL(feeLines('hire', o));

@@ -630,26 +630,37 @@ function joinSheet(reqId) {
     <label class="fl">시급 (새 직원)<input name="rate" type="number" step="100" value="13000"></label>
     <button class="btn pri full">승인하기</button><button class="btn full" type="button" data-act="close">취소</button></form>`);
 }
+const PREFER = ['경력자', '토너먼트 경험', '장기 근무 가능', '주말 가능', '인근 거주'], mapUrl = a => `https://map.naver.com/p/search/${encodeURIComponent(a)}`;
 function vJobs() {
-  const k = S.postKind || 'urgent';
-  return `${storeHead('구인')}<div class="card"><div class="seg" style="margin-bottom:12px"><button data-act="pkind" data-v="urgent" aria-pressed="${k === 'urgent'}">🚨 긴급 (24시간)</button><button data-act="pkind" data-v="hire" aria-pressed="${k === 'hire'}">상시 아르바이트</button></div>
-  <form class="f" id="post-form"><div class="grid2"><label class="fl">직책<select name="role">${['딜러', '플로어', '매니저'].map(r => `<option>${r}</option>`).join('')}</select></label><label class="fl">택시비 지원 (원)<input name="taxi" type="number" step="5000" value="0"></label></div>
-    <label class="fl">제목<input name="title" required value="${k === 'urgent' ? '오늘 밤 딜러 급구' : '주말 고정 딜러 모집'}"></label>
-    <label class="fl">내용<textarea name="body" rows="3" placeholder="게임 종류, 복장, 우대 조건"></textarea></label>
-    ${k === 'urgent' ? `<div class="grid2"><label class="fl">시작<input type="time" name="s" value="20:00"></label><label class="fl">끝<input type="time" name="e" value="04:00"></label><label class="fl">일당 (원)<input name="pay" type="number" step="5000" value="130000"></label><label class="fl">몇 명<input name="heads" type="number" min="1" max="10" value="1"></label></div>`
-    : `<div class="grid2"><label class="fl">근무 조건<input name="work" value="금·토 20:00–04:00"></label><label class="fl">급여<input name="paytext" value="시급 15,000원"></label><label class="fl">몇 명<input name="heads" type="number" min="1" value="1"></label><label class="fl">광고 기간<select name="days">${[3, 5, 7, 15, 30].map(d => `<option value="${d}" ${d === 7 ? 'selected' : ''}>${d}일${E.FEES.DISC[d] ? ` · ${E.FEES.DISC[d] * 100}% 할인` : ''}</option>`).join('')}</select></label>
-      <label class="fl">자동 끌올<select name="jump">${Object.entries(E.FEES.JUMP).map(([n, p]) => `<option value="${n}" ${n == 5 ? 'selected' : ''}>${n == 0 ? '안 함' : `하루 ${n}회 · 하루 ₩${E.won(p)}`}</option>`).join('')}</select></label></div>`}
-    <label class="tog"><span><b>✨ 반짝이</b><small>하루 9,900원 · 공고 옆 표시가 깜빡여요</small></span><input type="checkbox" name="flash"></label>${k === 'hire' ? '<label class="tog"><span><b>📌 상단 고정</b><small>하루 33,000원</small></span><input type="checkbox" name="top"></label>' : ''}
+  const k = S.postKind || 'urgent', urg = k === 'urgent';
+  return `${storeHead('구인')}<div class="card"><div class="seg" style="margin-bottom:12px"><button data-act="pkind" data-v="urgent" aria-pressed="${urg}">🚨 긴급 (24시간)</button><button data-act="pkind" data-v="hire" aria-pressed="${!urg}">상시 아르바이트</button></div>
+  <form class="f" id="post-form">
+    <div class="grid2"><label class="fl">직책<select name="role">${(urg ? ['딜러', '플로어'] : ['딜러', '플로어', '매니저']).map(r => `<option>${r}</option>`).join('')}</select></label><label class="fl">몇 명<input name="heads" type="number" min="1" max="10" value="1"></label></div>
+    <label class="fl">제목<input name="title" required value="${urg ? '오늘 밤 딜러 급구' : '주말 고정 딜러 모집'}"></label>
+    ${urg ? '' : `<div class="fl"><span>근무 요일</span><div class="days">${E.WD.map((w, i) => `<label><input type="checkbox" name="wd" value="${w}" ${i >= 4 && i <= 5 ? 'checked' : ''}><span>${w}</span></label>`).join('')}</div></div>`}
+    <div class="grid2"><label class="fl">시작 시간<input type="time" name="s" value="20:00" required></label><label class="fl">마감 시간<input type="time" name="e" value="04:00" required></label>
+      ${urg ? '<label class="fl">일당 (원)<input name="pay" type="number" inputmode="numeric" step="5000" value="130000" required></label>' : `<label class="fl">급여<span class="row" style="gap:6px"><select name="ptype" style="width:auto">${['시급', '일급', '월급'].map(x => `<option>${x}</option>`).join('')}</select><input name="pamt" type="number" inputmode="numeric" step="500" value="15000" required></span></label>`}
+      <label class="fl">택시비 지원 (원)<input name="taxi" type="number" inputmode="numeric" step="5000" value="0"></label></div>
+    <div class="fl incbox"><span>인센티브</span><div class="seg brk"><label><input type="radio" name="inc_on" value="0" checked><span>없음</span></label><label><input type="radio" name="inc_on" value="1"><span>있음</span></label></div><input name="inc" class="incin" placeholder="예: 토너먼트 1회당 1만 원, 월 개근 5만 원"></div>
+    <div class="fl"><span>우대 조건 <small class="mut">(선택)</small></span><div class="days wrap">${PREFER.map(x => `<label><input type="checkbox" name="pf" value="${x}"><span>${x}</span></label>`).join('')}</div><input name="pf_etc" placeholder="직접 입력 (예: 영어 가능)"></div>
+    <label class="fl">내용<textarea name="body" rows="3" placeholder="게임 종류, 복장, 분위기"></textarea></label>
+    ${urg ? '' : `<div class="grid2"><label class="fl">광고 기간<select name="days">${[3, 5, 7, 15, 30].map(d => `<option value="${d}" ${d === 7 ? 'selected' : ''}>${d}일${E.FEES.DISC[d] ? ` · ${E.FEES.DISC[d] * 100}% 할인` : ''}</option>`).join('')}</select></label></div>
+    <div class="fl"><span>노출 방식</span><div class="expo">${[['0', '기본', '올린 순서대로'], ['2', '끌올 2회', `하루 ${E.won(E.FEES.JUMP[2])}원`], ['5', '끌올 5회', `하루 ${E.won(E.FEES.JUMP[5])}원`], ['8', '끌올 8회', `하루 ${E.won(E.FEES.JUMP[8])}원`], ['top', '📌 상단 고정', `하루 ${E.won(E.FEES.TOP_DAY)}원 · 끌올 포함`]].map(([v, t, d]) => `<label><input type="radio" name="expo" value="${v}" ${v === '5' ? 'checked' : ''}><span><b>${t}</b><small>${d}</small></span></label>`).join('')}</div>
+      <small class="mut">끌올은 정해진 간격마다 목록 맨 위로 올라가요. 상단 고정은 기간 내내 끌올 공고보다 항상 위에 있어요.</small></div>`}
+    <label class="tog"><span><b>✨ 반짝 강조</b><small>${urg ? '9,900원' : '하루 9,900원'} · 공고 옆 표시가 깜빡여요</small></span><input type="checkbox" name="flash"></label>
+    ${S.store.address ? `<p class="note">📍 공고에 매장 주소와 네이버 지도가 같이 나가요: ${esc(S.store.address)}</p>` : `<p class="note warn">📍 매장 주소가 없어요. 넣으면 공고에 지도가 같이 나가요. <button type="button" class="btn sm" data-act="goto" data-t="more" data-s="settings">주소 넣기</button></p>`}
     <div id="fee-box"></div>
-    <p class="note">긴급 공고는 급여까지 미리 결제하고, 근무가 끝나면 딜러에게 지급돼요. 못 구한 자리 급여(+6%)는 마감 후 돌려드려요. 성별·나이 조건은 법상 넣을 수 없어요.</p>${payNote()}
+    <p class="note">${urg ? '긴급 공고는 급여까지 미리 결제하고, 근무가 끝나면 딜러에게 지급돼요. 못 구한 자리는 급여와 수수료를 모두 돌려드려요. ' : ''}성별·나이 조건은 법상 넣을 수 없어요.</p>${payNote()}
     <button class="btn gold full">결제하고 공고 올리기</button></form></div>
   <div class="card"><h3>우리 매장 공고 <small>${S.posts.length}건</small></h3>${S.posts.map(p => `<div class="job ${p.kind === 'urgent' ? 'urgent' : ''}"><div class="row between"><div><span class="pill ${p.status === 'open' ? 'g' : p.status === 'unpaid' ? 'y' : ''}">${{ open: '모집 중', unpaid: '결제 전' }[p.status] || '마감'}</span> <small class="mut">${p.kind === 'urgent' ? '긴급' : '상시'} · ${esc(p.job_role)} · ${fmtDT(p.created_at)}</small><h4>${esc(p.title)}</h4></div>
     ${p.status === 'unpaid' ? `<button class="btn sm gold" data-act="paypost" data-p="${p.id}">₩${E.won(p.paid_amount)} 결제</button>` : `<button class="btn sm pri" data-act="manage" data-p="${p.id}" data-k="${p.kind}">관리</button>`}</div><div id="mg-${p.id}"></div></div>`).join('') || '<div class="empty">올린 공고가 없어요</div>'}</div>`;
 }
+const postVals = f => { const fd = new FormData(f), v = Object.fromEntries(fd); return { ...v, wd: fd.getAll('wd'), pf: [...fd.getAll('pf'), ...(v.pf_etc ? [v.pf_etc.trim()] : [])].filter(Boolean), heads: +v.heads || 1, top: v.expo === 'top', jump: v.expo === 'top' ? 0 : +v.expo || 0 }; };
 function feeBox() {
-  const f = $('#post-form'), box = $('#fee-box'); if (!f || !box) return; const v = Object.fromEntries(new FormData(f)), heads = +v.heads || 1, urg = (S.postKind || 'urgent') === 'urgent';
-  const fee = urg ? E.urgentFee({ flash: !!v.flash, heads, pay: (+v.pay || 0) * heads }) : E.hireFee({ days: +v.days, jump: +v.jump, flash: !!v.flash, top: !!v.top, heads });
-  box.innerHTML = `<div class="li"><span class="mut">결제 금액${urg ? ' (급여 + 수수료 6% 포함)' : ''}</span><b class="num" style="font-size:18px">₩${E.won(fee)}</b></div>`;
+  const f = $('#post-form'), box = $('#fee-box'); if (!f || !box) return; const v = postVals(f), urg = (S.postKind || 'urgent') === 'urgent';
+  const L = E.feeLines(urg ? 'urgent' : 'hire', { pay: +v.pay || 0, heads: v.heads, flash: !!v.flash, top: v.top, jump: v.jump, days: +v.days || 7 }), tot = L.reduce((a, x) => a + x[1], 0);
+  box.innerHTML = `<div class="receipt"><div class="rh">결제 계산서</div>${L.map(([n, a]) => `<div class="rl"><span>${esc(n)}</span><span class="num ${a < 0 ? 'up' : ''}">${a < 0 ? '−' : ''}₩${E.won(Math.abs(a))}</span></div>`).join('')}<div class="rl tot"><b>합계</b><b class="num">₩${E.won(tot)}</b></div>
+    ${urg ? `<small class="mut">딜러 급여 ₩${E.won((+v.pay || 0) * v.heads)}는 근무 후 딜러에게 그대로 가고, +EV는 수수료 15%만 받아요. 못 구하면 전액 환불돼요.</small>` : ''}</div>`;
 }
 async function manage(postId, kind) {
   const box = $('#mg-' + postId); if (!box) return; const apps = await q(sb.rpc('post_applicants', { p_post: postId })), slots = kind === 'urgent' ? await q(sb.rpc('post_slots', { p_post: postId })) : [];
@@ -686,7 +697,7 @@ function vMore() {
       <div class="plan ${c.plan !== 'basic' ? 'cur' : ''}"><span class="pill y">추천</span><b>프로</b><b class="num">월 ₩${E.won(PRICE.pro)}</b><small>베이직 전부 + ✦ 매장 개선 (우리 매장 순위 · 경고등 · 매달 처방 · 퀘스트 · 레벨)</small>${c.plan === 'pro' ? '<span class="pill g">지금 요금제</span>' : isOwner() ? '<button class="btn sm gold" data-act="plan" data-v="pro">프로로 올리기</button>' : '<button class="btn sm" data-act="ask-owner" data-v="프로 요금제">대표님께 요청</button>'}</div></div>
       ${S.downgrade ? (rx => `<div class="card" style="border-color:var(--red);margin-top:10px"><b>베이직으로 바꾸면 이렇게 돼요</b><ul style="margin:8px 0;padding-left:18px;font-size:14px"><li>우리 매장 순위·경고등·매달 처방이 잠겨요</li>${rx && rx.rev.length + rx.cost.length ? `<li>이번 달 꼭 할 일 ${rx.rev.length + rx.cost.length}개 (다 하면 매달 +₩${man([...rx.rev, ...rx.cost].reduce((a, r) => a + r[3], 0))})를 볼 수 없어요</li>` : ''}</ul><div class="row"><button class="btn pri" data-act="plan-keep">프로 그대로 쓰기</button><button class="btn" data-act="plan" data-v="basic">그래도 베이직으로</button></div><p class="note">기록은 그대로 남아서 다시 프로로 오면 이어져요.</p></div>`)(S.bench?.ready && !S.bench.locked ? rxOf(S.bench) : null) : ''}
       <p class="note">프로는 카드로 30일씩 결제해요 (매장 수 × ₩${E.won(PRICE.pro)}). ${c.paid_until ? `${new Date(c.paid_until).toLocaleDateString('ko-KR')}까지 결제돼 있어요. ` : ''}베이직으로 내리는 건 언제든 무료예요.</p>${payNote()}</div>
-    <form class="f card" id="store-form"><h3>매장 정보</h3><label class="fl">매장 이름<input name="name" value="${esc(S.store.name)}" ${isOwner() ? '' : 'disabled'}></label><label class="fl">지역<input name="area" value="${esc(S.store.area || '')}" ${isOwner() ? '' : 'disabled'}></label>
+    <form class="f card" id="store-form"><h3>매장 정보</h3><label class="fl">매장 이름<input name="name" value="${esc(S.store.name)}" ${isOwner() ? '' : 'disabled'}></label><label class="fl">지역<input name="area" value="${esc(S.store.area || '')}" ${isOwner() ? '' : 'disabled'}></label><label class="fl">주소 <small class="mut">구인 공고에 지도로 나가요</small><input name="address" value="${esc(S.store.address || '')}" placeholder="예: 서울 강남구 테헤란로 8길 21, 3층" ${isOwner() ? '' : 'disabled'}></label>
       <div class="grid2"><label class="fl">평수<input type="number" name="py" min="1" step="0.1" value="${S.store.pyeong ?? ''}" placeholder="예: 32" ${isOwner() ? '' : 'disabled'}></label><label class="fl">테이블 수<input type="number" name="tables" min="1" value="${S.store.tables ?? ''}" placeholder="예: 7" ${isOwner() ? '' : 'disabled'}></label></div>
       <div class="grid2"><label class="fl">야간 시작<input type="time" name="ns" value="${t5(S.store.night_start)}" ${isOwner() ? '' : 'disabled'}></label><label class="fl">야간 끝<input type="time" name="ne" value="${t5(S.store.night_end)}" ${isOwner() ? '' : 'disabled'}></label></div>
       ${isOwner() ? '<button class="btn pri full">저장</button>' : '<p class="note">매장 정보는 대표님만 바꿀 수 있어요.</p>'}</form>
@@ -758,6 +769,8 @@ function jobCard(j) {
   return `<div class="job ${j.kind === 'urgent' ? 'urgent' : ''}"><div class="row between"><div class="row">${j.kind === 'urgent' ? `<span class="pill r">🚨 긴급 · ${Math.max(0, Math.ceil((new Date(j.expires_at) - Date.now()) / 36e5))}시간 남음</span>` : ''}${j.flash ? '<span class="spark">✨ 반짝</span>' : ''}${j.top ? '<span class="pill y">📌</span>' : ''}<small class="mut">${esc(j.job_role)}</small></div>
     <span class="pay">${pays.length ? `일당 ₩${E.won(Math.min(...pays))}${pays.length > 1 && Math.max(...pays) !== Math.min(...pays) ? '~' + E.won(Math.max(...pays)) : ''}` : esc(j.pay_text || '')}</span></div>
   <h4>${esc(j.title)}</h4>${j.body ? `<div style="font-size:14px">${esc(j.body)}</div>` : ''}
+  ${j.incentive || j.prefer ? `<div class="jx">${j.incentive ? `<span>💰 인센티브 · ${esc(j.incentive)}</span>` : ''}${j.prefer ? `<span>⭐ 우대 · ${esc(j.prefer)}</span>` : ''}</div>` : ''}
+  ${j.address ? `<a class="jaddr" href="${mapUrl(j.address)}" target="_blank" rel="noopener">📍 ${esc(j.address)} <b>네이버 지도 ›</b></a>` : ''}
   <div class="meta"><span>${esc(j.store_name)} · ${esc(j.area || '')}</span><span>${slots.length ? slots.map(s => `${t5(s.start)}–${t5(s.end)}`).join(' / ') : esc(j.work_time || '')}</span>${j.taxi_amt ? `<span class="up">🚕 택시비 ₩${E.won(j.taxi_amt)}</span>` : ''}</div>
   ${applied ? '<span class="pill g">지원 완료 · 매장 확인 중</span>' : `<button class="btn ${j.kind === 'urgent' ? 'gold' : 'pri'}" data-act="apply" data-p="${j.id}">🎟 지원권 1장으로 지원</button>`}</div>`;
 }
@@ -993,8 +1006,10 @@ document.addEventListener('submit', e => {
       closeSheet(); await reload(); toast('저장했어요. 스케줄·급여에 바로 반영돼요');
     }
     if (id === 'post-form') {
-      const k = S.postKind || 'urgent', heads = +v.heads || 1;
-      const PP = ({ p_store: S.store.id, p_kind: k, p_role: v.role, p_title: v.title, p_body: v.body || null, p_pay_text: k === 'hire' ? v.paytext : null, p_work_time: k === 'hire' ? v.work : null, p_heads: heads, p_taxi: +v.taxi || 0, p_flash: !!v.flash, p_top: !!v.top, p_days: +v.days || 1, p_jump: +v.jump || 0, p_slots: k === 'urgent' ? Array.from({ length: heads }, () => ({ start: v.s, end: v.e, pay: +v.pay || 0 })) : [] });
+      const k = S.postKind || 'urgent', P = postVals(f), heads = P.heads;
+      if (k === 'hire' && !P.wd.length) return toast('근무 요일을 골라주세요');
+      if (P.inc_on === '1' && !(P.inc || '').trim()) return toast('인센티브 내용을 적어주세요');
+      const PP = ({ p_store: S.store.id, p_kind: k, p_role: v.role, p_title: v.title, p_body: v.body || null, p_pay_text: k === 'hire' ? `${P.ptype} ${E.won(+P.pamt || 0)}원` : null, p_work_time: k === 'hire' ? `${P.wd.join('·')} ${v.s}–${v.e}` : null, p_heads: heads, p_taxi: +v.taxi || 0, p_flash: !!v.flash, p_top: P.top, p_days: +v.days || 1, p_jump: P.jump, p_slots: k === 'urgent' ? Array.from({ length: heads }, () => ({ start: v.s, end: v.e, pay: +v.pay || 0 })) : [], p_incentive: P.inc_on === '1' ? P.inc : null, p_prefer: P.pf.join(', ') || null });
       const pid = await q(sb.rpc('create_post', PP)); await reload(); await pay('post', { post: pid });
     }
     if (id === 'attend-form') { const k = await q(sb.rpc('attend', { p_code: v.code.trim() })); toast(k === 'in' ? '출근했어요. 오늘도 화이팅!' : '퇴근했어요. 수고하셨어요'); await reload(); }
@@ -1003,7 +1018,7 @@ document.addEventListener('submit', e => {
     if (id === 'sell-form') { S.sellA = [...(S.sellA || []), v.a]; render(); }
     if (id === 'goal-form') { await q(sb.from('stores').update({ goal: +v.goal || null }).eq('id', S.store.id)); S.store.goal = +v.goal || null; closeSheet(); await reload(); toast('목표를 저장했어요'); }
     if (id === 'fixed-form') { const fixed = Object.fromEntries(FIXED.map(([k]) => [k, +v[k] || 0]).filter(x => x[1])); await q(sb.from('stores').update({ fixed }).eq('id', S.store.id)); S.store.fixed = fixed; closeSheet(); await reload(); toast('고정비를 저장했어요'); }
-    if (id === 'store-form') { await q(sb.from('stores').update({ name: v.name, area: v.area || null, pyeong: +v.py || null, tables: +v.tables || null, night_start: v.ns, night_end: v.ne }).eq('id', S.store.id)); await boot(); toast('저장했어요'); }
+    if (id === 'store-form') { await q(sb.from('stores').update({ name: v.name, area: v.area || null, address: v.address || null, pyeong: +v.py || null, tables: +v.tables || null, night_start: v.ns, night_end: v.ne }).eq('id', S.store.id)); await boot(); toast('저장했어요'); }
     if (id === 'addstore-form') { await q(sb.from('stores').insert({ company_id: S.company.id, name: v.name, area: v.area || null })); await boot(); toast('매장을 추가했어요. 위에서 매장을 골라 전환하세요'); }
     if (f.dataset.inq) { await q(sb.from('inquiries').update({ reply: v.reply, replied_at: new Date().toISOString() }).eq('id', f.dataset.inq)); await reload(); toast('답변을 보냈어요'); }
   });
