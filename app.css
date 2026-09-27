@@ -130,3 +130,7 @@ h2.band{margin:22px 0 0;display:flex;justify-content:space-between;align-items:b
 .clipbar{position:sticky;top:0;z-index:5;display:flex;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap;padding:10px 12px;margin:10px 0;border-radius:12px;background:#10261f;border:1px solid var(--green);font-size:14px}
 .needs{flex-wrap:wrap;gap:6px}
 .seg.brk label{flex:1;position:relative}.seg.brk input{position:absolute;opacity:0}.seg.brk span{display:block;text-align:center;padding:8px 6px;border-radius:9px;font-weight:700;color:var(--muted);font-size:13px;cursor:pointer}.seg.brk input:checked+span{background:var(--green);color:#04130d}
+/* 매출 마감 */
+.pos{display:flex;justify-content:space-between;align-items:center;gap:10px;border-color:rgba(59,130,196,.5)}.pos small{display:block;color:var(--muted);font-size:12.5px;margin-top:2px}
+.grid2.big input{font-size:22px;font-weight:800;padding:12px;font-family:Manrope,sans-serif}
+details.more{border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin:10px 0}details.more summary{cursor:pointer;font-weight:700}details.more[open] summary{margin-bottom:10px}
