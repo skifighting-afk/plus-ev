@@ -41,7 +41,7 @@ async function payReturn(pr) {
   if (pr.get('pay') === 'fail') { toast(pr.get('message') || '결제를 취소했어요'); return; }
   const { data, error } = await sb.functions.invoke('pay-confirm', { body: { paymentKey: pr.get('paymentKey'), orderId: pr.get('orderId'), amount: +pr.get('amount') } });
   if (error || !data?.ok) { toast((data && data.message) || '결제 확인에 실패했어요. 운영사에 문의해 주세요'); return; }
-  toast({ tickets: '결제 완료! 지원권을 넣어드렸어요', pro: '결제 완료! PRO가 시작됐어요', academy: '결제 완료! 딜러 교육이 열렸어요', plan: '결제 완료! 프로 요금제가 시작됐어요', store: '결제 완료! 새 매장이 추가됐어요', post: '결제 완료! 공고가 올라갔어요', post_extra: '결제 완료! 공고 기간·노출을 늘렸어요', diag: '결제 완료! 30일 동안 주변 매장과 비교해 볼 수 있어요' }[data.kind] || '결제가 완료됐어요');
+  toast({ tickets: '결제 완료! 지원권을 넣어드렸어요', pro: '결제 완료! PRO가 시작됐어요', academy: '결제 완료! 딜러 교육이 열렸어요', plan: '결제 완료! 프로 요금제가 시작됐어요', store: '결제 완료! 새 매장이 추가됐어요', post: '결제 완료! 공고가 올라갔어요', post_extra: '결제 완료! 공고 기간·노출을 늘렸어요' }[data.kind] || '결제가 완료됐어요');
 }
 window.__evPayReturn = async p => { await payReturn(new URLSearchParams(p)); await boot(); };
 const payNote = () => PAY_TEST ? '<p class="note warn">🧪 지금은 테스트 결제예요. 결제창이 떠도 실제 돈은 나가지 않아요.</p>' : '';
@@ -348,7 +348,7 @@ function rankBar() {
   if (B.locked) return `<div class="card tease"><div class="row between"><span class="pill y">🔒 주변 매장 ${B.n}곳과 비교</span><small class="mut">${+B.month.slice(5, 7)}월 기준 · 계산 끝</small></div>
     <div class="tz"><div><small>매출 순위</small><b class="num mosaic">상위 23%</b></div><div><small>순이익 순위</small><b class="num mosaic">상위 41%</b></div><div><small>주변보다 새는 돈</small><b class="num mosaic down">월 ₩87만</b></div></div>
     <p class="tzm">우리 매장이 주변보다 <b>어디서 돈이 새는지</b> 이미 계산해 뒀어요. 열어보기만 하면 돼요.</p>
-    ${isOwner() ? `<div class="row"><button class="btn gold" data-act="diag">₩10,000로 지금 진단 보기</button><button class="btn sm" data-act="goto" data-t="more" data-s="settings">프로 월 ₩${E.won(PRICE.pro)} · 매달 처방</button></div>` : '<button class="btn sm" data-act="ask-pro">대표님께 요청</button>'}</div>`;
+    ${isOwner() ? `<button class="btn gold full" data-act="plan" data-v="pro">프로로 업그레이드하고 바로 보기 · 매장당 월 ₩${E.won(PRICE.pro)}</button>` : '<button class="btn sm" data-act="ask-pro">대표님께 요청</button>'}</div>`;
   return `<div class="card rankbar"><div><b>우리 매장 순위</b><small class="mut" style="display:block">비슷한 매장 ${B.n}곳 중 · ${+B.month.slice(5, 7)}월</small></div>
     <div class="rkv"><small>매출</small><b class="num">상위 ${B.s_pct}%</b></div><div class="rkv"><small>순이익</small><b class="num">상위 ${B.h_pct}%</b></div>
     <button class="btn sm" data-tab="improve">매장 개선 →</button></div>`;
@@ -388,7 +388,7 @@ function vImprove() {
   if (B.locked) return `${head}<div class="paywall"><div class="blurme" aria-hidden="true">${radar({ s_sales: 70, s_profit: 55, s_labor: 40, s_fixed: 65, s_util: 50 })}<div class="card"><h3>이번 달 처방</h3><div class="li">매출 늘리기 ··· 월 +₩···만</div><div class="li">비용 줄이기 ··· 월 −₩···만</div></div></div>
     <div class="over"><div class="card"><div class="mut" style="font-size:12px">✦ 매장 개선 · 프로 요금제(월 ${E.won(PRICE.pro)}원)</div><h2 style="margin:10px 0 4px">내 매장은 비슷한 매장 ${B.n}곳 중<br>상위 몇 %일까요?</h2><div class="num mosaic" style="font-size:30px;font-weight:800;margin:6px 0">상위 ??%</div>
       <p class="mut" style="font-size:14px">비슷한 매장들과 비교해서 <b>무엇을 해야 하는지</b> 알려드려요. 매달 새 처방과 지난달 실행 결과까지요.</p>
-      ${isOwner() ? `<button class="btn gold full" data-act="diag">₩10,000로 지금 진단 보기 (30일)</button><button class="btn full" style="margin-top:8px" data-act="goto" data-t="more" data-s="settings">프로 월 ₩${E.won(PRICE.pro)} · 매달 새 처방</button>` : '<button class="btn full" data-act="ask-pro">대표님께 요청하기</button>'}</div></div></div>${costCheck()}`;
+      ${isOwner() ? `<button class="btn gold full" data-act="plan" data-v="pro">프로로 업그레이드하고 바로 보기 · 매장당 월 ₩${E.won(PRICE.pro)}</button>` : '<button class="btn full" data-act="ask-pro">대표님께 요청하기</button>'}</div></div></div>${costCheck()}`;
   const m = B.mine, a = B.avg, rx = rxOf(B), revSum = rx.rev.reduce((x, r) => x + r[3], 0), costSum = rx.cost.reduce((x, r) => x + r[3], 0), mon = thisMonth();
   const done = new Set(S.quests.filter(x => x.month === mon).map(x => x.key)), must = [...rx.rev.map(r => [r[0], r[1], r[2], r[3], r[4], 'r']), ...rx.cost.map(r => [r[0], r[1], r[2], r[3], r[4], 'c'])].sort((x, y) => y[3] - x[3]), doneN = must.filter(r => done.has(r[0])).length, doneSum = must.filter(r => done.has(r[0])).reduce((x, r) => x + r[3], 0);
   const hist = Array.from({ length: 4 }, (_, i) => { const dt = new Date(now.getFullYear(), now.getMonth() - 3 + i, 1); return monthSummary(dt.getFullYear(), dt.getMonth() + 1); }).filter(x => x.n);
@@ -855,12 +855,11 @@ function vMore() {
   if (sub === 'qr') return `${storeHead('출퇴근 코드')}${back}<div class="card" style="text-align:center"><p class="sub">직원은 앱의 <b>출퇴근</b> 탭에서 이 번호를 넣으면 기록돼요. 30초마다 바뀌어서 사진으로 찍어 보내도 못 써요.</p>
     <div id="qr-code" class="num" style="font-size:56px;font-weight:800;letter-spacing:.18em;color:#6EE7B7">······</div><div class="mut" id="qr-left">불러오는 중</div></div>`;
   if (sub === 'settings') {
-    const c = S.company || {}, pro = c.plan === 'pro', diag = c.diag_until && new Date(c.diag_until) > now;
+    const c = S.company || {}, pro = c.plan === 'pro';
     return `${storeHead('매장 설정')}${back}
     <div class="card"><h3>요금제</h3><div class="plans">
       <div class="plan ${!pro ? 'cur' : ''}"><b>베이직</b><b class="num">무료</b><small>매장 관리 전부 — 매출 마감 · 스케줄 · 급여 · 출퇴근 · 구인 · 로테이션 · 발주 · 내 매장 지난달 비교</small>${!pro ? '<span class="pill">지금 요금제</span>' : isOwner() ? '<button class="btn sm" data-act="plan-down">베이직으로 바꾸기</button>' : ''}</div>
       <div class="plan ${pro ? 'cur' : ''}"><span class="pill y">추천</span><b>프로</b><b class="num">매장당 월 ₩${E.won(PRICE.pro)}</b><small>베이직 전부 + 다른 매장과 비교 (순위 · 경고등 평균) + ✦ 매장 개선 (매달 처방 · 이번 달 꼭 할 일)</small>${c.plan === 'pro' ? '<span class="pill g">지금 요금제</span>' : isOwner() ? '<button class="btn sm gold" data-act="plan" data-v="pro">프로로 올리기</button>' : '<button class="btn sm" data-act="ask-owner" data-v="프로 요금제">대표님께 요청</button>'}</div></div>
-      ${!pro ? `<div class="plan1"><div><b>🔍 한 번만 진단받기</b><small>주변 매장과 비교한 순위·경고등·처방을 30일 동안 열어요 ${diag ? `<b class="up">· ${new Date(c.diag_until).toLocaleDateString('ko-KR')}까지 열림</b>` : ''}</small></div>${isOwner() ? `<button class="btn sm gold" data-act="diag">₩${E.won(10000)}</button>` : ''}</div>` : ''}
       ${S.downgrade ? (rx => `<div class="card" style="border-color:var(--red);margin-top:10px"><b>베이직으로 바꾸면 이렇게 돼요</b><ul style="margin:8px 0;padding-left:18px;font-size:14px"><li>우리 매장 순위·경고등·매달 처방이 잠겨요</li>${rx && rx.rev.length + rx.cost.length ? `<li>이번 달 꼭 할 일 ${rx.rev.length + rx.cost.length}개 (다 하면 매달 +₩${man([...rx.rev, ...rx.cost].reduce((a, r) => a + r[3], 0))})를 볼 수 없어요</li>` : ''}</ul><div class="row"><button class="btn pri" data-act="plan-keep">프로 그대로 쓰기</button><button class="btn" data-act="plan" data-v="basic">그래도 베이직으로</button></div><p class="note">기록은 그대로 남아서 다시 프로로 오면 이어져요.</p></div>`)(S.bench?.ready && !S.bench.locked ? rxOf(S.bench) : null) : ''}
       <p class="note">프로는 카드로 30일씩 결제해요 (매장 ${S.stores.length}곳 × ₩${E.won(PRICE.pro)}). ${c.paid_until ? `${new Date(c.paid_until).toLocaleDateString('ko-KR')}까지 결제돼 있어요. ` : ''}</p>${payNote()}</div>
     <form class="f card" id="store-form"><h3>매장 정보</h3><label class="fl">매장 이름<input name="name" value="${esc(S.store.name)}" ${isOwner() ? '' : 'disabled'}></label><label class="fl">지역<input name="area" value="${esc(S.store.area || '')}" ${isOwner() ? '' : 'disabled'}></label><label class="fl">주소 <small class="mut">구인 공고에 지도로 나가요</small><input name="address" value="${esc(S.store.address || '')}" placeholder="예: 서울 강남구 테헤란로 8길 21, 3층" ${isOwner() ? '' : 'disabled'}></label>
@@ -1234,7 +1233,6 @@ document.addEventListener('click', e => {
   if (a === 'exam-del') { examKeep(); S.examDraft.splice(+d.v, 1); examSheet(); return; }
   if (a === 'exam-reset') busy(async () => { await q(sb.from('company_quiz').delete().eq('company_id', S.company.id)); S.cquiz = null; render(); toast('+EV 기본 시험으로 되돌렸어요'); });
   if (a === 'feep') { S.feeP = +d.v; render(); return; }
-  if (a === 'diag') busy(() => pay('diag'));
   if (a === 'paypost') busy(() => pay('post', { post: d.p }));
   if (a === 'refund') busy(async () => { const { data, error } = await sb.functions.invoke('pay-refund', { body: { orderId: d.o } }); if (error || !data?.ok) return toast(data?.message || '환불에 실패했어요'); await reload(); toast(`₩${E.won(data.refunded)} 환불했어요`); });
   if (a === 'hires') { S.hires = Math.max(1, (S.hires ?? 3) + +d.v); render(); }
