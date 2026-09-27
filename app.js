@@ -15,6 +15,25 @@ const PRICE = { basic: 25000, pro: 35000 };
 const CAT = { rent: '임대료', elec: '전기세', water: '수도세', net: '통신·보안', goods: '음료·소모품', card: '카드 수수료', labor: '기타 인건비', etc: '기타' };
 const SLOT = { OPEN: ['', '모집 중'], MATCHED: ['y', '채용 확정'], WORKING: ['g', '근무 중'], DONE: ['y', '근무 끝 · 확인 대기'], DISPUTED: ['r', '문제 신고 · 운영사 확인'], PAID: ['g', '지급 완료'], REFUND: ['', '미채용 환불'] };
 
+// ===== 결제 (토스페이먼츠) =====
+// 테스트 키(토스 문서 공개용) — 실제 운영 땐 토스 가맹 후 받은 라이브 클라이언트 키로 바꾸고, 서버 쪽 TOSS_SECRET_KEY도 같이 바꿔요
+const TOSS_CLIENT_KEY = 'test_ck_D5GePWvyJnrK0W0k6q8gLzN97Eoq', PAY_TEST = TOSS_CLIENT_KEY.startsWith('test_');
+const loadToss = () => window.TossPayments ? Promise.resolve() : new Promise((ok, no) => { const sc = document.createElement('script'); sc.src = 'https://js.tosspayments.com/v2/standard'; sc.onload = ok; sc.onerror = () => no(new Error('결제창을 불러오지 못했어요')); document.head.append(sc); });
+async function pay(kind, arg = {}) {
+  const o = (await q(sb.rpc('pay_start', { p_kind: kind, p_arg: arg })))[0];
+  await loadToss(); const back = location.origin + location.pathname;
+  await window.TossPayments(TOSS_CLIENT_KEY).payment({ customerKey: S.user.id }).requestPayment({ method: 'CARD', amount: { currency: 'KRW', value: o.amount }, orderId: o.order_id, orderName: o.order_name, successUrl: back + '?pay=ok', failUrl: back + '?pay=fail', customerEmail: S.user.email });
+}
+// 결제창에서 돌아왔을 때 (successUrl에 paymentKey·orderId·amount가 붙어 와요)
+async function payReturn(pr) {
+  if (pr.get('pay') === 'fail') { toast(pr.get('message') || '결제를 취소했어요'); return; }
+  const { data, error } = await sb.functions.invoke('pay-confirm', { body: { paymentKey: pr.get('paymentKey'), orderId: pr.get('orderId'), amount: +pr.get('amount') } });
+  if (error || !data?.ok) { toast((data && data.message) || '결제 확인에 실패했어요. 운영사에 문의해 주세요'); return; }
+  toast({ tickets: '결제 완료! 지원권을 넣어드렸어요', pro: '결제 완료! PRO가 시작됐어요', academy: '결제 완료! 딜러 교육이 열렸어요', plan: '결제 완료! 프로 요금제가 시작됐어요', post: '결제 완료! 공고가 올라갔어요' }[data.kind] || '결제가 완료됐어요');
+}
+window.__evPayReturn = async p => { await payReturn(new URLSearchParams(p)); await boot(); };
+const payNote = () => PAY_TEST ? '<p class="note warn">🧪 지금은 테스트 결제예요. 결제창이 떠도 실제 돈은 나가지 않아요.</p>' : '';
+
 // ===== 상태 =====
 const S = { user: null, prof: null, mode: null, tab: null, sub: null, company: null, stores: [], store: null, members: [], tpl: [], ov: [], reports: [], hist: [], expenses: [], expAll: [], inc: [], joins: [], rank: null, cart: {}, stock: [], orders: [],
   y: now.getFullYear(), m: now.getMonth() + 1, schedView: 'month', posts: [], board: [], tickets: 0, apps: [], slots: [], wallet: { balance: 0, available: 0 }, notis: [], inq: [], used: [], authMode: 'login', my: [] };
@@ -27,6 +46,7 @@ let booted = false;
 sb.auth.onAuthStateChange((_e, session) => { const u = session?.user || null; if (!booted || u?.id !== S.user?.id) { booted = true; S.user = u; setTimeout(boot); } });
 async function boot() {
   try {
+    const pr = new URLSearchParams(location.search); if (S.user && pr.get('pay')) { history.replaceState(null, '', location.pathname); await payReturn(pr); }
     if (!S.user) { Object.assign(S, { mode: 'auth', onb: null, tab: null, sub: null, company: null, stores: [], store: null }); return render(); }
     S.prof = (await q(sb.from('profiles').select('*').eq('id', S.user.id).maybeSingle())) || { name: '' };
     const mem = await q(sb.from('members').select('*').eq('user_id', S.user.id).eq('active', true));
@@ -105,7 +125,7 @@ async function loadHQ() {
   S.hqProfiles = await q(sb.from('profiles').select('id,name,kind'));
   S.hqOrders = await q(sb.from('orders').select('*').order('created_at', { ascending: false }).limit(50));
   S.hqWds = await q(sb.from('withdrawals').select('*').order('created_at', { ascending: false }).limit(50));
-  S.hqBuys = await q(sb.from('purchases').select('kind,qty,amount,status'));
+  S.hqPays = await q(sb.from('payments').select('*').order('created_at', { ascending: false }).limit(100));
 }
 const payOf = p => E.payroll(p, S.y, S.m, S.tpl, S.ov, S.inc.filter(i => i.member_id === p.id).reduce((a, i) => a + i.amount, 0), TODAY, night());
 const laborOf = (y, m) => S.members.filter(p => p.role !== 'owner').reduce((a, p) => { const r = E.payroll(p, y, m, S.tpl, S.ov, 0, TODAY, night()); return a + r.fullGross * (p.contract === '4대' ? 1.105 : 1); }, 0);
@@ -432,7 +452,7 @@ function vEdu() {
     <p class="mut" style="margin:0">한 번 결제하면 우리 회사 모든 매장 딜러가 평생 들을 수 있어요. 5개 강의 + 최종 시험, 결과는 대표·점장에게 바로 와요.</p>
     <div class="row" style="margin-top:12px"><span class="mut" style="font-size:13px">1년에 뽑는 신입 딜러</span><button class="btn sm" data-act="hires" data-v="-1">−</button><b class="num" style="min-width:40px;text-align:center">${n}명</b><button class="btn sm" data-act="hires" data-v="1">+</button></div>
     <div class="vs"><div><small class="mut">지금처럼 가르치면 (${n}명)</small><b class="num down">₩${E.won(n * 320000)}</b><small class="mut">1명당 선배 동행 20시간 × 13,000 + 실수 손실 약 6만</small></div><div class="x">VS</div><div class="g"><small class="mut">+EV 딜러 교육 (인원 무제한)</small><b class="num up">₩${E.won(ACADEMY_PRICE)}</b><small class="mut">${n * 320000 > ACADEMY_PRICE ? `${n}명이면 <b class="up">₩${E.won(n * 320000 - ACADEMY_PRICE)}</b> 아껴요` : '1명만 뽑아도 거의 본전이에요'}</small></div></div>
-    ${open ? `<div class="pill g" style="margin-top:12px">✓ ${esc(S.company.name)} 전 매장 이용 중</div>` : own ? `<button class="btn gold" data-act="academy-buy" style="margin-top:12px">₩${E.won(ACADEMY_PRICE)} · 바로 열기</button><p class="note">베타 기간이라 지금은 결제 없이 열리고, 정식 결제(토스)가 붙으면 안내드려요.</p>` : `<button class="btn" data-act="ask-owner" data-v="딜러 교육 구매" style="margin-top:12px">대표님께 구매 요청</button>`}</div>
+    ${open ? `<div class="pill g" style="margin-top:12px">✓ ${esc(S.company.name)} 전 매장 이용 중</div>` : own ? `<button class="btn gold" data-act="academy-buy" style="margin-top:12px">₩${E.won(ACADEMY_PRICE)} · 바로 열기</button>${payNote()}` : `<button class="btn" data-act="ask-owner" data-v="딜러 교육 구매" style="margin-top:12px">대표님께 구매 요청</button>`}</div>
   <div class="card"><h3>딜러 교육 강의 <small>매장당 한 번 · 평생</small></h3>${lessonList(open)}<div class="lesson"><summary><span class="no">✎</span><span><b>최종 시험</b><small>홀덤 용어·룰 5문제 · 4개 이상 맞히면 합격</small></span><span class="pill">${open ? '열림' : '🔒'}</span></summary></div></div>
   <div class="card"><h3>우리 딜러 학습 현황</h3>${open ? (S.acBoard?.length ? `<div class="tbl"><table style="min-width:0"><thead><tr><th>딜러</th><th class="r">진도</th><th class="r">시험</th><th>결과</th></tr></thead><tbody>${S.acBoard.map(r => `<tr><td><b>${esc(r.nick)}</b></td><td class="r num">${r.done * 20}%</td><td class="r num">${r.score ?? '—'}${r.score != null ? '/5' : ''}</td><td><span class="pill ${r.passed ? 'g' : r.score != null ? 'r' : ''}">${r.passed ? '합격' : r.score != null ? '재시험' : '진행 중'}</span></td></tr>`).join('')}</tbody></table></div>` : '<p class="mut" style="margin:0">앱에 가입해 소속된 직원이 들으면 여기에 보여요.</p>') : '<p class="mut" style="margin:0">열면 딜러별 진도와 시험 점수가 여기에 보여요.</p>'}</div>
   ${own ? `<div class="card"><h3>사장님 강의 <small>매장을 키우는 운영 노하우 · 준비 중</small></h3>${OWNER_COURSES.map(([ic, t, d, p], i) => { const on = (S.interest || []).includes(i); return `<div class="li"><div><b>${ic} ${t}</b><small>${d} · ₩${E.won(p)}</small></div><button class="btn sm" style="white-space:nowrap" data-act="interest" data-v="${i}">${on ? '알림 신청됨' : '열리면 알림'}</button></div>`; }).join('')}<p class="note">강의가 열리면 알림으로 알려드려요. 신청이 많은 강의부터 먼저 만들어요.</p></div>` : ''}`;
@@ -534,15 +554,15 @@ function vJobs() {
       <label class="fl">자동 끌올<select name="jump">${Object.entries(E.FEES.JUMP).map(([n, p]) => `<option value="${n}" ${n == 5 ? 'selected' : ''}>${n == 0 ? '안 함' : `하루 ${n}회 · 하루 ₩${E.won(p)}`}</option>`).join('')}</select></label></div>`}
     <label class="tog"><span><b>✨ 반짝이</b><small>하루 9,900원 · 공고 옆 표시가 깜빡여요</small></span><input type="checkbox" name="flash"></label>${k === 'hire' ? '<label class="tog"><span><b>📌 상단 고정</b><small>하루 33,000원</small></span><input type="checkbox" name="top"></label>' : ''}
     <div id="fee-box"></div>
-    <p class="note">🎉 베타 기간에는 공고 등록이 무료예요. 정식 오픈 후 결제(토스페이먼츠)가 붙어요. 긴급 공고는 급여를 미리 결제하고 근무가 끝나면 딜러에게 지급돼요. 성별·나이 조건은 법상 넣을 수 없어요.</p>
-    <button class="btn gold full">공고 올리기</button></form></div>
-  <div class="card"><h3>우리 매장 공고 <small>${S.posts.length}건</small></h3>${S.posts.map(p => `<div class="job ${p.kind === 'urgent' ? 'urgent' : ''}"><div class="row between"><div><span class="pill ${p.status === 'open' ? 'g' : ''}">${p.status === 'open' ? '모집 중' : '마감'}</span> <small class="mut">${p.kind === 'urgent' ? '긴급' : '상시'} · ${esc(p.job_role)} · ${fmtDT(p.created_at)}</small><h4>${esc(p.title)}</h4></div>
-    <button class="btn sm pri" data-act="manage" data-p="${p.id}" data-k="${p.kind}">관리</button></div><div id="mg-${p.id}"></div></div>`).join('') || '<div class="empty">올린 공고가 없어요</div>'}</div>`;
+    <p class="note">긴급 공고는 급여까지 미리 결제하고, 근무가 끝나면 딜러에게 지급돼요. 못 구한 자리 급여(+6%)는 마감 후 돌려드려요. 성별·나이 조건은 법상 넣을 수 없어요.</p>${payNote()}
+    <button class="btn gold full">결제하고 공고 올리기</button></form></div>
+  <div class="card"><h3>우리 매장 공고 <small>${S.posts.length}건</small></h3>${S.posts.map(p => `<div class="job ${p.kind === 'urgent' ? 'urgent' : ''}"><div class="row between"><div><span class="pill ${p.status === 'open' ? 'g' : p.status === 'unpaid' ? 'y' : ''}">${{ open: '모집 중', unpaid: '결제 전' }[p.status] || '마감'}</span> <small class="mut">${p.kind === 'urgent' ? '긴급' : '상시'} · ${esc(p.job_role)} · ${fmtDT(p.created_at)}</small><h4>${esc(p.title)}</h4></div>
+    ${p.status === 'unpaid' ? `<button class="btn sm gold" data-act="paypost" data-p="${p.id}">₩${E.won(p.paid_amount)} 결제</button>` : `<button class="btn sm pri" data-act="manage" data-p="${p.id}" data-k="${p.kind}">관리</button>`}</div><div id="mg-${p.id}"></div></div>`).join('') || '<div class="empty">올린 공고가 없어요</div>'}</div>`;
 }
 function feeBox() {
   const f = $('#post-form'), box = $('#fee-box'); if (!f || !box) return; const v = Object.fromEntries(new FormData(f)), heads = +v.heads || 1, urg = (S.postKind || 'urgent') === 'urgent';
   const fee = urg ? E.urgentFee({ flash: !!v.flash, heads, pay: (+v.pay || 0) * heads }) : E.hireFee({ days: +v.days, jump: +v.jump, flash: !!v.flash, top: !!v.top, heads });
-  box.innerHTML = `<div class="li"><span class="mut">정식 가격${urg ? ' (급여 + 수수료 6% 포함)' : ''}</span><span class="num"><s class="mut">₩${E.won(fee)}</s> <b class="up">베타 무료</b></span></div>`;
+  box.innerHTML = `<div class="li"><span class="mut">결제 금액${urg ? ' (급여 + 수수료 6% 포함)' : ''}</span><b class="num" style="font-size:18px">₩${E.won(fee)}</b></div>`;
 }
 async function manage(postId, kind) {
   const box = $('#mg-' + postId); if (!box) return; const apps = await q(sb.rpc('post_applicants', { p_post: postId })), slots = kind === 'urgent' ? await q(sb.rpc('post_slots', { p_post: postId })) : [];
@@ -578,7 +598,7 @@ function vMore() {
       <div class="plan ${c.plan === 'basic' ? 'cur' : ''}"><b>베이직</b><b class="num">월 ₩${E.won(PRICE.basic)}</b><small>매장 관리 전부 — 매출 기록 · 직원 스케줄 · 급여 계산 · 출퇴근 · 구인 · 로테이션 · 발주</small>${c.plan === 'basic' ? '<span class="pill">지금 요금제</span>' : isOwner() ? '<button class="btn sm" data-act="plan-down">베이직으로 바꾸기</button>' : ''}</div>
       <div class="plan ${c.plan !== 'basic' ? 'cur' : ''}"><span class="pill y">추천</span><b>프로</b><b class="num">월 ₩${E.won(PRICE.pro)}</b><small>베이직 전부 + ✦ 매장 개선 (우리 매장 순위 · 경고등 · 매달 처방 · 퀘스트 · 레벨)</small>${c.plan === 'pro' ? '<span class="pill g">지금 요금제</span>' : isOwner() ? '<button class="btn sm gold" data-act="plan" data-v="pro">프로로 올리기</button>' : '<button class="btn sm" data-act="ask-owner" data-v="프로 요금제">대표님께 요청</button>'}</div></div>
       ${S.downgrade ? (G => `<div class="card" style="border-color:var(--red);margin-top:10px"><b>베이직으로 바꾸면 이렇게 돼요</b><ul style="margin:8px 0;padding-left:18px;font-size:14px"><li>우리 매장 순위·경고등·매달 처방이 잠겨요</li>${G ? `<li>매장 레벨 Lv.${G.lv}${G.up >= 2 ? `과 🔥 ${G.up}개월 연속 상승 기록` : ''}이 멈춰요</li>` : ''}<li>퀘스트 경험치가 더 쌓이지 않아요</li></ul><div class="row"><button class="btn pri" data-act="plan-keep">프로 그대로 쓰기</button><button class="btn" data-act="plan" data-v="basic">그래도 베이직으로</button></div><p class="note">기록은 그대로 남아서 다시 프로로 오면 이어져요.</p></div>`)(S.bench?.ready && !S.bench.locked ? gameOf(S.bench, rxOf(S.bench)) : null) : ''}
-      <p class="note">베타 기간에는 요금이 청구되지 않아요. 정식 결제(토스)가 붙기 전에 미리 알려드려요. 해지·변경은 언제든 한 번에 할 수 있어요.</p></div>
+      <p class="note">프로는 카드로 30일씩 결제해요 (매장 수 × ₩${E.won(PRICE.pro)}). ${c.paid_until ? `${new Date(c.paid_until).toLocaleDateString('ko-KR')}까지 결제돼 있어요. ` : ''}베이직으로 내리는 건 언제든 무료예요.</p>${payNote()}</div>
     <form class="f card" id="store-form"><h3>매장 정보</h3><label class="fl">매장 이름<input name="name" value="${esc(S.store.name)}" ${isOwner() ? '' : 'disabled'}></label><label class="fl">지역<input name="area" value="${esc(S.store.area || '')}" ${isOwner() ? '' : 'disabled'}></label>
       <div class="grid2"><label class="fl">평수<input type="number" name="py" min="1" step="0.1" value="${S.store.pyeong ?? ''}" placeholder="예: 32" ${isOwner() ? '' : 'disabled'}></label><label class="fl">테이블 수<input type="number" name="tables" min="1" value="${S.store.tables ?? ''}" placeholder="예: 7" ${isOwner() ? '' : 'disabled'}></label></div>
       <div class="grid2"><label class="fl">야간 시작<input type="time" name="ns" value="${t5(S.store.night_start)}" ${isOwner() ? '' : 'disabled'}></label><label class="fl">야간 끝<input type="time" name="ne" value="${t5(S.store.night_end)}" ${isOwner() ? '' : 'disabled'}></label></div>
@@ -675,9 +695,9 @@ function vWallet() {
     <p class="note">긴급 근무 급여는 매장 확인 후 5시간 뒤부터 출금할 수 있어요. 출금 가능한 돈 전부가 한 번에 나가요.</p>
     ${S.wds?.length ? S.wds.map(x => `<div class="li"><div><b>₩${E.won(x.amount)}</b><small>${x.instant ? '⚡ 번개' : '일반'} · ${fmtDT(x.created_at)}${x.fee ? ` · 수수료 ${E.won(x.fee)}` : ''}</small></div><span class="pill ${x.status === '송금 완료' ? 'g' : 'y'}">${esc(x.status)}</span></div>`).join('') : ''}</div>
   <div class="card"><h3>🎟 지원권 <small>지금 ${S.tickets}장</small></h3><div class="plans">${TICKET_PACKS.map(([n, p], i) => `<div class="plan ${i === 1 ? 'cur' : ''}">${i === 1 ? '<span class="pill y">인기</span>' : ''}<b>${n}장</b><b class="num">₩${E.won(p)}</b><small>장당 ₩${E.won(p / n)}</small><button class="btn sm ${i === 1 ? 'pri' : ''}" data-act="tickets" data-v="${i + 1}">받기</button></div>`).join('')}</div>
-    <p class="note">지원하면 1장이 잠기고, 채용돼야 쓰여요. 안 뽑히면 돌아와요. 베타 기간에는 결제 없이 20장까지 받을 수 있어요.</p></div>
+    <p class="note">지원하면 1장이 잠기고, 채용돼야 쓰여요. 안 뽑히면 돌아와요.</p>${payNote()}</div>
   <div class="card game"><h3>⭐ 딜러 PRO 패스 <small>월 ₩${E.won(PRO_PRICE)}</small></h3><div class="li"><span>⚡ 번개 출금 수수료</span><b>0원</b></div><div class="li"><span>🎟 지원권</span><b>매달 2장</b></div>
-    ${pro ? `<p class="up" style="margin:10px 0 0"><b>PRO 이용 중</b> · ${new Date(S.prof.pro_until).toLocaleDateString('ko-KR')}까지</p>` : `<button class="btn gold full" data-act="pro" style="margin-top:10px">PRO 시작하기</button><p class="note">번개 출금을 한 달에 7번 이상 쓰면 PRO가 이득이에요. 베타 기간엔 결제 없이 30일 열려요.</p>`}</div>`;
+    ${pro ? `<p class="up" style="margin:10px 0 0"><b>PRO 이용 중</b> · ${new Date(S.prof.pro_until).toLocaleDateString('ko-KR')}까지</p>` : `<button class="btn gold full" data-act="pro" style="margin-top:10px">PRO 시작하기</button><p class="note">번개 출금을 한 달에 7번 이상 쓰면 PRO가 이득이에요. 30일씩 결제해요.</p>${payNote()}`}</div>`;
 }
 function vMe() {
   const p = S.prof;
@@ -697,7 +717,9 @@ function vHqDash() {
   <div class="card"><h3>요금제 현황</h3>${['trial', 'basic', 'pro'].map(k => `<div class="li"><span>${{ trial: '무료 체험', basic: '베이직', pro: '프로' }[k]}</span><b class="num">${(S.companies || []).filter(c => c.plan === k).length}곳</b></div>`).join('')}<p class="note">예상 월 구독 매출 ₩${E.won((S.companies || []).reduce((a, c) => a + (PRICE[c.plan] || 0), 0))}</p></div>
   <div class="card"><h3>발주 요청 <small>${(S.hqOrders || []).filter(o => o.status !== '도착').length}건 진행 중</small></h3>${(S.hqOrders || []).map(o => { const st = (S.stats || []).find(x => x.store_id === o.store_id); return `<div class="li"><div><b>${esc(st?.store || '매장')}</b> <small>${o.items.map(i => `${esc(item(i.id)?.n)}×${i.q}${i.alc ? '(주류)' : ''}`).join(', ')} · ₩${E.won(o.total)} · ${o.tax_invoice ? '세금계산서' : '계산서 없음'} · ${fmtDT(o.created_at)}</small></div><span class="row">${['접수', '준비 중', '배송 중', '도착'].map(s => `<button class="btn sm ${o.status === s ? 'pri' : ''}" data-act="ostat" data-o="${o.id}" data-v="${s}">${s}</button>`).join('')}</span></div>`; }).join('') || '<div class="empty">발주 요청이 없어요</div>'}</div>
   <div class="card"><h3>출금 요청 <small>${(S.hqWds || []).filter(x => x.status !== '송금 완료').length}건 대기</small></h3>${(S.hqWds || []).map(x => `<div class="li"><div><b>₩${E.won(x.amount)}</b> ${x.instant ? '<span class="pill y">⚡ 번개</span>' : ''}<small>${esc((S.hqProfiles || []).find(p => p.id === x.user_id)?.name || '')} · ${esc(x.bank || '')} · ${fmtDT(x.created_at)}</small></div>${x.status === '송금 완료' ? '<span class="pill g">송금 완료</span>' : `<button class="btn sm pri" data-act="wd-done" data-v="${x.id}">송금했어요</button>`}</div>`).join('') || '<div class="empty">출금 요청이 없어요</div>'}<p class="note">번개 출금은 10분 안에 보내주세요. 은행 이체 후 '송금했어요'를 누르면 딜러에게 알림이 가요.</p></div>
-  <div class="card"><h3>베타 구매 기록 <small>정식 결제 전 · 청구 안 됨</small></h3>${Object.entries((S.hqBuys || []).reduce((o, b) => { const k = b.kind.startsWith('plan_') ? '요금제 변경' : { academy: '딜러 교육', tickets: '지원권', dealer_pro: '딜러 PRO' }[b.kind] || b.kind; o[k] = o[k] || [0, 0]; o[k][0] += b.qty || 1; o[k][1] += b.amount; return o; }, {})).map(([k, [n, a]]) => `<div class="li"><span>${k}</span><span class="num">${n}건 · 정가 ₩${E.won(a)}</span></div>`).join('') || '<div class="empty">아직 없어요</div>'}</div>`;
+  <div class="card"><h3>결제 ${PAY_TEST ? '<span class="pill y">테스트 모드</span>' : ''} <small>이번 달 ₩${E.won((S.hqPays || []).filter(x => x.status === 'done' && x.approved_at?.slice(0, 7) === TODAY.slice(0, 7)).reduce((a, x) => a + x.amount - x.refunded, 0))}</small></h3>
+    ${(S.hqPays || []).filter(x => x.status === 'done').slice(0, 30).map(x => { const due = x.refund_due - x.refunded; return `<div class="li"><div><b>${esc(x.order_name)}</b><small>${fmtDT(x.approved_at)} · ₩${E.won(x.amount)}${x.refunded ? ` · 환불 ₩${E.won(x.refunded)}` : ''}</small></div>${due > 0 ? `<button class="btn sm gold" data-act="refund" data-o="${x.order_id}">₩${E.won(due)} 환불</button>` : ''}</div>`; }).join('') || '<div class="empty">아직 결제가 없어요</div>'}
+    <p class="note">긴급 구인이 마감됐는데 못 구한 자리가 있으면 '환불' 버튼이 생겨요. 누르면 그 금액만 카드로 돌려줘요.</p></div>`;
 }
 function vHqStores() {
   return `<h1>입점 매장</h1><div class="card">${(S.companies || []).map(c => `<div class="li"><div><b>${esc(c.name)}</b>${c.brand ? ` <small class="mut">${esc(c.brand)}</small>` : ''}<small>사업자 ${esc(c.biz_no || '')} · ${{ trial: '무료 체험', basic: '베이직', pro: '프로' }[c.plan]} · ${new Date(c.created_at).toLocaleDateString('ko-KR')}</small></div>${c.biz_verified ? '<span class="pill g">확인 완료</span>' : `<button class="btn sm pri" data-act="verify" data-c="${c.id}">사업자 확인</button>`}</div>`).join('') || '<div class="empty">아직 매장이 없어요</div>'}</div>`;
@@ -786,13 +808,15 @@ document.addEventListener('click', e => {
   if (a === 'ostat') busy(async () => { await q(sb.from('orders').update({ status: d.v }).eq('id', d.o)); await reload(); toast(`${d.v}(으)로 바꿨어요`); });
   if (a === 'plan-down') { S.downgrade = true; render(); }
   if (a === 'plan-keep') { S.downgrade = false; render(); toast('프로를 계속 써요'); }
-  if (a === 'plan') busy(async () => { await q(sb.rpc('set_plan', { p_plan: d.v })); S.downgrade = false; await boot(); toast(d.v === 'pro' ? '프로로 올렸어요! 매장 개선이 열렸어요' : '베이직으로 바꿨어요'); });
+  if (a === 'plan') busy(async () => { if (d.v === 'pro') return pay('plan', { plan: 'pro' }); await q(sb.rpc('set_plan', { p_plan: d.v })); S.downgrade = false; await boot(); toast(d.v === 'pro' ? '프로로 올렸어요! 매장 개선이 열렸어요' : '베이직으로 바꿨어요'); });
   if (a === 'withdraw') busy(async () => { const n = await q(sb.rpc('withdraw', { p_instant: d.v === '1' })); await reload(); toast(d.v === '1' ? `₩${E.won(n)} 번개 출금을 요청했어요` : `₩${E.won(n)} 출금을 요청했어요. 다음 영업일에 들어가요`); });
-  if (a === 'tickets') busy(async () => { const n = await q(sb.rpc('buy_tickets', { p_pack: +d.v })); await reload(); toast(`지원권 ${n}장을 받았어요`); });
-  if (a === 'pro') busy(async () => { await q(sb.rpc('buy_pro')); S.prof = await q(sb.from('profiles').select('*').eq('id', S.user.id).maybeSingle()); await reload(); toast('PRO 시작! 번개 출금 0원 · 지원권 2장을 드렸어요'); });
+  if (a === 'tickets') busy(() => pay('tickets', { pack: +d.v }));
+  if (a === 'pro') busy(() => pay('pro'));
   if (a === 'wd-done') busy(async () => { await q(sb.from('withdrawals').update({ status: '송금 완료' }).eq('id', d.v)); await reload(); toast('송금 완료로 바꿨어요'); });
+  if (a === 'paypost') busy(() => pay('post', { post: d.p }));
+  if (a === 'refund') busy(async () => { const { data, error } = await sb.functions.invoke('pay-refund', { body: { orderId: d.o } }); if (error || !data?.ok) return toast(data?.message || '환불에 실패했어요'); await reload(); toast(`₩${E.won(data.refunded)} 환불했어요`); });
   if (a === 'hires') { S.hires = Math.max(1, (S.hires ?? 3) + +d.v); render(); }
-  if (a === 'academy-buy') busy(async () => { await q(sb.rpc('buy_academy')); S.company = await q(sb.from('companies').select('*').eq('id', S.company.id).maybeSingle()); await loadEdu(); toast('딜러 교육을 열었어요! 소속 직원들에게 알렸어요'); });
+  if (a === 'academy-buy') busy(() => pay('academy'));
   if (a === 'ask-owner') busy(async () => { await q(sb.rpc('ask_owner', { p_store: S.store.id, p_what: d.v })); toast('대표님께 요청했어요'); });
   if (a === 'interest') busy(async () => { const i = +d.v; if ((S.interest || []).includes(i)) await q(sb.from('course_interest').delete().eq('course', i)); else await q(sb.from('course_interest').insert({ course: i })); await loadEdu(); });
   if (a === 'lesson') busy(async () => { await q(sb.rpc('lesson_done', { p_lesson: +d.v })); S.lessons = await q(sb.from('lesson_progress').select('lesson')); S.openLesson = +d.v < 5 ? +d.v : null; render(); toast(S.lessons.length >= 5 ? '강의를 다 들었어요! 이제 시험을 볼 수 있어요' : '다음 강의로 넘어가요'); });
@@ -857,8 +881,8 @@ document.addEventListener('submit', e => {
     }
     if (id === 'post-form') {
       const k = S.postKind || 'urgent', heads = +v.heads || 1;
-      await q(sb.rpc('create_post', { p_store: S.store.id, p_kind: k, p_role: v.role, p_title: v.title, p_body: v.body || null, p_pay_text: k === 'hire' ? v.paytext : null, p_work_time: k === 'hire' ? v.work : null, p_heads: heads, p_taxi: +v.taxi || 0, p_flash: !!v.flash, p_top: !!v.top, p_days: +v.days || 1, p_slots: k === 'urgent' ? Array.from({ length: heads }, () => ({ start: v.s, end: v.e, pay: +v.pay || 0 })) : [] }));
-      await reload(); toast('공고를 올렸어요! 딜러들에게 보여요');
+      const PP = ({ p_store: S.store.id, p_kind: k, p_role: v.role, p_title: v.title, p_body: v.body || null, p_pay_text: k === 'hire' ? v.paytext : null, p_work_time: k === 'hire' ? v.work : null, p_heads: heads, p_taxi: +v.taxi || 0, p_flash: !!v.flash, p_top: !!v.top, p_days: +v.days || 1, p_jump: +v.jump || 0, p_slots: k === 'urgent' ? Array.from({ length: heads }, () => ({ start: v.s, end: v.e, pay: +v.pay || 0 })) : [] });
+      const pid = await q(sb.rpc('create_post', PP)); await reload(); await pay('post', { post: pid });
     }
     if (id === 'attend-form') { const k = await q(sb.rpc('attend', { p_code: v.code.trim() })); toast(k === 'in' ? '출근했어요. 오늘도 화이팅!' : '퇴근했어요. 수고하셨어요'); await reload(); }
     if (id === 'inq-form') { await q(sb.from('inquiries').insert({ from_user: S.user.id, store_id: S.store?.id || null, body: v.body })); S.inq = await q(sb.from('inquiries').select('*').eq('from_user', S.user.id).order('created_at', { ascending: false })); render(); toast('운영사에 보냈어요. 답변이 오면 알림이 와요'); }
