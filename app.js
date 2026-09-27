@@ -7,7 +7,7 @@ const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': 
 const t5 = t => String(t || '').slice(0, 5);
 const now = new Date(), TODAY = E.ymd(now.getFullYear(), now.getMonth() + 1, now.getDate());
 const fmtDT = d => new Date(d).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' });
-const man = n => `${E.won(n / 10000)}만`;
+const man = n => Math.abs(n) >= 1e8 ? `${(n / 1e8).toFixed(Math.round(n / 1e7) % 10 ? 1 : 0)}억` : `${E.won(n / 10000)}만`;
 function toast(m) { const t = $('#toast'); t.textContent = m; t.classList.add('on'); clearTimeout(toast.h); toast.h = setTimeout(() => t.classList.remove('on'), 2800); }
 async function q(p) { const { data, error } = await p; if (error) { toast(error.message); throw error; } return data; }
 const STORE_COLS = 'id,company_id,name,area,address,pyeong,tables,layout,night_start,night_end,need_by_wd,join_code,created_at,goal,fixed,holidays';
@@ -727,18 +727,53 @@ function siseTag(u) {
   if (ps.length < 3) return ''; const qt = f => ps[Math.floor((ps.length - 1) * f)], lo = qt(.25), hi = qt(.75), tag = u.price < lo ? ['g', '시세보다 쌈'] : u.price > hi ? ['r', '시세보다 비쌈'] : ['', '시세 안'];
   return `<small class="mut" style="display:block">📊 ${kw} 시세 ₩${E.won(lo)}~${E.won(hi)} <span class="pill ${tag[0]}">${tag[1]}</span></small>`;
 }
+const usedIcon = t => [['테이블', '🟩'], ['칩', '🪙'], ['셔플러', '🃏'], ['카드', '🃏'], ['의자', '🪑'], ['모니터', '🖥️'], ['타이머', '⏱️'], ['조명', '💡'], ['냉장고', '🧊']].find(([k]) => t.includes(k))?.[1] || '📦';
+const usedThumb = u => u.image_url ? `<img src="${esc(u.image_url)}" alt="" loading="lazy">` : `<span class="ph">${usedIcon(u.title)}</span>`;
 function usedBlock() {
-  return `<form class="f card" id="used-form"><h3>글 올리기</h3><div class="seg"><button type="button" data-act="uside" data-v="sell" aria-pressed="${(S.uside || 'sell') === 'sell'}">팝니다</button><button type="button" data-act="uside" data-v="buy" aria-pressed="${S.uside === 'buy'}">삽니다</button></div>
-    <label class="fl">제목<input name="title" required placeholder="예: 10인 홀덤 테이블"></label><div class="grid2"><label class="fl">${S.uside === 'buy' ? '희망 가격' : '가격'} (원)<input name="price" type="number" required step="10000"></label><label class="fl">지역<input name="area" value="${esc(S.store?.area || '')}"></label></div>
-    <label class="fl">설명<textarea name="body" rows="2" placeholder="상태, 사용 기간, 거래 방법"></textarea></label><button class="btn full">올리기</button></form>
-  <div class="card"><h3>올라온 물건 <small>${S.used.length}개</small></h3>${S.used.map(u => `<div class="li"><div><span class="pill ${u.side === 'sell' ? 'g' : 'y'}">${u.side === 'sell' ? '팝니다' : '삽니다'}</span> <b>${esc(u.title)}</b><small>${esc(u.area || '')} · ${fmtDT(u.created_at)}${u.body ? ' · ' + esc(u.body) : ''}</small></div><span style="text-align:right"><b class="num">₩${E.won(u.price)}</b>${u.side === 'sell' ? siseTag(u) : ''}</span></div>`).join('') || '<div class="empty">아직 올라온 물건이 없어요</div>'}
-  <p class="note">📊 시세는 최근 3개월 올라온 비슷한 물건 3개 이상의 가격 범위예요. 🔒 안전결제(구매자 수수료 2%)는 정식 결제가 붙으면 열려요.</p></div>`;
+  const side = S.uside || 'sell', f = S.usedF || '전체', list = S.used.filter(u => f === '전체' || (f === '팝니다') === (u.side === 'sell'));
+  return `<div class="row between" style="margin:12px 0 8px"><div class="chips">${['전체', '팝니다', '삽니다'].map(t => `<button class="fchip ${f === t ? 'on' : ''}" data-act="usedf" data-v="${t}">${t}</button>`).join('')}</div><button class="btn pri sm" data-act="used-new">+ 글 올리기</button></div>
+  ${S.usedNew ? `<form class="f card" id="used-form"><div class="seg"><button type="button" data-act="uside" data-v="sell" aria-pressed="${side === 'sell'}">팝니다</button><button type="button" data-act="uside" data-v="buy" aria-pressed="${side === 'buy'}">삽니다</button></div>
+    ${side === 'sell' ? `<label class="photo-in"><input type="file" name="photo" accept="image/*" hidden><span id="photo-prev">📷<b>사진 올리기</b><small>필수 · 물건이 잘 보이게 찍어주세요</small></span></label>` : ''}
+    <label class="fl">제목<input name="title" required placeholder="예: 10인 홀덤 테이블"></label><div class="grid2"><label class="fl">${side === 'buy' ? '희망 가격' : '가격'} (원)<input name="price" type="number" inputmode="numeric" required step="10000"></label><label class="fl">지역<input name="area" value="${esc(S.store?.area || '')}"></label></div>
+    <label class="fl">설명<textarea name="body" rows="2" placeholder="상태, 사용 기간, 거래 방법"></textarea></label><button class="btn pri full">올리기</button></form>` : ''}
+  <div class="ugrid">${list.map(u => `<button class="ucard" data-act="used-open" data-v="${u.id}"><div class="uimg">${usedThumb(u)}<span class="pill ${u.side === 'sell' ? 'g' : 'y'}">${u.side === 'sell' ? '팝니다' : '삽니다'}</span></div><div class="ub"><b>${esc(u.title)}</b><span class="num">₩${E.won(u.price)}</span><small>${esc(u.area || '')} · ${fmtDT(u.created_at)}</small></div></button>`).join('') || '<div class="card empty">아직 올라온 물건이 없어요</div>'}</div>
+  <p class="note">📊 시세는 최근 3개월 올라온 비슷한 물건 3개 이상의 가격 범위예요. 🔒 안전결제(구매자 수수료 2%)는 정식 결제가 붙으면 열려요.</p>`;
+}
+function usedSheet(id) {
+  const u = S.used.find(x => x.id === id); if (!u) return;
+  openSheet(`<div class="udetail">${u.image_url ? `<img src="${esc(u.image_url)}" alt="">` : `<div class="ph big">${usedIcon(u.title)}<small>사진 없음</small></div>`}</div>
+    <span class="pill ${u.side === 'sell' ? 'g' : 'y'}">${u.side === 'sell' ? '팝니다' : '삽니다'}</span><h2 style="margin:8px 0 4px">${esc(u.title)}</h2><div class="num" style="font-size:24px;font-weight:800">₩${E.won(u.price)} <small class="mut" style="font-size:13px">(${man(u.price)}원)</small></div>${u.side === 'sell' ? siseTag(u) : ''}
+    <p class="mut" style="margin:8px 0">${esc(u.area || '')} · ${fmtDT(u.created_at)}</p>${u.body ? `<p>${esc(u.body)}</p>` : ''}
+    ${u.seller === S.user.id ? `<button class="btn red full" data-act="used-del" data-v="${u.id}">내 글 내리기</button>` : `<button class="btn pri full" data-act="used-ask" data-v="${u.id}">💬 운영사 통해 연락하기</button><p class="note">운영사가 판매자와 연결해 드려요. 안전결제가 열리면 앱 안에서 바로 거래돼요.</p>`}`);
+}
+// 사진은 긴 변 1280px JPEG로 줄여서 올림 (용량·데이터 절약)
+async function shrink(file) {
+  const img = await createImageBitmap(file), k = Math.min(1, 1280 / Math.max(img.width, img.height)), c = document.createElement('canvas');
+  c.width = Math.round(img.width * k); c.height = Math.round(img.height * k); c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+  return await new Promise(r => c.toBlob(r, 'image/jpeg', .82));
+}
+async function listingsLoad() { S.listings = await q(sb.from('transfer_listings').select('*').order('premium_ad', { ascending: false }).order('created_at', { ascending: false })); render(); }
+const payback = l => l.monthly_profit > 0 ? Math.round(l.premium / l.monthly_profit) : null;
+function listingSheet(id) {
+  const l = (S.listings || []).find(x => x.id === id); if (!l) return; const h = l.sales_hist || [], mx = Math.max(1, ...h);
+  openSheet(`${l.verified ? '<span class="pill g">✅ +EV 매출 검증</span> ' : '<span class="pill">검증 전</span> '}${l.premium_ad ? '<span class="pill y">📌 프리미엄</span>' : ''}<h2 style="margin:8px 0 4px">${esc(l.headline)}</h2><p class="mut" style="margin:0 0 10px">${esc(l.area)} · ${l.pyeong || '-'}평 · 테이블 ${l.tables || '-'}대 · 상호 비공개</p>
+    <div class="ps3"><div><small>권리금</small><b class="num">₩${man(l.premium)}</b></div><div><small>월 순이익</small><b class="num up">₩${man(l.monthly_profit || 0)}</b></div><div><small>회수 기간</small><b class="num">${payback(l) ? payback(l) + '개월' : '-'}</b></div></div>
+    ${h.length ? `<div style="margin:14px 0 4px"><small class="mut">최근 ${h.length}개월 매출 ${l.verified ? '(+EV 마감 데이터)' : '(매도자 입력)'}</small><div class="bars" style="height:90px">${h.map((v, i) => `<div class="bar"><em class="num">${man(v)}</em><i style="height:${v / mx * 100}%"></i><small>${i - h.length + 1 || '이번'}${i - h.length + 1 ? '달' : ''}</small></div>`).join('')}</div></div>` : ''}
+    <div class="li"><span class="mut">보증금 / 월세</span><span class="num">₩${man(l.deposit || 0)} / ₩${man(l.rent || 0)}</span></div><div class="li"><span class="mut">월 매출</span><span class="num">₩${man(l.monthly_sales || 0)}</span></div>
+    ${l.body ? `<p>${esc(l.body)}</p>` : ''}<button class="btn gold full" data-act="listing-ask" data-v="${l.id}">관심 있어요 · 상담 신청</button><p class="note">권리금 회수 기간 = 권리금 ÷ 월 순이익. 보통 10~12개월이면 적정 수준이에요.</p>`);
 }
 const SELL_Q = ['어느 지역 매장인가요?', '희망 권리금은 어느 정도예요?', '언제까지 넘기고 싶으세요?', '+EV 매출 데이터로 "매출 검증" 배지를 붙일까요?'];
 function transferBlock() {
+  const tab = S.trTab || 'list';
+  const head = `<div class="seg sub2" style="margin-top:12px">${[['list', '🏪 매물 보기'], ['sell', '💬 내 매장 내놓기'], ['fee', '💳 요금']].map(([k, l]) => `<button data-act="trtab" data-v="${k}" aria-pressed="${tab === k}">${l}</button>`).join('')}</div>`;
+  if (tab === 'list') return `${head}<div class="stats4" style="grid-template-columns:repeat(3,1fr)"><div><small>매물</small><b class="num">${(S.listings || []).length}개</b></div><div><small>매출 검증</small><b class="num">${(S.listings || []).filter(l => l.verified).length}개</b></div><div><small>평균 회수</small><b class="num">${(ls => ls.length ? Math.round(ls.reduce((a, b) => a + b, 0) / ls.length) + '개월' : '-')((S.listings || []).map(payback).filter(Boolean))}</b></div></div>
+    ${(S.listings || []).map(l => `<button class="card lcard ${l.premium_ad ? 'prem' : ''}" data-act="listing-open" data-v="${l.id}"><div class="row between"><div class="row" style="gap:6px">${l.verified ? '<span class="pill g">✅ 매출 검증</span>' : '<span class="pill">검증 전</span>'}${l.premium_ad ? '<span class="pill y">📌</span>' : ''}</div><small class="mut">${fmtDT(l.created_at)}</small></div>
+      <b class="lh">${esc(l.headline)}</b><small class="mut">${esc(l.area)} · ${l.pyeong || '-'}평 · 테이블 ${l.tables || '-'}대</small>
+      <div class="ps3"><div><small>권리금</small><b class="num">₩${man(l.premium)}</b></div><div><small>월 순이익</small><b class="num up">₩${man(l.monthly_profit || 0)}</b></div><div><small>회수</small><b class="num">${payback(l) ? payback(l) + '개월' : '-'}</b></div></div></button>`).join('') || '<div class="card empty">지금 나온 매물이 없어요</div>'}
+    <p class="note">✅ 매출 검증은 +EV 매일 마감 데이터로 확인된 숫자예요. 상호와 정확한 위치는 상담 후에만 알려드려요.</p>`;
+  if (tab === 'fee') return `${head}<div class="card"><h3>요금</h3><div class="li"><span>일반 등록 <small>90일 게시 · 매출 검증 배지</small></span><b class="num">₩1,000,000</b></div><div class="li"><span>프리미엄 <small>상단 고정 · 관심 매수자 먼저 알림</small></span><b class="num">₩2,000,000</b></div><div class="li"><span>성사 수수료 <small>먼저 낸 등록비는 빼드려요</small></span><b class="num">권리금의 10%</b></div></div>`;
   const a = S.sellA || [], M = monthSummary(S.y, S.m), mp = Math.max(0, M.left);
-  return `<div class="card"><h3>요금</h3><div class="li"><span>일반 등록 <small>90일 게시 · 매출 검증 배지</small></span><b class="num">₩1,000,000</b></div><div class="li"><span>프리미엄 <small>상단 고정 · 관심 매수자 먼저 알림</small></span><b class="num">₩2,000,000</b></div><div class="li"><span>성사 수수료 <small>먼저 낸 등록비는 빼드려요</small></span><b class="num">권리금의 10%</b></div></div>
-  <div class="card chat"><h3>💬 매장 내놓기 상담 <small>상호는 끝까지 비공개</small></h3>
+  return `${head}<div class="card chat"><h3>💬 매장 내놓기 상담 <small>상호는 끝까지 비공개</small></h3>
     ${a.map((x, i) => `<div class="bub a">${SELL_Q[i]}</div><div class="bub me">${esc(x)}</div>`).join('')}
     ${a.length < SELL_Q.length ? `<div class="bub a">${SELL_Q[a.length]}</div><form class="row" id="sell-form" style="margin-top:8px"><input name="a" required placeholder="편하게 적어주세요" style="flex:1"><button class="btn sm pri">보내기</button></form>`
     : `<div class="bub a">감사해요! 지금 이 매장은 월 순이익이 약 ₩${man(mp)}이에요. 권리금은 보통 <b>순이익 10~12개월치</b>라서 <b>약 ₩${man(mp * 10)} ~ ₩${man(mp * 12)}</b>로 보여요. 운영사 담당자가 곧 연락드려요.</div>${S.sellSaved ? '<span class="pill g">상담 접수 완료</span>' : '<button class="btn gold full" data-act="sell-save">상담 신청하기</button>'}`}</div>`;
@@ -864,7 +899,7 @@ document.addEventListener('click', e => {
   if (a === 'onb') { S.onb = d.v || null; render(); }
   if (a === 'close') closeSheet();
   if (a === 'goto') { S.tab = d.t; S.sub = d.s || null; render(); scrollTo(0, 0); }
-  if (a === 'sub') { S.sub = d.v || null; render(); scrollTo(0, 0); if (d.v === 'used') busy(async () => { S.used = await q(sb.from('used_items').select('*').order('created_at', { ascending: false }).limit(50)); render(); }); if (d.v === 'rot') busy(async () => { await loadRot(); render(); }); if (d.v === 'edu') busy(loadEdu); if (d.v === 'inq') busy(async () => { S.inq = await q(sb.from('inquiries').select('*').eq('from_user', S.user.id).order('created_at', { ascending: false })); render(); }); }
+  if (a === 'sub') { S.sub = d.v || null; render(); scrollTo(0, 0); if (d.v === 'used') busy(async () => { S.used = await q(sb.from('used_items').select('*').order('created_at', { ascending: false }).limit(50)); render(); }); if (d.v === 'rot') busy(async () => { await loadRot(); render(); }); if (d.v === 'transfer') busy(listingsLoad); if (d.v === 'edu') busy(loadEdu); if (d.v === 'inq') busy(async () => { S.inq = await q(sb.from('inquiries').select('*').eq('from_user', S.user.id).order('created_at', { ascending: false })); render(); }); }
   if (a === 'mon') busy(async () => { S.m += +d.v; if (S.m > 12) { S.m = 1; S.y++; } if (S.m < 1) { S.m = 12; S.y--; } await reload(); });
   if (a === 'stab') { S.staffTab = d.v; render(); }
   if (a === 'empf') { S.empF = d.v; render(); }
@@ -909,6 +944,14 @@ document.addEventListener('click', e => {
   if (a === 'dslot') busy(async () => { await q(sb.rpc('slot_act', { p_slot: d.s, p_act: 'done' })); toast('근무 완료를 알렸어요. 수고하셨어요!'); await reload(); });
   if (a === 'apply') busy(async () => { if (S.tickets < 1) return toast('지원권이 없어요'); await q(sb.rpc('apply_job', { p_post: d.p })); toast('지원했어요! 매장이 채용하면 알림이 와요'); await reload(); });
   if (a === 'uside') { S.uside = d.v; render(); }
+  if (a === 'usedf') { S.usedF = d.v; render(); }
+  if (a === 'used-new') { S.usedNew = !S.usedNew; render(); }
+  if (a === 'used-open') usedSheet(d.v);
+  if (a === 'used-del') busy(async () => { await q(sb.from('used_items').delete().eq('id', d.v)); S.used = S.used.filter(x => x.id !== d.v); closeSheet(); render(); toast('글을 내렸어요'); });
+  if (a === 'used-ask') busy(async () => { const u = S.used.find(x => x.id === d.v); await q(sb.from('inquiries').insert({ from_user: S.user.id, store_id: S.store?.id || null, body: `[중고 연락] ${u.title} (₩${E.won(u.price)}) — 판매자와 연결 부탁드려요` })); closeSheet(); toast('운영사에 연결을 요청했어요'); });
+  if (a === 'trtab') { S.trTab = d.v; render(); }
+  if (a === 'listing-open') listingSheet(d.v);
+  if (a === 'listing-ask') busy(async () => { const l = S.listings.find(x => x.id === d.v); await q(sb.from('inquiries').insert({ from_user: S.user.id, store_id: S.store?.id || null, body: `[양수 상담] ${l.headline} (${l.area}, 권리금 ₩${E.won(l.premium)})` })); closeSheet(); toast('상담을 신청했어요. 운영사가 연락드려요'); });
   if (a === 'sell-save') busy(async () => { await q(sb.from('transfer_leads').insert({ company_id: S.company.id, store_id: S.store.id, answers: S.sellA })); S.sellSaved = true; render(); toast('상담을 신청했어요. 담당자가 연락드려요'); });
   if (a === 'pick') { S.pick = S.pick === d.m ? null : d.m; render(); }
   if (a === 'drop' && S.pick) { const mid = S.pick; S.pick = null; rotMove(mid, d.v); render(); busy(saveRot); }
@@ -963,6 +1006,7 @@ function download(name, rows) {
 document.addEventListener('input', e => { if (e.target.closest('#post-form')) feeBox(); if (e.target.closest('#report-form')) closeCalc(); });
 document.addEventListener('change', e => {
   const t = e.target, d = t.dataset;
+  if (t.name === 'photo' && t.files?.[0]) { const pv = $('#photo-prev'); if (pv) pv.innerHTML = `<img src="${URL.createObjectURL(t.files[0])}" alt=""><small>다시 누르면 바꿔요</small>`; }
   if (t.closest('#post-form')) feeBox();
   if (t.id === 'store-sel') busy(async () => { S.store = S.stores.find(s => s.id === t.value); await loadStore(); render(); });
   if (d.rot) { const R = rotState(); R[d.rot] = Math.max(5, +t.value || 5); render(); busy(saveRot); }
@@ -1014,7 +1058,10 @@ document.addEventListener('submit', e => {
     }
     if (id === 'attend-form') { const k = await q(sb.rpc('attend', { p_code: v.code.trim() })); toast(k === 'in' ? '출근했어요. 오늘도 화이팅!' : '퇴근했어요. 수고하셨어요'); await reload(); }
     if (id === 'inq-form') { await q(sb.from('inquiries').insert({ from_user: S.user.id, store_id: S.store?.id || null, body: v.body })); S.inq = await q(sb.from('inquiries').select('*').eq('from_user', S.user.id).order('created_at', { ascending: false })); render(); toast('운영사에 보냈어요. 답변이 오면 알림이 와요'); }
-    if (id === 'used-form') { await q(sb.from('used_items').insert({ seller: S.user.id, store_id: S.store?.id || null, side: S.uside || 'sell', title: v.title, price: +v.price || 0, area: v.area || null, body: v.body || null })); S.used = await q(sb.from('used_items').select('*').order('created_at', { ascending: false }).limit(50)); render(); toast('올렸어요'); }
+    if (id === 'used-form') { const side = S.uside || 'sell', file = f.photo?.files?.[0]; let image_url = null;
+      if (side === 'sell' && !file) return toast('팝니다 글은 사진이 필요해요');
+      if (file) { const path = `${S.user.id}/${Date.now()}.jpg`; await q(sb.storage.from('used').upload(path, await shrink(file), { contentType: 'image/jpeg' })); image_url = sb.storage.from('used').getPublicUrl(path).data.publicUrl; }
+      await q(sb.from('used_items').insert({ seller: S.user.id, store_id: S.store?.id || null, side, title: v.title, price: +v.price || 0, area: v.area || null, body: v.body || null, image_url })); S.usedNew = false; S.used = await q(sb.from('used_items').select('*').order('created_at', { ascending: false }).limit(50)); render(); toast('올렸어요'); }
     if (id === 'sell-form') { S.sellA = [...(S.sellA || []), v.a]; render(); }
     if (id === 'goal-form') { await q(sb.from('stores').update({ goal: +v.goal || null }).eq('id', S.store.id)); S.store.goal = +v.goal || null; closeSheet(); await reload(); toast('목표를 저장했어요'); }
     if (id === 'fixed-form') { const fixed = Object.fromEntries(FIXED.map(([k]) => [k, +v[k] || 0]).filter(x => x[1])); await q(sb.from('stores').update({ fixed }).eq('id', S.store.id)); S.store.fixed = fixed; closeSheet(); await reload(); toast('고정비를 저장했어요'); }

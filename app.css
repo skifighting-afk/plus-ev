@@ -155,3 +155,13 @@ details.payrow{padding:0}details.payrow summary{list-style:none;display:flex;jus
 .jx{display:flex;flex-direction:column;gap:3px;font-size:13px;margin:6px 0;color:var(--text)}
 .jaddr{display:flex;justify-content:space-between;gap:8px;align-items:center;margin:8px 0;padding:8px 10px;border-radius:10px;background:var(--card2);font-size:13px;color:var(--text);text-decoration:none}.jaddr b{color:#03C75A;white-space:nowrap}
 .fl>.row{flex-wrap:nowrap}.fl>.row select{flex:0 0 auto}.fl>.row input{flex:1;min-width:0}
+/* 중고 장터 */
+.ugrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+.ucard{display:flex;flex-direction:column;padding:0;border:1px solid var(--line);border-radius:14px;background:var(--card);color:var(--text);font:inherit;text-align:left;cursor:pointer;overflow:hidden}
+.uimg{position:relative;aspect-ratio:1/1;background:var(--card2);display:grid;place-items:center}.uimg img{width:100%;height:100%;object-fit:cover}.uimg .pill{position:absolute;left:8px;top:8px}
+.ph{font-size:44px;opacity:.85}.ph.big{font-size:80px;display:grid;place-items:center;gap:6px;height:220px}.ph.big small{font-size:12px;color:var(--muted)}
+.ub{padding:10px;display:grid;gap:2px}.ub b{font-size:14px;line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}.ub .num{font-weight:800;font-size:16px}.ub small{color:var(--muted);font-size:11.5px}
+.photo-in{display:block;border:1.5px dashed var(--line2);border-radius:14px;cursor:pointer;margin:10px 0;overflow:hidden}.photo-in span{display:grid;place-items:center;gap:2px;padding:18px;font-size:28px;text-align:center}.photo-in b{font-size:14px}.photo-in small{font-size:12px;color:var(--muted)}.photo-in img{max-height:220px;border-radius:10px}
+.udetail{margin:-4px -4px 12px;border-radius:14px;overflow:hidden;background:var(--card2)}.udetail img{width:100%;max-height:340px;object-fit:contain;display:block}
+/* 양도양수 매물 */
+.lcard{display:block;width:100%;text-align:left;color:var(--text);font:inherit;cursor:pointer}.lcard.prem{border-color:rgba(252,211,77,.5)}.lcard .lh{display:block;font-size:16px;margin:8px 0 2px}
