@@ -165,3 +165,17 @@ details.payrow{padding:0}details.payrow summary{list-style:none;display:flex;jus
 .udetail{margin:-4px -4px 12px;border-radius:14px;overflow:hidden;background:var(--card2)}.udetail img{width:100%;max-height:340px;object-fit:contain;display:block}
 /* 양도양수 매물 */
 .lcard{display:block;width:100%;text-align:left;color:var(--text);font:inherit;cursor:pointer}.lcard.prem{border-color:rgba(252,211,77,.5)}.lcard .lh{display:block;font-size:16px;margin:8px 0 2px}
+/* 세부 메뉴(탭 안) */
+.subnav{display:flex;gap:6px;overflow-x:auto;margin:12px -2px 2px;padding:2px;scrollbar-width:none}.subnav::-webkit-scrollbar{display:none}
+.subnav button{flex:0 0 auto;border:1px solid var(--line2);background:var(--card);color:var(--muted);border-radius:999px;padding:8px 14px;font:inherit;font-size:13.5px;font-weight:700;cursor:pointer;white-space:nowrap}
+.subnav button[aria-current=page]{background:var(--text);color:var(--bg);border-color:var(--text)}
+.btn.icon{padding:6px 9px;font-size:15px}.btn.icon.on{border-color:var(--green)}#top-r{display:flex;gap:6px}
+/* 금액 읽기 */
+small.won{display:block;min-height:15px;margin-top:3px;font-size:11.5px;color:#34D399;font-weight:600}
+/* 강의 썸네일 */
+.cover{display:block;width:100%;height:auto;border-radius:12px}
+.lesson summary .thumb{position:relative;width:56px;flex:0 0 56px}.lesson summary .thumb .cover{border-radius:10px}.lesson summary .thumb i{position:absolute;right:-4px;bottom:-4px;min-width:20px;height:20px;border-radius:10px;background:var(--bg);border:1px solid var(--line2);font-style:normal;font-size:11px;font-weight:800;display:grid;place-items:center;padding:0 4px}
+.courses{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px}.course{border:1px solid var(--line);border-radius:14px;overflow:hidden;background:var(--card2)}.course .cover{border-radius:0}.course .cb{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:10px 12px}.course .cb small{font-size:12px}
+.hero-cover{margin:-4px -4px 12px}
+.lesson summary{grid-template-columns:56px 1fr auto}
+#top-r .btn{white-space:nowrap}@media (max-width:480px){.brand small{display:none}}

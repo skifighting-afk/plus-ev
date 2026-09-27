@@ -133,7 +133,7 @@ const laborOf = (y, m) => S.members.filter(p => p.role !== 'owner').reduce((a, p
 
 // ===== 화면 틀 =====
 const TABS = {
-  store: [['home', '🏠', '홈'], ['sched', '🗓', '스케줄'], ['sales', '💰', '매출'], ['staff', '👥', '직원'], ['jobs', '📣', '구인'], ['more', '☰', '더보기']],
+  store: [['home', '🏠', '홈'], ['sched', '🗓', '스케줄'], ['sales', '💰', '매출'], ['staff', '👥', '직원'], ['jobs', '📣', '구인'], ['market', '🛒', '장터']],
   staff: [['work', '🗓', '내 근무'], ['attend', '📍', '출퇴근'], ['jobs', '📣', '구인'], ['wallet', '👛', '지갑'], ['me', '🙂', '내 정보']],
   dealer: [['jobs', '📣', '구인'], ['mywork', '🃏', '내 근무'], ['wallet', '👛', '지갑'], ['me', '🙂', '내 정보']],
   hq: [['dash', '📊', '대시보드'], ['stores', '🏢', '매장'], ['data', '🗂', '데이터 자산'], ['inq', '💬', '문의함']]
@@ -141,14 +141,15 @@ const TABS = {
 function render() {
   clearInterval(S.qrTimer);
   const tabs = TABS[S.mode], nav = $('#tabs'); nav.hidden = !tabs;
-  if (tabs) nav.innerHTML = tabs.map(([k, i, l]) => `<button data-tab="${k}" ${S.tab === k ? 'aria-current="page"' : ''}><span>${i}</span>${l}</button>`).join('');
-  $('#top-r').innerHTML = S.user ? `<button class="btn sm" data-act="logout">로그아웃</button>` : '';
+  const g = S.mode === 'store' ? groupOf() : S.tab;
+  if (tabs) nav.innerHTML = tabs.map(([k, i, l]) => `<button ${k === 'market' ? 'data-act="sub" data-v="used"' : `data-tab="${k}"`} ${g === k ? 'aria-current="page"' : ''}><span>${i}</span>${l}</button>`).join('');
+  $('#top-r').innerHTML = S.user ? `${S.mode === 'store' ? `<button class="btn sm icon ${S.sub === 'inq' ? 'on' : ''}" data-act="sub" data-v="inq" title="운영사 문의">💬</button><button class="btn sm icon ${S.sub === 'settings' ? 'on' : ''}" data-act="sub" data-v="settings" title="매장 설정">⚙️</button>` : ''}<button class="btn sm" data-act="logout">로그아웃</button>` : '';
   const V = { auth: vAuth, onboard: vOnboard,
     store: () => ({ improve: vImprove, home: vHome, sched: vSched, sales: vSales, staff: vStaff, jobs: vJobs, more: vMore }[S.tab] || vHome)(),
     staff: () => ({ learn: vLearn, work: vWork, attend: vAttend, jobs: vBoard, wallet: vWallet, me: vMe }[S.tab] || vWork)(),
     dealer: () => ({ jobs: vBoard, mywork: vMyWork, wallet: vWallet, me: vMe }[S.tab] || vBoard)(),
     hq: () => ({ dash: vHqDash, stores: vHqStores, data: vHqData, inq: vHqInq }[S.tab] || vHqDash)() };
-  view.innerHTML = (V[S.mode] || vAuth)();
+  view.innerHTML = (V[S.mode] || vAuth)(); enhanceInputs(view);
   if (S.mode === 'store' && S.tab === 'more' && S.sub === 'qr') startQR();
   if (S.mode === 'store' && S.tab === 'more' && S.sub === 'rot' && S.rot) rotTick();
   if (S.mode === 'store' && S.tab === 'sales') closeCalc();
@@ -188,10 +189,19 @@ function vOnboard() {
 }
 
 // ===== 대표·점장 =====
+// 하단 탭 하나에 세부 메뉴를 묶음 (더보기 없음)
+const SUBNAV = { home: [['home', null, '브리핑'], ['improve', null, '✦ 매장 개선'], ['more', 'pnl', '월간 손익']], sched: [['sched', null, '근무표'], ['more', 'rot', '테이블 로테이션'], ['more', 'qr', '출퇴근 코드']],
+  sales: [['sales', null, '하루 마감'], ['more', 'order', '재고·발주']], staff: [['staff', null, '직원·급여'], ['more', 'edu', '교육']], market: [['more', 'used', '중고 장터'], ['more', 'transfer', '점포 양도양수']] };
+const SUB_GROUP = { pnl: 'home', rot: 'sched', qr: 'sched', order: 'sales', edu: 'staff', used: 'market', transfer: 'market' };
+const groupOf = () => S.tab === 'more' ? SUB_GROUP[S.sub] || null : S.tab === 'improve' ? 'home' : S.tab;
+function subnav() {
+  const items = (SUBNAV[groupOf()] || []).filter(([, s]) => s !== 'transfer' || isOwner()); if (items.length < 2) return '';
+  return `<nav class="subnav">${items.map(([t, s, l]) => { const on = t === 'more' ? S.tab === 'more' && S.sub === s : S.tab === t; return `<button ${t === 'more' ? `data-act="sub" data-v="${s}"` : `data-tab="${t}"`} ${on ? 'aria-current="page"' : ''}>${l}</button>`; }).join('')}</nav>`;
+}
 function storeHead(title) {
   const trial = S.company?.plan === 'trial' ? Math.max(0, Math.ceil((new Date(S.company.trial_ends) - now) / 864e5)) : null;
   return `<div class="row between"><div><h1>${title}</h1><p class="sub" style="margin:0">${esc(S.company?.name || '')} · ${esc(S.store?.name)}${S.company && !S.company.biz_verified ? ' · <span class="warn">사업자 확인 중</span>' : ''}</p></div>
-  <div class="row">${trial != null ? `<span class="pill y">무료 체험 D-${trial}</span>` : ''}${S.stores.length > 1 ? `<select id="store-sel" style="width:auto">${S.stores.map(s => `<option value="${s.id}" ${s.id === S.store.id ? 'selected' : ''}>${esc(s.name)}</option>`).join('')}</select>` : ''}</div></div>`;
+  <div class="row">${trial != null ? `<span class="pill y">무료 체험 D-${trial}</span>` : ''}${S.stores.length > 1 ? `<select id="store-sel" style="width:auto">${S.stores.map(s => `<option value="${s.id}" ${s.id === S.store.id ? 'selected' : ''}>${esc(s.name)}</option>`).join('')}</select>` : ''}</div></div>` + subnav();
 }
 function monthNav() { return `<span class="row"><button class="btn sm" data-act="mon" data-v="-1">◀</button><b class="num">${S.y}년 ${S.m}월</b><button class="btn sm" data-act="mon" data-v="1">▶</button></span>`; }
 function monthSummary(y, m) {
@@ -421,7 +431,7 @@ function vRot() {
     if (it.counter) return `<div class="counter ${sel}" ${edit ? `data-act="item" data-v="C"` : ''} style="${pos}">카운터</div>`;
     const v = R.t[it.id]; return `<div class="ftable ${v ? '' : 'off'} ${sel}" data-act="${edit ? 'item' : 'drop'}" data-v="${it.id}" style="${pos}"><span class="t">${it.id}</span>${v && !edit ? chip(v.m, v.since, R.deal) : ''}</div>`; }).join('');
   const dueN = Object.values(R.t).filter(v => nowT - v.since >= R.deal * MIN).length;
-  return `${storeHead('테이블 로테이션')}<button class="btn sm" data-act="sub" data-v="">← 더보기</button>
+  return `${storeHead('테이블 로테이션')}
   <div class="grid2"><div class="card kpi"><div class="l">딜링 중</div><div class="v num">${Object.keys(R.t).length}명</div></div><div class="card kpi"><div class="l">휴식 중</div><div class="v num">${R.brk.length}명</div></div>
     <div class="card kpi"><div class="l">교대할 사람</div><div class="v num ${dueN ? 'down' : 'up'}">${dueN}명</div></div>
     <div class="card"><div class="l mut" style="font-size:12px">교대 시간 (분)</div><div class="row" style="margin-top:6px;flex-wrap:nowrap"><label class="fl" style="flex:1">딜링<input type="number" min="5" step="5" value="${R.deal}" data-rot="deal"></label><label class="fl" style="flex:1">휴식<input type="number" min="5" step="5" value="${R.rest}" data-rot="rest"></label></div></div></div>
@@ -451,7 +461,7 @@ function stockCard() {
     <p class="note">버틸 날은 하루 평균 쓰는 양으로 계산해요. 적정 수량보다 적으면 발주에 담을 수 있어요.</p></div>`;
 }
 function closeCalc() {
-  const f = $('#report-form'); if (!f) return; const v = n => +f.elements[n]?.value || 0, counted = BILLS.reduce((a, b) => a + b * v('b' + b), 0), cashSales = v('sales') - v('card') - v('transfer'), expected = v('start') + cashSales - v('expense'), diff = counted - expected, any = BILLS.some(b => f.elements['b' + b].value !== '');
+  const f = $('#report-form'); if (!f) return; const v = n => +digits(f.elements[n]?.value) || 0, counted = BILLS.reduce((a, b) => a + b * v('b' + b), 0), cashSales = v('sales') - v('card') - v('transfer'), expected = v('start') + cashSales - v('expense'), diff = counted - expected, any = BILLS.some(b => f.elements['b' + b].value !== '');
   $('#close-out').innerHTML = `<div class="li"><span class="mut">현금 매출 (매출 − 카드 − 이체)</span><span class="num">₩${E.won(cashSales)}</span></div><div class="li"><span class="mut">금고에 있어야 할 돈</span><span class="num">₩${E.won(expected)}</span></div>
     ${any ? `<div class="li"><span class="mut">센 돈</span><span class="num">₩${E.won(counted)}</span></div><div class="li"><b>차액</b><b class="num ${Math.abs(diff) >= 10000 ? 'down' : diff ? 'warn' : 'up'}">${diff ? (diff > 0 ? '+' : '−') + '₩' + E.won(Math.abs(diff)) : '딱 맞아요'}</b></div>${Math.abs(diff) >= 10000 ? '<p class="note down" style="margin:0">1만 원 넘게 차이 나요. 저장하면 대표님께 알림이 가요.</p>' : ''}` : '<p class="note" style="margin:0">금고 현금을 세서 장수를 넣으면 차액을 계산해요.</p>'}`;
   f.dataset.diff = any ? diff : ''; f.dataset.cash = cashSales;
@@ -459,7 +469,7 @@ function closeCalc() {
 function vOrder() {
   const cart = Object.entries(S.cart).filter(([, n]) => n > 0).map(([id, n]) => ({ ...item(id), q: n })), pay = cart.filter(i => i.c !== 'alc'), alc = cart.filter(i => i.c === 'alc'), tot = pay.reduce((a, i) => a + i.sp * i.q, 0);
   const freq = {}; S.orders.forEach(o => o.items.forEach(i => freq[i.id] = (freq[i.id] || 0) + 1)); const fav = Object.entries(freq).sort((a, b) => b[1] - a[1]).slice(0, 4).map(([id]) => item(id)).filter(Boolean);
-  return `${storeHead('발주')}<button class="btn sm" data-act="sub" data-v="">← 더보기</button>
+  return `${storeHead('발주')}
   <div class="card"><h3>이렇게 주문돼요</h3><div class="li"><div><b>1. 담고 주문 요청</b><small>+EV가 파트너 도매처에 한 번에 넣어요</small></div></div><div class="li"><div><b>2. 확인 연락</b><small>운영사가 재고·배송일을 확인해 알림으로 알려드려요</small></div></div><div class="li"><div><b>3. 도착</b><small>상태가 바뀔 때마다 알림이 가요</small></div></div>
     <p class="note">앱 안 결제(토스)는 정식 오픈 때 붙어요. 지금은 주문 요청 후 운영사가 결제 방법을 안내해요. 가격은 파트너 계약 전 예시 가격이에요.</p></div>
   <div class="card"><label class="tog"><span><b>🧾 세금계산서 발행</b><small>사업자 번호로 전자세금계산서를 발행해 드려요</small></span><input type="checkbox" id="tax-inv" ${S.taxInv !== false ? 'checked' : ''}></label></div>
@@ -483,9 +493,18 @@ const LESSONS = [
 const QUIZ = [['딜링 전에 맨 위 카드 한 장을 버리는 것은?', ['번(Burn)', '머크(Muck)', '킥커', '스트래들']], ['올인한 사람이 가져갈 수 없는 추가 베팅이 모이는 팟은?', ['메인 팟', '사이드 팟', '블라인드', '앤티']], ['플랍 다음에 공개되는 네 번째 공용 카드는?', ['리버', '홀카드', '턴', '번 카드']], ['폴드한 카드를 모아두는 더미는?', ['덱', '스택', '머크', '팟']], ['같은 족보일 때 승부를 가르는 나머지 카드는?', ['킥커', '버튼', '블라인드', '넛']]];
 const OWNER_COURSES = [['🏢', '다점포 운영 매뉴얼', '2호점을 낼 때 무너지지 않는 운영 구조', 49000], ['📈', '매출 상위 10%로 올리는 법', '상위 매장이 하는 요일·시간대 운영', 49000], ['👥', '인건비 25% 이하로 만들기', '시간대별 딜러 배치와 스케줄 짜는 법', 39000], ['🔁', '단골이 계속 오는 매장', '재방문을 부르는 이벤트·응대 설계', 39000], ['🧾', '세무·노무 기본기', '3.3%·4대보험, 근로계약서에서 자주 틀리는 것', 29000], ['🤝', '좋은 딜러 뽑고 오래 쓰기', '면접 질문부터 이탈 막는 관리까지', 29000]];
 const ACADEMY_PRICE = 159000;
+// 강의 썸네일 — 그라데이션 + 큰 아이콘 + 제목 (이미지 파일 없이 그림)
+const LESSON_ICON = ['🃏', '🔥', '🪙', '⚖️', '🤝'];
+function cover(icon, title, hue, sub = '', wide = true) {
+  const W = wide ? 320 : 120, H = wide ? 180 : 120, id = 'cv' + hue + (wide ? 'w' : 's');
+  return `<svg class="cover" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(title)}"><defs><linearGradient id="${id}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="hsl(${hue} 70% 42%)"/><stop offset="1" stop-color="hsl(${(hue + 40) % 360} 75% 18%)"/></linearGradient></defs>
+    <rect width="${W}" height="${H}" fill="url(#${id})"/><circle cx="${W * .82}" cy="${H * .2}" r="${H * .55}" fill="#fff" opacity=".07"/><circle cx="${W * .1}" cy="${H * 1.05}" r="${H * .5}" fill="#000" opacity=".15"/>
+    ${wide ? `<text x="20" y="72" font-size="46">${icon}</text><text x="20" y="${H - 44}" font-size="20" font-weight="800" fill="#fff">${esc(title)}</text><text x="20" y="${H - 20}" font-size="12.5" fill="#fff" opacity=".8">${esc(sub)}</text>`
+    : `<text x="${W / 2}" y="${H / 2 + 18}" font-size="52" text-anchor="middle">${icon}</text>`}</svg>`;
+}
 function lessonList(open) {
   const done = new Set((S.lessons || []).map(l => l.lesson));
-  return LESSONS.map(([t, d, body], i) => `<details class="lesson" ${S.openLesson === i ? 'open' : ''}><summary><span class="no">${done.has(i + 1) ? '✓' : i + 1}</span><span><b>${t}</b><small>${d}</small></span><span class="pill ${done.has(i + 1) ? 'g' : ''}">${open ? (done.has(i + 1) ? '완료' : '열림') : '🔒'}</span></summary>
+  return LESSONS.map(([t, d, body], i) => `<details class="lesson" ${S.openLesson === i ? 'open' : ''}><summary><span class="thumb">${cover(LESSON_ICON[i], t, 150 + i * 30, '', false)}<i>${done.has(i + 1) ? '✓' : i + 1}</i></span><span><b>${t}</b><small>${d}</small></span><span class="pill ${done.has(i + 1) ? 'g' : ''}">${open ? (done.has(i + 1) ? '완료' : '열림') : '🔒'}</span></summary>
     ${open ? `<ol>${body.map(x => `<li>${x}</li>`).join('')}</ol>${S.mode === 'staff' ? `<button class="btn sm ${done.has(i + 1) ? '' : 'pri'}" data-act="lesson" data-v="${i + 1}" ${done.has(i + 1) ? 'disabled' : ''}>${done.has(i + 1) ? '들었어요' : '다 읽었어요'}</button>` : ''}` : ''}</details>`).join('');
 }
 function quizBlock() {
@@ -498,15 +517,15 @@ function vLearn() {
 }
 function vEdu() {
   const own = isOwner(), open = !!S.company?.academy_at, n = S.hires ?? 3;
-  return `${storeHead('교육')}<button class="btn sm" data-act="sub" data-v="">← 더보기</button>
-  <div class="card hero2"><span class="pill y">신입 딜러 교육 · 매장 패키지</span><h2 style="margin-top:8px">신입 딜러 교육, 선배 딜러 인건비로 하지 마세요</h2>
+  return `${storeHead('교육')}
+  <div class="card hero2"><div class="hero-cover">${cover('🎓', '+EV 딜러 아카데미', 160, '5개 강의 + 최종 시험 · 전 매장 평생')}</div><span class="pill y">신입 딜러 교육 · 매장 패키지</span><h2 style="margin-top:8px">신입 딜러 교육, 선배 딜러 인건비로 하지 마세요</h2>
     <p class="mut" style="margin:0">한 번 결제하면 우리 회사 모든 매장 딜러가 평생 들을 수 있어요. 5개 강의 + 최종 시험, 결과는 대표·점장에게 바로 와요.</p>
     <div class="row" style="margin-top:12px"><span class="mut" style="font-size:13px">1년에 뽑는 신입 딜러</span><button class="btn sm" data-act="hires" data-v="-1">−</button><b class="num" style="min-width:40px;text-align:center">${n}명</b><button class="btn sm" data-act="hires" data-v="1">+</button></div>
     <div class="vs"><div><small class="mut">지금처럼 가르치면 (${n}명)</small><b class="num down">₩${E.won(n * 320000)}</b><small class="mut">1명당 선배 동행 20시간 × 13,000 + 실수 손실 약 6만</small></div><div class="x">VS</div><div class="g"><small class="mut">+EV 딜러 교육 (인원 무제한)</small><b class="num up">₩${E.won(ACADEMY_PRICE)}</b><small class="mut">${n * 320000 > ACADEMY_PRICE ? `${n}명이면 <b class="up">₩${E.won(n * 320000 - ACADEMY_PRICE)}</b> 아껴요` : '1명만 뽑아도 거의 본전이에요'}</small></div></div>
     ${open ? `<div class="pill g" style="margin-top:12px">✓ ${esc(S.company.name)} 전 매장 이용 중</div>` : own ? `<button class="btn gold" data-act="academy-buy" style="margin-top:12px">₩${E.won(ACADEMY_PRICE)} · 바로 열기</button>${payNote()}` : `<button class="btn" data-act="ask-owner" data-v="딜러 교육 구매" style="margin-top:12px">대표님께 구매 요청</button>`}</div>
   <div class="card"><h3>딜러 교육 강의 <small>매장당 한 번 · 평생</small></h3>${lessonList(open)}<div class="lesson"><summary><span class="no">✎</span><span><b>최종 시험</b><small>홀덤 용어·룰 5문제 · 4개 이상 맞히면 합격</small></span><span class="pill">${open ? '열림' : '🔒'}</span></summary></div></div>
   <div class="card"><h3>우리 딜러 학습 현황</h3>${open ? (S.acBoard?.length ? `<div class="tbl"><table style="min-width:0"><thead><tr><th>딜러</th><th class="r">진도</th><th class="r">시험</th><th>결과</th></tr></thead><tbody>${S.acBoard.map(r => `<tr><td><b>${esc(r.nick)}</b></td><td class="r num">${r.done * 20}%</td><td class="r num">${r.score ?? '—'}${r.score != null ? '/5' : ''}</td><td><span class="pill ${r.passed ? 'g' : r.score != null ? 'r' : ''}">${r.passed ? '합격' : r.score != null ? '재시험' : '진행 중'}</span></td></tr>`).join('')}</tbody></table></div>` : '<p class="mut" style="margin:0">앱에 가입해 소속된 직원이 들으면 여기에 보여요.</p>') : '<p class="mut" style="margin:0">열면 딜러별 진도와 시험 점수가 여기에 보여요.</p>'}</div>
-  ${own ? `<div class="card"><h3>사장님 강의 <small>매장을 키우는 운영 노하우 · 준비 중</small></h3>${OWNER_COURSES.map(([ic, t, d, p], i) => { const on = (S.interest || []).includes(i); return `<div class="li"><div><b>${ic} ${t}</b><small>${d} · ₩${E.won(p)}</small></div><button class="btn sm" style="white-space:nowrap" data-act="interest" data-v="${i}">${on ? '알림 신청됨' : '열리면 알림'}</button></div>`; }).join('')}<p class="note">강의가 열리면 알림으로 알려드려요. 신청이 많은 강의부터 먼저 만들어요.</p></div>` : ''}`;
+  ${own ? `<div class="card"><h3>사장님 강의 <small>매장을 키우는 운영 노하우 · 준비 중</small></h3><div class="courses">${OWNER_COURSES.map(([ic, t, d, p], i) => { const on = (S.interest || []).includes(i); return `<div class="course">${cover(ic, t, 20 + i * 55, `₩${E.won(p)} · 준비 중`)}<div class="cb"><small class="mut">${d}</small><button class="btn sm ${on ? '' : 'pri'}" data-act="interest" data-v="${i}">${on ? '✓ 알림 신청됨' : '🔔 열리면 알림'}</button></div></div>`; }).join('')}</div><p class="note">강의가 열리면 알림으로 알려드려요. 신청이 많은 강의부터 먼저 만들어요.</p></div>` : ''}`;
 }
 const isHoliday = k => (S.store.holidays || []).includes(k);
 const needOn = (k, need) => { const [y, m, d] = k.split('-').map(Number); return isHoliday(k) ? (need[7] ?? need[6]) : need[E.wdOf(y, m, d)]; };
@@ -655,7 +674,7 @@ function vJobs() {
   <div class="card"><h3>우리 매장 공고 <small>${S.posts.length}건</small></h3>${S.posts.map(p => `<div class="job ${p.kind === 'urgent' ? 'urgent' : ''}"><div class="row between"><div><span class="pill ${p.status === 'open' ? 'g' : p.status === 'unpaid' ? 'y' : ''}">${{ open: '모집 중', unpaid: '결제 전' }[p.status] || '마감'}</span> <small class="mut">${p.kind === 'urgent' ? '긴급' : '상시'} · ${esc(p.job_role)} · ${fmtDT(p.created_at)}</small><h4>${esc(p.title)}</h4></div>
     ${p.status === 'unpaid' ? `<button class="btn sm gold" data-act="paypost" data-p="${p.id}">₩${E.won(p.paid_amount)} 결제</button>` : `<button class="btn sm pri" data-act="manage" data-p="${p.id}" data-k="${p.kind}">관리</button>`}</div><div id="mg-${p.id}"></div></div>`).join('') || '<div class="empty">올린 공고가 없어요</div>'}</div>`;
 }
-const postVals = f => { const fd = new FormData(f), v = Object.fromEntries(fd); return { ...v, wd: fd.getAll('wd'), pf: [...fd.getAll('pf'), ...(v.pf_etc ? [v.pf_etc.trim()] : [])].filter(Boolean), heads: +v.heads || 1, top: v.expo === 'top', jump: v.expo === 'top' ? 0 : +v.expo || 0 }; };
+const postVals = f => { const fd = new FormData(f), v = formVals(f); return { ...v, wd: fd.getAll('wd'), pf: [...fd.getAll('pf'), ...(v.pf_etc ? [v.pf_etc.trim()] : [])].filter(Boolean), heads: +v.heads || 1, top: v.expo === 'top', jump: v.expo === 'top' ? 0 : +v.expo || 0 }; };
 function feeBox() {
   const f = $('#post-form'), box = $('#fee-box'); if (!f || !box) return; const v = postVals(f), urg = (S.postKind || 'urgent') === 'urgent';
   const L = E.feeLines(urg ? 'urgent' : 'hire', { pay: +v.pay || 0, heads: v.heads, flash: !!v.flash, top: v.top, jump: v.jump, days: +v.days || 7 }), tot = L.reduce((a, x) => a + x[1], 0);
@@ -674,8 +693,8 @@ async function manage(postId, kind) {
 }
 function vMore() {
   const sub = S.sub;
-  if (!sub) return `${storeHead('더보기')}<div class="card menu">${[['improve', '✦', '매장 개선', '우리 매장 순위 · 경고등 · 이번 달 꼭 할 일'], ['rot', '🔄', '테이블 로테이션', '딜러 교대·휴식 타이머'], ['order', '📦', '발주', '음료·간식·홀덤 소모품 주문'], ['edu', '🎓', '교육', '신입 딜러 교육 · 사장님 강의'], ['pnl', '📈', '월간 손익', '매달 매출·인건비·비용·남는 돈'], ['qr', '📍', '출퇴근 코드', '카운터 화면에 띄워두세요'], ['settings', '⚙️', '매장 설정', '요금제 · 매장 정보 · 매장 추가'], ['inq', '💬', '운영사 문의', '궁금한 점을 보내면 답해드려요'], ['used', '🔁', '중고 장터', '홀덤펍끼리 사고팔기'], ...(isOwner() ? [['transfer', '🤝', '점포 양도양수', '대표님만 보여요']] : [])].map(([k, i, t, d]) => `<button class="mi" ${k === 'improve' ? 'data-tab="improve"' : `data-act="sub" data-v="${k}"`}><span>${i}</span><span><b>${t}</b><small>${d}</small></span><span>›</span></button>`).join('')}</div>`;
-  const back = `<button class="btn sm" data-act="sub" data-v="">← 더보기</button>`;
+  if (!sub) return vHome();
+  const back = '';
   if (sub === 'pnl') {
     const months = Array.from({ length: 6 }, (_, i) => { const dt = new Date(S.y, S.m - 6 + i, 1); return [dt.getFullYear(), dt.getMonth() + 1]; }).map(([yy, mm]) => ({ yy, mm, s: monthSummary(yy, mm) }));
     const keys = [...new Set(months.flatMap(x => Object.keys(x.s.exp)))];
@@ -694,7 +713,7 @@ function vMore() {
     return `${storeHead('매장 설정')}${back}
     <div class="card"><h3>요금제 ${trial != null ? `<small class="warn">무료 체험 D-${trial} · 끝나면 고른 요금제로 이어져요</small>` : ''}</h3><div class="plans">
       <div class="plan ${c.plan === 'basic' ? 'cur' : ''}"><b>베이직</b><b class="num">월 ₩${E.won(PRICE.basic)}</b><small>매장 관리 전부 — 매출 기록 · 직원 스케줄 · 급여 계산 · 출퇴근 · 구인 · 로테이션 · 발주</small>${c.plan === 'basic' ? '<span class="pill">지금 요금제</span>' : isOwner() ? '<button class="btn sm" data-act="plan-down">베이직으로 바꾸기</button>' : ''}</div>
-      <div class="plan ${c.plan !== 'basic' ? 'cur' : ''}"><span class="pill y">추천</span><b>프로</b><b class="num">월 ₩${E.won(PRICE.pro)}</b><small>베이직 전부 + ✦ 매장 개선 (우리 매장 순위 · 경고등 · 매달 처방 · 퀘스트 · 레벨)</small>${c.plan === 'pro' ? '<span class="pill g">지금 요금제</span>' : isOwner() ? '<button class="btn sm gold" data-act="plan" data-v="pro">프로로 올리기</button>' : '<button class="btn sm" data-act="ask-owner" data-v="프로 요금제">대표님께 요청</button>'}</div></div>
+      <div class="plan ${c.plan !== 'basic' ? 'cur' : ''}"><span class="pill y">추천</span><b>프로</b><b class="num">월 ₩${E.won(PRICE.pro)}</b><small>베이직 전부 + ✦ 매장 개선 (우리 매장 순위 · 경고등 · 매달 처방 · 이번 달 꼭 할 일)</small>${c.plan === 'pro' ? '<span class="pill g">지금 요금제</span>' : isOwner() ? '<button class="btn sm gold" data-act="plan" data-v="pro">프로로 올리기</button>' : '<button class="btn sm" data-act="ask-owner" data-v="프로 요금제">대표님께 요청</button>'}</div></div>
       ${S.downgrade ? (rx => `<div class="card" style="border-color:var(--red);margin-top:10px"><b>베이직으로 바꾸면 이렇게 돼요</b><ul style="margin:8px 0;padding-left:18px;font-size:14px"><li>우리 매장 순위·경고등·매달 처방이 잠겨요</li>${rx && rx.rev.length + rx.cost.length ? `<li>이번 달 꼭 할 일 ${rx.rev.length + rx.cost.length}개 (다 하면 매달 +₩${man([...rx.rev, ...rx.cost].reduce((a, r) => a + r[3], 0))})를 볼 수 없어요</li>` : ''}</ul><div class="row"><button class="btn pri" data-act="plan-keep">프로 그대로 쓰기</button><button class="btn" data-act="plan" data-v="basic">그래도 베이직으로</button></div><p class="note">기록은 그대로 남아서 다시 프로로 오면 이어져요.</p></div>`)(S.bench?.ready && !S.bench.locked ? rxOf(S.bench) : null) : ''}
       <p class="note">프로는 카드로 30일씩 결제해요 (매장 수 × ₩${E.won(PRICE.pro)}). ${c.paid_until ? `${new Date(c.paid_until).toLocaleDateString('ko-KR')}까지 결제돼 있어요. ` : ''}베이직으로 내리는 건 언제든 무료예요.</p>${payNote()}</div>
     <form class="f card" id="store-form"><h3>매장 정보</h3><label class="fl">매장 이름<input name="name" value="${esc(S.store.name)}" ${isOwner() ? '' : 'disabled'}></label><label class="fl">지역<input name="area" value="${esc(S.store.area || '')}" ${isOwner() ? '' : 'disabled'}></label><label class="fl">주소 <small class="mut">구인 공고에 지도로 나가요</small><input name="address" value="${esc(S.store.address || '')}" placeholder="예: 서울 강남구 테헤란로 8길 21, 3층" ${isOwner() ? '' : 'disabled'}></label>
@@ -871,7 +890,26 @@ function vHqInq() {
 }
 
 // ===== 시트 =====
-function openSheet(html) { const s = $('#sheet'); s.innerHTML = `<div class="in">${html}</div>`; s.hidden = false; }
+function openSheet(html) { const s = $('#sheet'); s.innerHTML = `<div class="in">${html}</div>`; s.hidden = false; enhanceInputs(s); }
+// 금액: 쉼표 + "13만 5,900원" 읽기 / 휴대폰: 010-0000-0000 / 사업자번호: 000-00-00000 (10자리)
+const MONEY = /^(sales|card|transfer|expense|start|pay|taxi|pamt|price|amount|goal|rent|mgmt|elec|water|net|rate)$/;
+const digits = v => String(v ?? '').replace(/[^\d]/g, '');
+const fmtMoney = v => { const d = digits(v); return d ? (+d).toLocaleString('ko-KR') : ''; };
+const readWon = n => { if (!n) return ''; const e = Math.floor(n / 1e8), m = Math.floor(n % 1e8 / 1e4), r = n % 1e4; return [e ? `${e}억` : '', m ? `${m.toLocaleString('ko-KR')}만` : '', r ? r.toLocaleString('ko-KR') : ''].filter(Boolean).join(' ') + '원'; };
+const fmtPhone = v => { let d = digits(v); if (d && !d.startsWith('0')) d = '010' + d; d = d.slice(0, 11); return d.length < 4 ? d : d.length < 8 ? `${d.slice(0, 3)}-${d.slice(3)}` : `${d.slice(0, 3)}-${d.slice(3, d.length - 4)}-${d.slice(-4)}`; };
+const fmtBiz = v => { const d = digits(v).slice(0, 10); return d.length < 4 ? d : d.length < 6 ? `${d.slice(0, 3)}-${d.slice(3)}` : `${d.slice(0, 3)}-${d.slice(3, 5)}-${d.slice(5)}`; };
+function enhanceInputs(root) {
+  root.querySelectorAll('input').forEach(i => {
+    if (i.dataset.fx) return;
+    if (i.type === 'number' && MONEY.test(i.name)) { i.dataset.fx = 'money'; i.type = 'text'; i.inputMode = 'numeric'; i.removeAttribute('step'); i.value = fmtMoney(i.value); i.insertAdjacentHTML('afterend', `<small class="won">${readWon(+digits(i.value))}</small>`); }
+    else if (i.name === 'phone') { i.dataset.fx = 'phone'; i.type = 'tel'; i.inputMode = 'numeric'; i.maxLength = 13; i.placeholder = '010-0000-0000'; i.value = fmtPhone(i.value); }
+    else if (i.name === 'biz') { i.dataset.fx = 'biz'; i.inputMode = 'numeric'; i.maxLength = 12; i.value = fmtBiz(i.value); }
+  });
+}
+document.addEventListener('input', e => { const i = e.target, fx = i.dataset?.fx; if (!fx) return;
+  if (fx === 'money') { i.value = fmtMoney(i.value); const w = i.nextElementSibling; if (w?.classList.contains('won')) w.textContent = readWon(+digits(i.value)); }
+  if (fx === 'phone') i.value = fmtPhone(i.value); if (fx === 'biz') i.value = fmtBiz(i.value); }, true);
+const formVals = f => { const v = Object.fromEntries(new FormData(f)); f.querySelectorAll('[data-fx=money]').forEach(i => v[i.name] = digits(i.value)); return v; };
 function closeSheet() { $('#sheet').hidden = true; }
 $('#sheet').addEventListener('click', e => { if (e.target.id === 'sheet') closeSheet(); });
 
@@ -899,7 +937,7 @@ document.addEventListener('click', e => {
   if (a === 'onb') { S.onb = d.v || null; render(); }
   if (a === 'close') closeSheet();
   if (a === 'goto') { S.tab = d.t; S.sub = d.s || null; render(); scrollTo(0, 0); }
-  if (a === 'sub') { S.sub = d.v || null; render(); scrollTo(0, 0); if (d.v === 'used') busy(async () => { S.used = await q(sb.from('used_items').select('*').order('created_at', { ascending: false }).limit(50)); render(); }); if (d.v === 'rot') busy(async () => { await loadRot(); render(); }); if (d.v === 'transfer') busy(listingsLoad); if (d.v === 'edu') busy(loadEdu); if (d.v === 'inq') busy(async () => { S.inq = await q(sb.from('inquiries').select('*').eq('from_user', S.user.id).order('created_at', { ascending: false })); render(); }); }
+  if (a === 'sub') { S.tab = d.v ? 'more' : 'home'; S.sub = d.v || null; closeSheet(); render(); scrollTo(0, 0); if (d.v === 'used') busy(async () => { S.used = await q(sb.from('used_items').select('*').order('created_at', { ascending: false }).limit(50)); render(); }); if (d.v === 'rot') busy(async () => { await loadRot(); render(); }); if (d.v === 'transfer') busy(listingsLoad); if (d.v === 'edu') busy(loadEdu); if (d.v === 'inq') busy(async () => { S.inq = await q(sb.from('inquiries').select('*').eq('from_user', S.user.id).order('created_at', { ascending: false })); render(); }); }
   if (a === 'mon') busy(async () => { S.m += +d.v; if (S.m > 12) { S.m = 1; S.y++; } if (S.m < 1) { S.m = 12; S.y--; } await reload(); });
   if (a === 'stab') { S.staffTab = d.v; render(); }
   if (a === 'empf') { S.empF = d.v; render(); }
@@ -965,7 +1003,7 @@ document.addEventListener('click', e => {
   if (a === 'lay-del') { if (!S.selItem || S.selItem === 'C') return toast('지울 테이블을 먼저 누르세요'); const R = rotState(); if (R.t[S.selItem]) rotMove(R.t[S.selItem].m, 'BREAK'); S.layout = S.layout.filter(i => i.id !== S.selItem); S.selItem = null; render(); }
   if (a === 'lay-save') busy(async () => { await q(sb.rpc('set_layout', { p_store: S.store.id, p_layout: S.layout })); S.store.layout = S.layout; S.editLayout = false; S.selItem = null; await saveRot(); render(); toast('배치를 저장했어요'); });
   if (a === 'stock-add') busy(async () => { await q(sb.from('stock').insert({ store_id: S.store.id, item_id: +$('#stock-add').value, qty: 0, min: 2, use_per_day: .3 })); await reload(); });
-  if (a === 'cart') { const n = +(d.n || 1); S.cart[d.v] = Math.max(0, (S.cart[d.v] || 0) + n); if (!S.cart[d.v]) delete S.cart[d.v]; if (S.tab === 'more' && S.sub === 'order') render(); else toast(`${item(d.v).n} ${n}개 담았어요 · 더보기 → 발주`); }
+  if (a === 'cart') { const n = +(d.n || 1); S.cart[d.v] = Math.max(0, (S.cart[d.v] || 0) + n); if (!S.cart[d.v]) delete S.cart[d.v]; if (S.tab === 'more' && S.sub === 'order') render(); else toast(`${item(d.v).n} ${n}개 담았어요 · 매출 › 재고·발주 → 발주`); }
   if (a === 'restock-all') { S.stock.filter(s => s.qty < s.min).forEach(s => S.cart[s.item_id] = (S.cart[s.item_id] || 0) + restockQty(s)); S.tab = 'more'; S.sub = 'order'; render(); scrollTo(0, 0); }
   if (a === 'scat') { S.shopCat = d.v; render(); }
   if (a === 'order') busy(async () => { const items = Object.entries(S.cart).map(([id, n]) => ({ id: +id, q: n, price: item(id).sp, alc: item(id).c === 'alc' })), total = items.filter(i => !i.alc).reduce((x, i) => x + i.price * i.q, 0);
@@ -1016,7 +1054,7 @@ document.addEventListener('change', e => {
   if (d.inc) busy(async () => { const month = E.ymd(S.y, S.m, 1); await q(sb.from('incentives').delete().eq('member_id', d.inc).eq('month', month)); if (+t.value) await q(sb.from('incentives').insert({ member_id: d.inc, month, amount: +t.value, reason: '' })); await reload(); toast('인센티브를 반영했어요'); });
 });
 document.addEventListener('submit', e => {
-  e.preventDefault(); const f = e.target, v = Object.fromEntries(new FormData(f)), id = f.id;
+  e.preventDefault(); const f = e.target, v = formVals(f), id = f.id;
   busy(async () => {
     if (id === 'auth-form') {
       if (S.authMode === 'signup') { const { data, error } = await sb.auth.signUp({ email: v.email, password: v.pw, options: { data: { name: v.name }, emailRedirectTo: location.origin + location.pathname } }); if (error) return toast(error.message.includes('registered') ? '이미 가입된 이메일이에요. 로그인해 주세요' : error.message); if (!data.session) toast('확인 메일을 보냈어요. 메일의 버튼을 눌러주세요'); }
