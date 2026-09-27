@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>홀덤펍 가맹 모집 · +EV</title>
+<meta name="description" content="홀덤펍 프랜차이즈 가맹 모집 공고 — 창업비용·가맹비·로열티·본사 지원을 한 번에 비교하고 전화로 바로 상담하세요.">
+<meta property="og:title" content="홀덤펍 가맹 모집 · +EV">
+<meta property="og:description" content="창업비용·가맹비·로열티·본사 지원 비교 + 전화 상담">
+<link rel="icon" href="icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700&family=Noto+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="app.css">
+<style>
+  #view{max-width:820px}.frlist{display:grid;gap:12px;grid-template-columns:repeat(auto-fill,minmax(300px,1fr))}
+  .frcard{cursor:pointer;text-align:left;color:var(--text);font:inherit;padding:16px 18px}.frcard:hover{background:var(--surface-3)}
+  .cta{margin-top:28px;padding:20px;border-radius:var(--r-lg);background:var(--surface-2);border:1px solid var(--border-subtle)}
+  .hero2{padding:22px 0 8px}.hero2 h1{font-size:26px;margin:0 0 6px}.hero2 p{color:var(--text-secondary);margin:0}
+  .ps3{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.ps3>div{padding:10px 12px;border-radius:var(--r-md);background:var(--surface-3)}.ps3 small{display:block;color:var(--text-secondary);font-size:12px}.ps3 b{font-size:16px}
+</style>
+</head>
+<body>
+<header class="top"><a class="brand" href="./" style="text-decoration:none;color:inherit"><img src="icon-192.png" alt="" width="34" height="34"><div><b>+EV</b></div></a><div id="top-r"><a class="btn sm" href="./">홀덤펍 운영 앱</a></div></header>
+<main id="view"><div class="boot">불러오는 중…</div></main>
+<script type="module">
+import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
+const sb = createClient('https://hkcmsjwuwopxritafreg.supabase.co', 'sb_publishable_X7cb5p4Ja9y4TxrjbVQZAQ_P8n3E_W_');
+const $ = s => document.querySelector(s), esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const won = n => Math.round(+n || 0).toLocaleString('ko-KR'), man = n => n >= 1e8 ? (n / 1e8).toFixed(1).replace(/\.0$/, '') + '억' : Math.round(n / 1e4).toLocaleString('ko-KR') + '만';
+const hit = (id, kind) => sb.rpc('fr_hit', { p_post: id, p_kind: kind }).then(() => { }, () => { });
+const id = new URLSearchParams(location.search).get('id');
+const { data: list } = await sb.from('franchise_public').select('*').order('created_at', { ascending: false });
+const L = list || [];
+const card = f => `<button class="card frcard" data-id="${f.id}"><div class="frh">${f.logo_url ? `<img class="frlogo" src="${esc(f.logo_url)}" alt="">` : '<span class="frlogo ph"></span>'}<div><b style="font-size:16px">${esc(f.brand)}</b><small class="mut" style="display:block">${esc(f.regions || '전국')} 모집</small></div></div>
+  <div class="ps3" style="margin-top:10px"><div><small>창업비용</small><b class="num">₩${man(f.invest || 0)}~</b></div><div><small>가맹비</small><b class="num">₩${man(f.fee || 0)}</b></div><div><small>로열티</small><b>${esc(f.royalty || '-')}</b></div></div></button>`;
+const detail = f => `<a class="btn sm" href="fr.html">‹ 전체 공고</a><div class="hero2"><h1>${esc(f.brand)}</h1><p>${esc(f.regions || '전국')} 가맹 모집</p></div>
+  ${f.image_url ? `<img class="frimg" src="${esc(f.image_url)}" alt="">` : ''}
+  <div class="ps3" style="margin-top:10px"><div><small>예상 창업비용</small><b class="num">₩${man(f.invest || 0)}~</b></div><div><small>가맹비</small><b class="num">₩${man(f.fee || 0)}</b></div><div><small>로열티</small><b>${esc(f.royalty || '-')}</b></div></div>
+  <div class="card" style="margin:12px 0"><div class="li"><span class="mut">교육비</span><span class="num">₩${won(f.edu_fee || 0)}</span></div><div class="li"><span class="mut">인테리어 예상비</span><span class="num">₩${won(f.interior_est || 0)}</span></div><div class="li"><span class="mut">최소 평수</span><span>${f.min_py ? f.min_py + '평' : '-'}</span></div><div class="li"><span class="mut">모집 지역</span><span>${esc(f.regions || '-')}</span></div></div>
+  ${f.support ? `<h3>본사 지원</h3><p style="white-space:pre-wrap">${esc(f.support)}</p>` : ''}${f.description ? `<h3>브랜드 소개</h3><p style="white-space:pre-wrap">${esc(f.description)}</p>` : ''}
+  <p class="mut">${esc(f.address || '')}${f.homepage ? ` · <a href="${esc(f.homepage)}" target="_blank" rel="noopener">홈페이지</a>` : ''}${f.video ? ` · <a href="${esc(f.video)}" target="_blank" rel="noopener">소개 영상</a>` : ''}</p>
+  <div class="cta">${f.tracking_number ? `<a class="btn gold full" href="tel:${esc(f.tracking_number.replace(/[^\d]/g, ''))}" data-call="${f.id}">전화 상담하기 · ${esc(f.tracking_number)}</a>` : '<a class="btn full" href="./">+EV 앱에서 상담 요청</a>'}${f.kakao ? `<a class="btn full" style="margin-top:8px" href="${esc(f.kakao)}" target="_blank" rel="noopener">카카오톡 상담</a>` : ''}<p class="note">전화는 +EV 안심번호로 연결돼요. 상담 내용은 본사와 직접 진행합니다.</p></div>`;
+const f = id && L.find(x => x.id === id);
+$('#view').innerHTML = f ? detail(f) : `<div class="hero2"><h1>홀덤펍 가맹 모집</h1><p>창업비용·가맹비·로열티를 한 번에 비교하고 바로 상담하세요.</p></div><div class="frlist">${L.map(card).join('') || '<div class="empty">지금 모집 중인 브랜드가 없어요</div>'}</div>
+  <div class="cta"><b>홀덤펍을 운영 중이신가요?</b><p class="mut" style="margin:4px 0 10px">매출·스케줄·급여·구인을 한 곳에서 — 14일 무료</p><a class="btn pri" href="./">+EV 시작하기</a></div>`;
+if (f) hit(f.id, 'detail'); else L.forEach(x => hit(x.id, 'view'));
+document.addEventListener('click', e => { const c = e.target.closest('[data-id]'); if (c) location.href = 'fr.html?id=' + c.dataset.id; const t = e.target.closest('[data-call]'); if (t) hit(t.dataset.call, 'click'); });
+</script>
+</body>
+</html>

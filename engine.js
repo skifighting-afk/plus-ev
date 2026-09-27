@@ -1,3 +1,4 @@
+import { PRICING } from './pricing.js';
 // +EV 계산 엔진 — 급여·스케줄·요금. 화면과 분리해 테스트 가능하게 둠.
 export const won = n => Math.round(n || 0).toLocaleString('ko-KR');
 export const toMin = t => { const [h, m] = String(t).slice(0, 5).split(':').map(Number); return h * 60 + m; };
@@ -64,13 +65,14 @@ export function payroll(p, y, m, tpl, ov, inc, today, night) {
 }
 
 // 공고 요금 (알바몬 가격 수준, 부가세 포함)
-export const FEES = { FLASH_DAY: 3300, TOP_DAY: 12000, URGENT_POST: 10000, MATCH: 0.05, JUMP: { 0: 0, 2: 3000, 5: 5000, 8: 7000 }, DISC: { 14: 0.1, 30: 0.2 }, BASE: { 14: 8800, 30: 16500 } };
+// 값은 pricing.js 한 곳. 부팅 때 서버 값으로 바뀔 수 있어서 getter로 읽는다.
+export const FEES = { get FLASH_DAY() { return PRICING.jobs.flashDay }, get TOP_DAY() { return PRICING.jobs.topDay }, get URGENT_POST() { return PRICING.jobs.urgent }, get MATCH() { return PRICING.jobs.matchPct / 100 }, get JUMP() { return PRICING.jobs.jump }, get DISC() { return PRICING.jobs.disc }, get BASE() { return PRICING.jobs.base } };
 // 공고 등록비 — 서버 post_base 와 같음. 알바몬 즉시 등록(8,800원/7일) 기준
-export const postBase = d => d >= 30 ? 16500 : 8800; // 알바몬 즉시등록 8,800원(14일) 기준, 30일은 2배 미만
+export const postBase = d => d >= 30 ? FEES.BASE[30] : FEES.BASE[14]; // 알바몬 즉시등록 8,800원(14일) 기준
 // 결제 계산서 한 줄씩 [항목, 금액]. 서버 post_fee와 같은 식이어야 함
 export function feeLines(kind, { pay = 0, heads = 1, flash, top, jump = 0, days = 7 }) {
   heads = Math.max(1, heads);
-  if (kind === 'urgent') return [[`일당 ${won(pay)}원 × ${heads}명 (딜러에게 지급)`, pay * heads], ['긴급 공고비', FEES.URGENT_POST], [`매칭 수수료 5% × ${heads}명 (구했을 때만)`, heads * floor10(pay * FEES.MATCH)], ...(flash ? [['✨ 반짝 강조', FEES.FLASH_DAY]] : [])];
+  if (kind === 'urgent') return [[`일당 ${won(pay)}원 × ${heads}명 (딜러에게 지급)`, pay * heads], ['긴급 공고비', FEES.URGENT_POST], [`매칭 수수료 ${PRICING.jobs.matchPct}% × ${heads}명 (구했을 때만)`, heads * floor10(pay * FEES.MATCH)], ...(flash ? [['✨ 반짝 강조', FEES.FLASH_DAY]] : [])];
   const daily = top ? FEES.TOP_DAY : FEES.JUMP[jump] || 0, ad = (daily + (flash ? FEES.FLASH_DAY : 0)) * days, disc = Math.round(ad * (1 - (FEES.DISC[days] || 0)) / 100) * 100 - ad;
   return [[`공고 등록 ${days}일`, postBase(days)], ...(top ? [[`📌 상단 고정 ${won(FEES.TOP_DAY)}원 × ${days}일 (끌올 포함)`, FEES.TOP_DAY * days]] : daily ? [[`⬆ 자동 끌올 하루 ${jump}회 ${won(daily)}원 × ${days}일`, daily * days]] : []),
     ...(flash ? [[`✨ 반짝 ${won(FEES.FLASH_DAY)}원 × ${days}일`, FEES.FLASH_DAY * days]] : []), ...(disc ? [[`${days}일 묶음 할인 ${FEES.DISC[days] * 100}%`, disc]] : [])];
