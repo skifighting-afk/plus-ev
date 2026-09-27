@@ -19,17 +19,29 @@ const SLOT = { OPEN: ['', '모집 중'], MATCHED: ['y', '채용 확정'], WORKIN
 // 테스트 키(토스 문서 공개용) — 실제 운영 땐 토스 가맹 후 받은 라이브 클라이언트 키로 바꾸고, 서버 쪽 TOSS_SECRET_KEY도 같이 바꿔요
 const TOSS_CLIENT_KEY = 'test_ck_D5GePWvyJnrK0W0k6q8gLzN97Eoq', PAY_TEST = TOSS_CLIENT_KEY.startsWith('test_');
 const loadToss = () => window.TossPayments ? Promise.resolve() : new Promise((ok, no) => { const sc = document.createElement('script'); sc.src = 'https://js.tosspayments.com/v2/standard'; sc.onload = ok; sc.onerror = () => no(new Error('결제창을 불러오지 못했어요')); document.head.append(sc); });
+// 결제수단 — 카드 / 카카오페이 / 네이버페이 / 토스페이 / 계좌이체 (토스페이먼츠 한 곳으로)
+const PAYM = [['CARD', '💳', '신용·체크카드', null], ['KAKAOPAY', '🟡', '카카오페이', 'KAKAOPAY'], ['NAVERPAY', '🟢', '네이버페이', 'NAVERPAY'], ['TOSSPAY', '🔵', '토스페이', 'TOSSPAY'], ['TRANSFER', '🏦', '계좌이체', null]];
 async function pay(kind, arg = {}) {
   const o = (await q(sb.rpc('pay_start', { p_kind: kind, p_arg: arg })))[0];
+  if (window.__autoPayMethod) return payGo(o, window.__autoPayMethod);
+  S.payOrder = o; const last = (() => { try { return localStorage.getItem('ev-paym') } catch { return null } })() || 'CARD', co = S.mode === 'store' && isOwner();
+  openSheet(`<h2 style="margin:0 0 4px">결제하기</h2><p class="mut" style="margin:0 0 12px">${esc(o.order_name)}</p><div class="num" style="font-size:28px;font-weight:800;margin-bottom:12px">₩${E.won(o.amount)}</div>
+    <div class="paym">${PAYM.map(([k, ic, t]) => `<button class="${k === last ? 'on' : ''}" data-act="pay-go" data-v="${k}"><span>${ic}</span><b>${t}</b></button>`).join('')}</div>
+    ${co ? `<label class="tog" style="margin-top:12px"><span><b>🧾 세금계산서 자동 발행</b><small>결제할 때마다 사업자번호로 전자세금계산서를 보내드려요</small></span><input type="checkbox" id="tax-auto" ${S.company?.tax_auto ? 'checked' : ''}></label>` : ''}${payNote()}`);
+}
+async function payGo(o, m) {
+  try { localStorage.setItem('ev-paym', m) } catch { }
+  const tax = $('#tax-auto'); if (tax && !!tax.checked !== !!S.company?.tax_auto) { await q(sb.rpc('pay_tax', { p_order: o.order_id, p_on: tax.checked })); S.company.tax_auto = tax.checked; }
+  const pm = PAYM.find(x => x[0] === m) || PAYM[0], easy = pm[3];
   await loadToss(); const back = location.origin + location.pathname;
-  await window.TossPayments(TOSS_CLIENT_KEY).payment({ customerKey: S.user.id }).requestPayment({ method: 'CARD', amount: { currency: 'KRW', value: o.amount }, orderId: o.order_id, orderName: o.order_name, successUrl: back + '?pay=ok', failUrl: back + '?pay=fail', customerEmail: S.user.email });
+  await window.TossPayments(TOSS_CLIENT_KEY).payment({ customerKey: S.user.id }).requestPayment({ method: easy ? 'CARD' : m, ...(easy ? { card: { flowMode: 'DIRECT', easyPay: easy } } : {}), amount: { currency: 'KRW', value: o.amount }, orderId: o.order_id, orderName: o.order_name, successUrl: back + '?pay=ok', failUrl: back + '?pay=fail', customerEmail: S.user.email });
 }
 // 결제창에서 돌아왔을 때 (successUrl에 paymentKey·orderId·amount가 붙어 와요)
 async function payReturn(pr) {
   if (pr.get('pay') === 'fail') { toast(pr.get('message') || '결제를 취소했어요'); return; }
   const { data, error } = await sb.functions.invoke('pay-confirm', { body: { paymentKey: pr.get('paymentKey'), orderId: pr.get('orderId'), amount: +pr.get('amount') } });
   if (error || !data?.ok) { toast((data && data.message) || '결제 확인에 실패했어요. 운영사에 문의해 주세요'); return; }
-  toast({ tickets: '결제 완료! 지원권을 넣어드렸어요', pro: '결제 완료! PRO가 시작됐어요', academy: '결제 완료! 딜러 교육이 열렸어요', plan: '결제 완료! 프로 요금제가 시작됐어요', store: '결제 완료! 새 매장이 추가됐어요', post: '결제 완료! 공고가 올라갔어요' }[data.kind] || '결제가 완료됐어요');
+  toast({ tickets: '결제 완료! 지원권을 넣어드렸어요', pro: '결제 완료! PRO가 시작됐어요', academy: '결제 완료! 딜러 교육이 열렸어요', plan: '결제 완료! 프로 요금제가 시작됐어요', store: '결제 완료! 새 매장이 추가됐어요', post: '결제 완료! 공고가 올라갔어요', post_extra: '결제 완료! 공고 기간·노출을 늘렸어요', diag: '결제 완료! 30일 동안 주변 매장과 비교해 볼 수 있어요' }[data.kind] || '결제가 완료됐어요');
 }
 window.__evPayReturn = async p => { await payReturn(new URLSearchParams(p)); await boot(); };
 const payNote = () => PAY_TEST ? '<p class="note warn">🧪 지금은 테스트 결제예요. 결제창이 떠도 실제 돈은 나가지 않아요.</p>' : '';
@@ -65,7 +77,7 @@ async function boot() {
 }
 async function loadStore() {
   const st = S.store.id, [first, last] = monthRange(), h0 = new Date(S.y, S.m - 6, 1), hFirst = E.ymd(h0.getFullYear(), h0.getMonth() + 1, 1);
-  S.members = await q(sb.from('members').select('*').eq('store_id', st).eq('active', true).order('created_at'));
+  S.members = (await q(sb.from('members').select('*').eq('store_id', st).eq('active', true).order('created_at'))).sort((a, b) => rankOf(a) - rankOf(b));
   const ids = S.members.map(m => m.id);
   S.tpl = ids.length ? await q(sb.from('shift_templates').select('*').in('member_id', ids)) : [];
   S.ov = ids.length ? await q(sb.from('shift_overrides').select('*').in('member_id', ids).gte('work_date', hFirst).lte('work_date', last)) : [];
@@ -101,7 +113,8 @@ async function syncMetrics() {
 }
 async function loadEdu() {
   S.company = S.company || {}; S.acBoard = S.company.academy_at ? await q(sb.rpc('academy_board', { p_store: S.store.id })) : [];
-  S.interest = (await q(sb.from('course_interest').select('course'))).map(x => x.course); render();
+  S.interest = (await q(sb.from('course_interest').select('course'))).map(x => x.course);
+  S.cquiz = S.company.id ? (await q(sb.from('company_quiz').select('items').eq('company_id', S.company.id)))[0]?.items || null : null; render();
 }
 async function loadStaff() {
   const mine = S.my[0]; S.store = (await q(sb.from('stores').select(STORE_COLS).eq('id', mine.store_id).maybeSingle())) || {};
@@ -111,7 +124,8 @@ async function loadStaff() {
   S.inc = await q(sb.from('incentives').select('*').in('member_id', S.my.map(m => m.id)).eq('month', first));
   S.att = await q(sb.from('attendance').select('*').order('at', { ascending: false }).limit(10));
   S.academy = await q(sb.rpc('my_academy')); S.lessons = await q(sb.from('lesson_progress').select('lesson'));
-  S.quizRes = (await q(sb.from('quiz_results').select('score,passed').order('created_at', { ascending: false }).limit(1)))[0] || null;
+  S.quizRes = (await q(sb.from('quiz_results').select('score,passed,total').order('created_at', { ascending: false }).limit(1)))[0] || null;
+  S.myQuiz = S.academy ? await q(sb.rpc('my_quiz')) : null;
   await loadDealer();
 }
 async function loadDealer() {
@@ -204,16 +218,15 @@ function subnav() {
   return `<nav class="subnav">${items.map(([t, s, l]) => { const on = t === 'more' ? S.tab === 'more' && S.sub === s : S.tab === t; return `<button ${t === 'more' ? `data-act="sub" data-v="${s}"` : `data-tab="${t}"`} ${on ? 'aria-current="page"' : ''}>${l}</button>`; }).join('')}</nav>`;
 }
 function storeHead(title) {
-  const trial = S.company?.plan === 'trial' ? Math.max(0, Math.ceil((new Date(S.company.trial_ends) - now) / 864e5)) : null;
-  return `<div class="row between"><div><h1>${title}</h1><p class="sub" style="margin:0">${esc(S.company?.name || '')} · ${esc(S.store?.name)}${S.company && !S.company.biz_verified ? ' · <span class="warn">사업자 확인 중</span>' : ''}</p></div>
-  <div class="row">${trial != null ? `<span class="pill y">무료 체험 D-${trial}</span>` : ''}${S.stores.length > 1 ? `<select id="store-sel" style="width:auto">${S.stores.map(s => `<option value="${s.id}" ${s.id === S.store.id ? 'selected' : ''}>${esc(s.name)}</option>`).join('')}</select>` : ''}</div></div>` + subnav();
+  return `<div class="row between"><div><h1>${title}</h1><p class="sub" style="margin:0">${esc(S.company?.name || '')} · ${esc(S.store?.name)}${S.company && !S.company.biz_verified ? ' · <button class="tlink warn" data-act="goto" data-t="more" data-s="settings">사업자번호 확인 필요</button>' : ''}</p></div>
+  <div class="row">${S.stores.length > 1 ? `<select id="store-sel" style="width:auto">${S.stores.map(s => `<option value="${s.id}" ${s.id === S.store.id ? 'selected' : ''}>${esc(s.name)}</option>`).join('')}</select>` : ''}</div></div>` + subnav();
 }
 function monthNav() { return `<span class="row"><button class="btn sm" data-act="mon" data-v="-1">◀</button><b class="num">${S.y}년 ${S.m}월</b><button class="btn sm" data-act="mon" data-v="1">▶</button></span>`; }
 function monthSummary(y, m) {
   const [f, l] = monthRange(y, m), rs = S.hist.filter(r => r.report_date >= f && r.report_date <= l), n = rs.length, sales = rs.reduce((a, r) => a + r.sales, 0);
   const cur = y === now.getFullYear() && m === now.getMonth() + 1, proj = cur && n >= 3 ? sales / n * E.daysIn(y, m) : sales; // 보고 3일 미만이면 예상 대신 실제 합계
   const exp = {}; S.expAll.filter(x => x.spent_on >= f && x.spent_on <= l).forEach(x => exp[x.category] = (exp[x.category] || 0) + x.amount);
-  const card = rs.reduce((a, r) => a + (r.card || 0), 0) * 0.016 * (cur && n ? E.daysIn(y, m) / n : 1);
+  const card = rs.reduce((a, r) => a + (r.card || 0), 0) * (+S.store.equip?.card_rate || 1.6) / 100 * (cur && n ? E.daysIn(y, m) / n : 1);
   if (!exp.card && card) exp.card = card;
   if (n) Object.entries(fixedFor(y, m).fx).forEach(([k, v]) => { if (+v && !exp[k]) exp[k] = +v; });
   const urgent = S.posts.filter(p => p.kind === 'urgent' && p.created_at.slice(0, 10) >= f && p.created_at.slice(0, 10) <= l).reduce((a, p) => a + (p.paid_amount || 0), 0);
@@ -263,7 +276,7 @@ function selfCard() {
   const pct = x => x.toFixed(1) + '%', mw = x => man(x);
   return `<div class="card"><h3>내 매장 지난달과 비교 <small>${ms[2].m}월 · ${ms[1].m}월 · ${ms[0].m}월${S.y === now.getFullYear() && S.m === now.getMonth() + 1 ? ' (예상)' : ''}</small></h3><div class="tbl"><table style="min-width:0;font-size:13px"><thead><tr><th></th>${[...ms].reverse().map(x => `<th class="r">${x.m}월</th>`).join('')}<th class="r">변화</th></tr></thead><tbody>
     ${[['매출', s => s.proj, true, mw], ['인건비 비율', s => s.proj ? s.labor / s.proj * 100 : NaN, false, pct], ['비용 합계', s => s.cost, false, mw], ['남는 돈', s => s.left, true, mw]].map(([n, f, g, fm]) => { const v = [...ms].reverse().map(x => f(x.s)), d = v[2] - v[1]; return `<tr><td>${n}</td>${v.map((x, i) => `<td class="r num ${i < 2 ? 'mut' : ''}">${isNaN(x) ? '-' : fm(x)}</td>`).join('')}<td class="r num ${!d || isNaN(d) ? '' : (d > 0) === g ? 'up' : 'down'}">${!d || isNaN(d) ? '-' : (d > 0 ? '▲' : '▼') + fm(Math.abs(d))}</td></tr>`; }).join('')}</tbody></table></div>
-    ${S.company?.plan === 'basic' ? `<div class="promo"><span>🔒 비슷한 매장들과 비교한 순위·경고등·처방은 <b>프로</b>에서 보여요.</span><button class="btn sm gold" data-act="goto" data-t="improve">둘러보기</button></div>` : ''}</div>`;
+    ${S.bench?.locked ? `<div class="promo"><span>🔒 비슷한 매장들과 비교한 순위·경고등·처방은 <b>프로</b>에서 보여요.</span><button class="btn sm gold" data-act="goto" data-t="improve">둘러보기</button></div>` : ''}</div>`;
 }
 function fixedCard() {
   const F = fixedFor(S.y, S.m), fx = F.fx, sum = FIXED.reduce((a, [k]) => a + (+fx[k] || 0), 0);
@@ -332,8 +345,10 @@ function rxOf(B) {
 function rankBar() {
   const B = S.bench; if (!B) return '';
   if (!B.ready) return `<div class="card rankbar"><div><b>우리 매장 순위</b><small class="mut" style="display:block">${B.why === 'mine' ? '매출 보고가 7일 쌓이면 비슷한 매장과 비교해 드려요' : '비교할 매장이 3곳 이상 모이면 보여요'}</small></div></div>`;
-  if (B.locked) return `<div class="card rankbar"><div><b>우리 매장 순위</b><small class="mut" style="display:block">비슷한 매장 ${B.n}곳 중</small></div><div class="num mosaic" style="font-size:22px;font-weight:800">상위 18%</div>
-    ${isOwner() ? `<button class="btn sm gold" data-act="goto" data-t="improve">프로(월 ${E.won(PRICE.pro)}원)로 보기</button>` : '<button class="btn sm" data-act="ask-pro">대표님께 요청</button>'}</div>`;
+  if (B.locked) return `<div class="card tease"><div class="row between"><span class="pill y">🔒 주변 매장 ${B.n}곳과 비교</span><small class="mut">${+B.month.slice(5, 7)}월 기준 · 계산 끝</small></div>
+    <div class="tz"><div><small>매출 순위</small><b class="num mosaic">상위 23%</b></div><div><small>순이익 순위</small><b class="num mosaic">상위 41%</b></div><div><small>주변보다 새는 돈</small><b class="num mosaic down">월 ₩87만</b></div></div>
+    <p class="tzm">우리 매장이 주변보다 <b>어디서 돈이 새는지</b> 이미 계산해 뒀어요. 열어보기만 하면 돼요.</p>
+    ${isOwner() ? `<div class="row"><button class="btn gold" data-act="diag">₩10,000로 지금 진단 보기</button><button class="btn sm" data-act="goto" data-t="more" data-s="settings">프로 월 ₩${E.won(PRICE.pro)} · 매달 처방</button></div>` : '<button class="btn sm" data-act="ask-pro">대표님께 요청</button>'}</div>`;
   return `<div class="card rankbar"><div><b>우리 매장 순위</b><small class="mut" style="display:block">비슷한 매장 ${B.n}곳 중 · ${+B.month.slice(5, 7)}월</small></div>
     <div class="rkv"><small>매출</small><b class="num">상위 ${B.s_pct}%</b></div><div class="rkv"><small>순이익</small><b class="num">상위 ${B.h_pct}%</b></div>
     <button class="btn sm" data-tab="improve">매장 개선 →</button></div>`;
@@ -357,19 +372,6 @@ function lightsCard(full) {
     ${!full && gain ? `<button class="btn pri full" data-tab="improve" style="margin-top:10px">무엇을 어떻게 고치는지 보기 →</button>` : ''}</div>`;
 }
 // 처방 효과 그래프: 지금 그대로(점선) vs 처방 실행(초록) — 벌어지는 만큼 칠함
-function rxChart(labels, a, b) {
-  const W = 340, H = 180, L = 14, R = 88, T = 18, Bm = 26, all = [...a, ...b], mn0 = Math.min(...all), mx0 = Math.max(...all), pad = (mx0 - mn0 || Math.abs(mx0) || 1) * .25, lo = mn0 < 0 ? Math.min(mn0, 0) - pad : mn0 - pad, hi = mx0 + pad, sp = hi - lo;
-  const sx = i => L + i * (W - L - R) / (a.length - 1), sy = v => T + (hi - v) / sp * (H - T - Bm), pts = s => s.map((v, i) => `${sx(i).toFixed(1)},${sy(v).toFixed(1)}`).join(' ');
-  const n = a.length - 1; let ya = sy(a[n]), yb = sy(b[n]); if (ya - yb < 16) ya = yb + 16;
-  return `<svg class="rxchart" viewBox="0 0 ${W} ${H}" role="img" aria-label="처방 실행 시 남는 돈 변화"><defs><linearGradient id="rxg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#34D399" stop-opacity=".5"/><stop offset="1" stop-color="#34D399" stop-opacity=".04"/></linearGradient></defs>
-    ${lo < 0 ? `<line x1="${L}" x2="${W - R}" y1="${sy(0)}" y2="${sy(0)}" stroke="var(--red)" stroke-opacity=".5" stroke-dasharray="2 3"/><text x="${W - R + 4}" y="${sy(0) + 4}" font-size="10" fill="var(--red)">적자선</text>` : ''}
-    <polygon points="${pts(b)} ${a.map((v, i) => `${sx(i).toFixed(1)},${sy(v).toFixed(1)}`).reverse().join(' ')}" fill="url(#rxg)"/>
-    <polyline points="${pts(a)}" fill="none" stroke="var(--muted)" stroke-width="2" stroke-dasharray="5 4"/>
-    <polyline points="${pts(b)}" fill="none" stroke="#34D399" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
-    ${b.map((v, i) => `<circle cx="${sx(i)}" cy="${sy(v)}" r="${i === n ? 5 : 3.5}" fill="#34D399" stroke="var(--card)" stroke-width="2"/>`).join('')}
-    <text x="${sx(n) + 9}" y="${yb + 4}" font-size="13" font-weight="800" fill="#34D399">₩${man(b[n])}</text><text x="${sx(n) + 9}" y="${ya + 4}" font-size="11" fill="var(--muted)">₩${man(a[n])}</text>
-    ${labels.map((l, i) => `<text x="${sx(i)}" y="${H - 6}" font-size="11" fill="var(--muted)" text-anchor="middle">${l}</text>`).join('')}</svg>`;
-}
 function radar(sc) {
   const K = [['s_sales', '평당 매출'], ['s_profit', '수익률'], ['s_labor', '인건비 효율'], ['s_fixed', '고정비 관리'], ['s_util', '테이블 가동']], R = 80, cx = 110, cy = 100;
   const pt = (i, v) => { const a = -Math.PI / 2 + i * 2 * Math.PI / 5; return [cx + Math.cos(a) * R * v / 100, cy + Math.sin(a) * R * v / 100]; };
@@ -386,7 +388,7 @@ function vImprove() {
   if (B.locked) return `${head}<div class="paywall"><div class="blurme" aria-hidden="true">${radar({ s_sales: 70, s_profit: 55, s_labor: 40, s_fixed: 65, s_util: 50 })}<div class="card"><h3>이번 달 처방</h3><div class="li">매출 늘리기 ··· 월 +₩···만</div><div class="li">비용 줄이기 ··· 월 −₩···만</div></div></div>
     <div class="over"><div class="card"><div class="mut" style="font-size:12px">✦ 매장 개선 · 프로 요금제(월 ${E.won(PRICE.pro)}원)</div><h2 style="margin:10px 0 4px">내 매장은 비슷한 매장 ${B.n}곳 중<br>상위 몇 %일까요?</h2><div class="num mosaic" style="font-size:30px;font-weight:800;margin:6px 0">상위 ??%</div>
       <p class="mut" style="font-size:14px">비슷한 매장들과 비교해서 <b>무엇을 해야 하는지</b> 알려드려요. 매달 새 처방과 지난달 실행 결과까지요.</p>
-      ${isOwner() ? '<button class="btn pri full" data-act="goto" data-t="more" data-s="settings">프로로 올리기</button>' : '<button class="btn full" data-act="ask-pro">대표님께 요청하기</button>'}</div></div></div>`;
+      ${isOwner() ? `<button class="btn gold full" data-act="diag">₩10,000로 지금 진단 보기 (30일)</button><button class="btn full" style="margin-top:8px" data-act="goto" data-t="more" data-s="settings">프로 월 ₩${E.won(PRICE.pro)} · 매달 새 처방</button>` : '<button class="btn full" data-act="ask-pro">대표님께 요청하기</button>'}</div></div></div>${costCheck()}`;
   const m = B.mine, a = B.avg, rx = rxOf(B), revSum = rx.rev.reduce((x, r) => x + r[3], 0), costSum = rx.cost.reduce((x, r) => x + r[3], 0), mon = thisMonth();
   const done = new Set(S.quests.filter(x => x.month === mon).map(x => x.key)), must = [...rx.rev.map(r => [r[0], r[1], r[2], r[3], r[4], 'r']), ...rx.cost.map(r => [r[0], r[1], r[2], r[3], r[4], 'c'])].sort((x, y) => y[3] - x[3]), doneN = must.filter(r => done.has(r[0])).length, doneSum = must.filter(r => done.has(r[0])).reduce((x, r) => x + r[3], 0);
   const hist = Array.from({ length: 4 }, (_, i) => { const dt = new Date(now.getFullYear(), now.getMonth() - 3 + i, 1); return monthSummary(dt.getFullYear(), dt.getMonth() + 1); }).filter(x => x.n);
@@ -402,9 +404,13 @@ function vImprove() {
   ${must.length ? `<div class="card mustcard"><div class="mhead"><div><small>${S.m}월 꼭 해야 할 일 · ${doneN}/${must.length} 완료</small><div class="mbig">다 하면 매달 <b class="num">+₩${man(revSum + costSum)}</b></div></div>${doneN ? `<div class="mdone"><small>지금까지</small><b class="num">+₩${man(doneSum)}</b></div>` : ''}</div>
     <div class="mprog"><i style="width:${doneN / must.length * 100}%"></i></div>
     <div class="musts">${must.map(mustRow).join('')}</div><p class="note">한 일은 눌러서 체크하세요. 효과는 다음 달 실제 숫자로 확인해 드려요. 자세한 방법은 아래에 있어요.</p></div>` : ''}
-  ${revSum + costSum ? `<div class="card" style="border-color:rgba(16,185,129,.5)"><small class="mut">처방대로 하면 ${mn[2]}월에</small><div class="num up" style="font-size:26px;font-weight:800;margin-top:2px">매달 +₩${man(after[2] - nowL[2])} 더 남아요</div><p class="mut" style="margin:2px 0 6px">지금 그대로 ₩${man(nowL[2])} → 처방 실행 <b class="up">₩${man(after[2])}</b></p>
-    ${rxChart(['이번 달', ...mn.map(x => x + '월')], [cur.left, ...nowL], [cur.left, ...after])}
-    <p class="note"><span style="color:var(--muted)">- - -</span> 지금 그대로 · <span style="color:#34D399">━</span> 처방 실행. 최근 흐름으로 계산했고 첫 달은 효과를 절반만 반영해요.</p></div>` : '<div class="card"><h3>👏 지금은 고칠 곳이 거의 없어요</h3><p class="mut" style="margin:0">모든 항목이 비슷한 매장 평균보다 좋아요. 지금처럼만 유지하세요.</p></div>'}
+  ${revSum + costSum ? (() => { const mx = Math.max(1, ...after.map(Math.abs), ...nowL.map(Math.abs)), tot = after.reduce((x, v, k) => x + v - nowL[k], 0);
+    return `<div class="card fcast"><div class="row between"><div><small class="mut">처방대로 하면 앞으로 3개월</small><div class="fbig num">+₩${man(tot)} <small>더 남아요</small></div></div><span class="pill g">${mn[0]}~${mn[2]}월 전망</span></div>
+    <div class="fmons">${mn.map((x, k) => `<div class="fmon ${k === 2 ? 'hi' : ''}"><div class="fm">${x}월</div>
+      <div class="fb"><i class="b0" style="width:${Math.max(4, Math.abs(nowL[k]) / mx * 100)}%"></i></div><small class="mut">그대로 ₩${man(nowL[k])}</small>
+      <div class="fb"><i class="b1" style="width:${Math.max(4, Math.abs(after[k]) / mx * 100)}%"></i></div><b class="num up">₩${man(after[k])}</b>
+      <span class="fd num">+₩${man(after[k] - nowL[k])}</span></div>`).join('')}</div>
+    <p class="note">최근 매출 흐름으로 계산했어요. 첫 달은 효과를 절반만 넣었어요.</p></div>`; })() : '<div class="card"><h3>👏 지금은 고칠 곳이 거의 없어요</h3><p class="mut" style="margin:0">모든 항목이 비슷한 매장 평균보다 좋아요. 지금처럼만 유지하세요.</p></div>'}
   <div class="card"><h3>5가지 점수 <small>100점 만점 · <b style="color:#34D399">초록</b> 내 매장 · <b style="color:#F59E0B">점선</b> 비슷한 매장 중간</small></h3>${radar(B.score)}</div>
   ${lightsCard(true)}
   ${rx.rev.length ? `<h2 class="band">📈 매출 늘리기 <small class="mut">월 +₩${man(revSum)}</small></h2>${rx.rev.map((r, i) => rxCard(r, i, 'r')).join('')}` : ''}
@@ -415,17 +421,48 @@ function vImprove() {
     ${cmpRow('순이익률', m.pm.toFixed(1) + '%', a.pm.toFixed(1) + '%', '-', m.pm >= a.pm)}</tbody></table></div><p class="note">다른 매장 이름이나 개별 숫자는 보여주지 않고 익명 평균만 써요.</p></div>
   ${m.wd && a.wd ? `<div class="card"><h3>요일별 하루 매출 ${weak >= 0 ? `<small>가장 약한 요일 <b class="down">${E.WD[weak]}요일</b></small>` : ''}</h3><div class="bars">${E.WD.map((w, i) => `<div class="bar2"><div><i class="g" style="height:${Math.max(2, (m.wd[i] || 0) / wdMax * 100)}%"></i><i style="height:${Math.max(2, (a.wd[i] || 0) / wdMax * 100)}%"></i></div><small>${w}</small></div>`).join('')}</div><p class="note"><span style="color:var(--green)">■</span> 내 매장 · <span style="color:var(--s2)">■</span> 평균</p></div>` : ''}
   ${rx.cost.length ? `<h2 class="band">💸 비용 줄이기 <small class="mut">월 −₩${man(costSum)}</small></h2>${rx.cost.map((r, i) => rxCard(r, i, 'c')).join('')}` : ''}
-  <div class="card"><h3>+EV 제휴로 바로 줄이기</h3><div class="li"><div><b>📶 인터넷·통신</b><small>결합 요금제</small></div><button class="btn sm" data-act="partner" data-v="인터넷·통신 제휴">견적 받기</button></div><div class="li"><div><b>📹 CCTV·보안</b><small>무인경비 결합</small></div><button class="btn sm" data-act="partner" data-v="CCTV·보안 제휴">견적 받기</button></div></div>
-  <div class="card"><h3>전기세·수도세 아끼는 방법</h3><div class="grid2">
-    <div><small class="mut">⚡ 전기</small>${[['영업 전 2시간은 에어컨 1대만', '가장 쉽게 줄이는 방법이에요'], ['테이블 조명 LED + 타이머', '빈 테이블은 자동 소등'], ['냉장고 온도 4℃ → 5℃', '음료 품질에 영향 없어요'], ['한전 계약전력 점검', '사용량보다 크면 기본료만 새요']].map(([t, d]) => `<div class="li"><div><b>${t}</b><small>${d}</small></div></div>`).join('')}</div>
-    <div><small class="mut">💧 수도</small>${[['화장실 절수 밸브', '개당 약 1만 원'], ['제빙기 배수 점검', '새면 수도세가 20% 넘게 올라요'], ['세척기는 마감 때 모아서', '하루 한 번만 돌리기']].map(([t, d]) => `<div class="li"><div><b>${t}</b><small>${d}</small></div></div>`).join('')}</div></div></div>
+  ${costCheck()}
   ${staff.length ? `<div class="card"><h3>직원별 인건비 <small>같은 직책 평균 시급과 비교 · ${S.m}월 스케줄 기준</small></h3><div class="tbl"><table style="min-width:0;font-size:12.5px"><thead><tr><th>직원</th><th class="r">시급</th><th class="r">평균</th><th class="r">근무</th><th class="r">월 차이</th></tr></thead><tbody>
     ${staff.map(x => `<tr><td><b>${esc(x.p.nick)}</b> <small class="mut">${esc(x.p.job_role)}</small></td><td class="r num">${E.won(x.p.hourly_rate)}</td><td class="r num mut">${E.won(x.avg)}</td><td class="r num">${x.h.toFixed(0)}h</td><td class="r num ${x.mon > 0 ? 'down' : 'up'}">${x.mon > 0 ? '+' : ''}₩${E.won(x.mon)}</td></tr>`).join('')}</tbody></table></div>
     <p class="note">빨간색은 평균보다 비싼 사람이에요. 비싸다고 나쁜 건 아니에요 — 경력·실력이 좋으면 금·토 피크 시간에 배치하세요.</p></div>` : ''}`;
 }
+// ===== 우리 매장 비용 점검 =====
+// 설비·계약을 넣으면 항목별로 줄일 방법과 월 절감액을 계산 (숫자는 2025~26년 공개 자료 기준 추정)
+// 카드 우대수수료율(2025.2~): 연매출 3억↓ 0.4% · 3~5억 1.0% · 5~10억 1.15% · 10~30억 1.45% (신용). 고효율기기 지원: 1등급 구매가 40%, 대당 최대 160만 원
+const CARD_RATE = y => y <= 3e8 ? 0.4 : y <= 5e8 ? 1.0 : y <= 10e8 ? 1.15 : y <= 30e8 ? 1.45 : null;
+const EQ = [['ac_n', '에어컨 대수', 'n'], ['ac_inv', '인버터 에어컨인가요?', ['모름', '예', '아니오']], ['ac_age', '에어컨 쓴 지 (년)', 'n'], ['led', '조명', ['모름', '전부 LED', '일부 LED', 'LED 아님']], ['fridge_n', '냉장고·쇼케이스 대수', 'n'], ['kw', '한전 계약전력 (kW) · 고지서에 있어요', 'n'],
+  ['net_fee', '인터넷·TV 월 요금', 'w'], ['net_end', '인터넷 약정 끝나는 달', 'm'], ['cctv_n', 'CCTV 대수', 'n'], ['cctv_fee', 'CCTV·보안 월 요금', 'w'], ['pos_fee', '포스·카드단말기 월 요금', 'w'], ['card_rate', '카드 수수료율 (%) · 카드사 명세서', 'r'], ['rent_etc', '정수기·비데 등 렌탈 월 합계', 'w']];
+function costTips() {
+  const e = S.store.equip || {}, M = monthSummary(S.y, S.m), fx = fixedFor(S.y, S.m).fx, elec = +fx.elec || 0, yr = (M.proj || M.sales) * 12, card = S.hist.filter(r => r.report_date.slice(0, 7) === TODAY.slice(0, 7)).reduce((a, r) => a + (r.card || 0), 0) / Math.max(1, M.n) * 30;
+  const T = [], won = v => Math.round(v / 1000) * 1000;
+  const cr = CARD_RATE(yr); if (+e.card_rate && cr && +e.card_rate > cr + .05 && card) T.push(['💳', '카드 수수료 우대율 확인', `연매출 약 ${man(yr)}원이면 신용카드 우대수수료율은 ${cr}%예요. 지금 ${e.card_rate}%면 카드사에 가맹점 등급 재산정을 요청하세요. 여신금융협회 '가맹점 수수료 조회'에서 바로 확인돼요.`, won(card * (+e.card_rate - cr) / 100)]);
+  const nc = (+e.net_fee || 0) + (+e.cctv_fee || 0); if (nc > 70000) T.push(['📶', '인터넷 + CCTV 결합으로 바꾸기', `지금 두 개 합쳐 월 ₩${E.won(nc)}예요. 사업장 인터넷(500M)+CCTV ${+e.cctv_n || 4}대 결합은 보통 월 5~6만 원이에요.`, won(nc - 55000), '인터넷·CCTV 결합']);
+  if (e.net_end) { const [y, m] = e.net_end.split('-').map(Number), left = (y - now.getFullYear()) * 12 + m - 1 - now.getMonth(); if (left <= 2) T.push(['📅', left < 0 ? '인터넷 약정이 이미 끝났어요' : `인터넷 약정이 ${left + 1}개월 뒤 끝나요`, '약정이 끝난 채로 쓰면 할인 없이 비싼 요금이 나가요. 재약정하거나 다른 통신사로 옮기면 요금 할인·사은품을 받을 수 있어요.', won((+e.net_fee || 40000) * .25), '인터넷·통신']); }
+  if (+e.cctv_n && +e.cctv_fee / +e.cctv_n > 9000) T.push(['📹', 'CCTV 대당 요금이 높아요', `대당 월 ₩${E.won(Math.round(e.cctv_fee / e.cctv_n))}이에요. 녹화만 필요하면 구매형(대당 10~20만 원 한 번)이, 경비까지 필요하면 결합 상품이 싸요.`, won(e.cctv_fee - e.cctv_n * 7000), 'CCTV·보안']);
+  const acOld = e.ac_inv === '아니오' || +e.ac_age >= 10, acN = +e.ac_n || 0;
+  if (acN && acOld && elec) T.push(['❄️', '오래된 에어컨 1등급으로 바꾸기 (지원금 40%)', `인버터 1등급으로 바꾸면 냉방 전기가 30~40% 줄어요. 한전 '소상공인 고효율기기 지원'으로 구매가의 40%, 대당 최대 160만 원을 받아요 (한전 에너지마켓플레이스 신청).`, won(elec * .45 * .35)]);
+  if (acN && elec) T.push(['🌡', '에어컨 필터 2주마다 · 26℃', '필터만 청소해도 5~10%, 설정 온도 1℃ 올리면 약 7% 줄어요. 영업 전 2시간은 1대만 켜세요.', won(elec * .45 * .12)]);
+  if (e.led === 'LED 아님' || e.led === '일부 LED') T.push(['💡', '조명 LED로 바꾸기', '형광등·할로겐을 LED로 바꾸면 조명 전기가 절반 이하로 줄어요. 빈 테이블 조명은 타이머로 끄세요.', won(elec * .2 * (e.led === '일부 LED' ? .25 : .5))]);
+  if (+e.kw && elec && e.kw * 6160 > elec * .3) T.push(['⚡', '계약전력 낮추기', `기본요금이 kW당 약 6천 원이라 계약전력 ${e.kw}kW면 기본료만 월 약 ₩${E.won(e.kw * 6160)}예요. 최대 사용량보다 크면 한전(123)에 계약전력 변경을 신청하세요.`, won(e.kw * 6160 * .2)]);
+  if (+e.pos_fee >= 10000) T.push(['🧾', '카드단말기 무상으로 바꾸기', `단말기·포스에 월 ₩${E.won(e.pos_fee)}을 내고 있어요. 밴(VAN)사를 바꾸면 단말기 무상 설치·월 관리비 0원도 많아요.`, won(+e.pos_fee * .8), '포스·단말기']);
+  if (+e.rent_etc > 30000) T.push(['🚰', '렌탈 기기 점검', '약정이 끝난 정수기·비데는 계속 렌탈료가 나가는 경우가 많아요. 끝났으면 해지하거나 구매 전환하세요.', won(+e.rent_etc * .4)]);
+  return T.sort((a, b) => b[3] - a[3]);
+}
+function costCheck() {
+  const e = S.store.equip || {}, filled = EQ.filter(([k]) => e[k] !== undefined && e[k] !== '' && e[k] !== '모름').length, T = costTips(), sum = T.reduce((a, t) => a + t[3], 0);
+  return `<div class="card ccheck"><div class="row between"><h3 style="margin:0">🔧 우리 매장 비용 점검</h3><span class="pill ${filled >= 8 ? 'g' : 'y'}">${filled}/${EQ.length} 입력</span></div>
+    ${T.length ? `<div class="csum"><small class="mut">찾은 절감 방법 ${T.length}개 · 다 하면</small><b class="num up">매달 −₩${man(sum)}</b></div>${T.map(([ic, t, d, v, pt]) => `<div class="ctip"><span class="ci">${ic}</span><div><b>${esc(t)}</b><p>${esc(d)}</p>${pt ? `<button class="btn sm" data-act="partner" data-v="${esc(pt)} 견적">${esc(pt)} 견적 받기</button>` : ''}</div><span class="num up">월 −₩${man(v)}</span></div>`).join('')}`
+      : `<p class="mut" style="margin:8px 0">에어컨·인터넷·CCTV 같은 걸 넣으면 <b>항목별로 얼마나 줄일 수 있는지</b> 계산해 드려요. 고지서 보면서 5분이면 돼요.</p>`}
+    <details class="more" ${filled ? '' : 'open'}><summary>설비·계약 ${filled ? '고치기' : '넣기'}</summary>
+    <form class="f" id="equip-form"><div class="grid2">${EQ.map(([k, l, t]) => Array.isArray(t) ? `<label class="fl">${l}<select name="${k}">${t.map(o => `<option ${e[k] === o ? 'selected' : ''}>${o}</option>`).join('')}</select></label>`
+      : `<label class="fl">${l}<input name="${k}" ${t === 'm' ? 'type="month"' : t === 'r' ? 'type="number" step="0.01" min="0" max="5" inputmode="decimal"' : t === 'w' ? `type="number" inputmode="numeric" data-money="1"` : 'type="number" min="0" inputmode="numeric"'} value="${esc(e[k] ?? '')}"></label>`).join('')}</div>
+    ${isOwner() ? '<button class="btn pri full">저장하고 점검하기</button>' : '<p class="note">설비 정보는 대표님이 넣어요.</p>'}</form></details>
+    <p class="note">카드 우대수수료율은 금융위원회 2025년 2월 기준, 지원금은 2026년 한전 고효율기기 지원사업 기준이에요. 절감액은 추정치예요.</p></div>`;
+}
 // ===== 테이블 로테이션 =====
 const MIN = 60000, mmss = ms => { const s = Math.max(0, Math.floor(ms / 1000)); return `${Math.floor(s / 60)}:${E.pad(s % 60)}`; };
-function defaultLayout(n) { n = Math.max(1, Math.min(24, +n || 6)); const L = []; for (let i = 0; i < n; i++) L.push({ id: 'T' + (i + 1), x: (i % 4) * 2, y: Math.floor(i / 4), w: 2 }); L.push({ id: 'C', x: 6, y: Math.ceil(n / 4), w: 2, counter: true }); return L; }
+function defaultLayout(n) { n = Math.max(1, Math.min(24, +n || 6)); const L = []; for (let i = 0; i < n; i++) L.push({ id: 'T' + (i + 1), x: (i % 4) * 2, y: Math.floor(i / 4), w: 2 }); L.push({ id: 'C', x: 6, y: Math.ceil(n / 4), w: 2, counter: true }, { id: 'DOOR', x: 0, y: Math.ceil(n / 4), w: 1, fx: 'door' }, { id: 'WC', x: 5, y: Math.ceil(n / 4), w: 1, fx: 'wc' }); return L; }
+const FX = { counter: '🧾 카운터', door: '🚪 입구', wc: '🚻 화장실', bar: '🍸 바', smoke: '🚬 흡연실', lounge: '🛋 대기석' };
 const rotState = () => S.rot || (S.rot = { t: {}, brk: [], deal: 40, rest: 15 });
 const nickOf = id => S.members.find(m => m.id === id)?.nick || '?';
 async function loadRot() {
@@ -454,15 +491,15 @@ function vRot() {
   const occ = {}; L.forEach(it => { for (let k = 0; k < it.w; k++) occ[`${it.x + k},${it.y}`] = 1; });
   let cells = ''; for (let yy = 0; yy < rows + (edit ? 1 : 0); yy++) for (let xx = 0; xx < 8; xx++) if (!occ[`${xx},${yy}`]) cells += `<div class="fcell" ${edit ? `data-act="cell" data-v="${xx},${yy}"` : ''} style="grid-column:${xx + 1};grid-row:${yy + 1}"></div>`;
   const items = L.map(it => { const pos = `grid-column:${it.x + 1}/span ${it.w};grid-row:${it.y + 1}`, sel = S.selItem === it.id ? 'sel' : '';
-    if (it.counter) return `<div class="counter ${sel}" ${edit ? `data-act="item" data-v="C"` : ''} style="${pos}">카운터</div>`;
+    if (it.counter || it.fx) return `<div class="counter fx-${it.fx || 'counter'} ${sel}" ${edit ? `data-act="item" data-v="${it.id}"` : ''} style="${pos}">${(([ic, ...t]) => `<span>${ic}</span><small>${t.join(' ')}</small>`)(FX[it.fx || 'counter'].split(' '))}</div>`;
     const v = R.t[it.id]; return `<div class="ftable ${v ? '' : 'off'} ${sel}" data-act="${edit ? 'item' : 'drop'}" data-v="${it.id}" style="${pos}"><span class="t">${it.id}</span>${v && !edit ? chip(v.m, v.since, R.deal) : ''}</div>`; }).join('');
   const dueN = Object.values(R.t).filter(v => nowT - v.since >= R.deal * MIN).length;
   return `${storeHead('테이블 로테이션')}
   <div class="grid2"><div class="card kpi"><div class="l">딜링 중</div><div class="v num">${Object.keys(R.t).length}명</div></div><div class="card kpi"><div class="l">휴식 중</div><div class="v num">${R.brk.length}명</div></div>
     <div class="card kpi"><div class="l">교대할 사람</div><div class="v num ${dueN ? 'down' : 'up'}">${dueN}명</div></div>
     <div class="card"><div class="l mut" style="font-size:12px">교대 시간 (분)</div><div class="row" style="margin-top:6px;flex-wrap:nowrap"><label class="fl" style="flex:1">딜링<input type="number" min="5" step="5" value="${R.deal}" data-rot="deal"></label><label class="fl" style="flex:1">휴식<input type="number" min="5" step="5" value="${R.rest}" data-rot="rest"></label></div></div></div>
-  <div class="card"><h3>매장 테이블 <span class="row">${edit ? '<button class="btn sm" data-act="lay-add">+ 테이블</button><button class="btn sm red" data-act="lay-del">선택 삭제</button><button class="btn sm pri" data-act="lay-save">배치 저장</button>' : `${dueN ? '<button class="btn sm gold" data-act="rot-auto">⟳ 자동 교대</button>' : ''}<button class="btn sm" data-act="lay-edit">배치 편집</button>`}</span></h3>
-    <p class="note" style="margin-top:0">${edit ? '테이블이나 카운터를 누른 뒤 옮길 빈칸을 누르세요.' : `딜러를 누르고 테이블을 누르면 앉아요 (끌어다 놓아도 돼요). <b class="down">빨간 테두리</b>는 ${R.deal}분이 지나 교대할 사람이에요.`}</p>
+  <div class="card"><h3>매장 테이블 <span class="row">${edit ? '<button class="btn sm" data-act="lay-add">+ 테이블</button>' + Object.entries(FX).filter(([k]) => k !== 'counter').map(([k, t]) => `<button class="btn sm" data-act="lay-add" data-v="${k}">+ ${t}</button>`).join('') + '<button class="btn sm red" data-act="lay-del">선택 삭제</button><button class="btn sm pri" data-act="lay-save">배치 저장</button>' : `${dueN ? '<button class="btn sm gold" data-act="rot-auto">⟳ 자동 교대</button>' : ''}<button class="btn sm" data-act="lay-edit">배치 편집</button>`}</span></h3>
+    <p class="note" style="margin-top:0">${edit ? '테이블·입구·화장실 같은 칸을 누른 뒤 옮길 빈칸을 누르세요.' : `딜러를 누르고 테이블을 누르면 앉아요 (끌어다 놓아도 돼요). <b class="down">빨간 테두리</b>는 ${R.deal}분이 지나 교대할 사람이에요.`}</p>
     <div class="floor-wrap"><div class="floor" style="grid-template-rows:repeat(${rows + (edit ? 1 : 0)},64px)">${cells}${items}</div></div>
     ${edit ? '' : `<div class="zone" data-act="drop" data-v="BREAK"><b>☕ 휴식 · 대기 (${R.rest}분)</b><div>${R.brk.map(b => chip(b.m, b.since, R.rest)).join('') || '<small class="mut">여기로 옮기면 휴식 시간이 재져요</small>'}</div></div>
     <div class="zone" data-act="drop" data-v="OFF"><b>🙋 출근 전·대기 명단</b> <small class="mut">오늘 스케줄 있는 사람 먼저</small><div>${pool.map(p => `<button class="dchip ${S.pick === p.id ? 'picked' : ''} ${today.includes(p) ? '' : 'dim'}" draggable="true" data-act="pick" data-m="${p.id}"><span>${esc(p.nick)}</span><small>${esc(p.job_role || '')}</small></button>`).join('') || '<small class="mut">모두 배치됐어요</small>'}</div></div>`}</div>`;
@@ -483,7 +520,7 @@ function stockCard() {
   const rows = SHOP.filter(p => p.active !== false).map(p => ({ p, s: S.stock.find(s => s.item_id === p.id) })), low = rows.filter(x => x.s && x.s.qty < x.s.min);
   const used = rows.filter(x => x.s), unused = rows.filter(x => !x.s);
   const line = ({ p, s }) => { const qty = +(s?.qty ?? 0), min = +(s?.min ?? 2), days = s?.use_per_day ? Math.floor(qty / s.use_per_day) : null, lo = s && qty < min;
-    return `<div class="stk ${lo ? 'lo' : ''}"><div class="si">${prodImg(p)}</div><div class="sn"><b>${esc(p.n)}</b><small>${esc(p.u)} · 적정 <button class="lnk" data-act="stk" data-i="${p.id}" data-f="min" data-d="-1">−</button>${min}<button class="lnk" data-act="stk" data-i="${p.id}" data-f="min" data-d="1">+</button>${days != null && s ? ` · ${days > 30 ? '충분' : `<span class="${days <= 2 ? 'down' : ''}">${days}일 버팀</span>`}` : ''}</small></div>
+    return `<div class="stk ${lo ? 'lo' : ''}"><div class="si">${prodImg(p)}</div><div class="sn"><b>${esc(p.n)}</b><small>${esc(p.u)} · <span class="nw">적정 <button class="lnk" data-act="stk" data-i="${p.id}" data-f="min" data-d="-1">−</button>${min}<button class="lnk" data-act="stk" data-i="${p.id}" data-f="min" data-d="1">+</button></span>${days != null && s ? ` · ${days > 30 ? '충분' : `<span class="${days <= 2 ? 'down' : ''}">${days}일 버팀</span>`}` : ''}</small></div>
       <div class="step"><button data-act="stk" data-i="${p.id}" data-f="qty" data-d="-1" aria-label="하나 빼기">−</button><b class="num">${qty}</b><button data-act="stk" data-i="${p.id}" data-f="qty" data-d="1" aria-label="하나 더하기">+</button></div></div>`; };
   return `<div class="card"><div class="row between"><h3 style="margin:0">재고 <small>− + 로 남은 수량만 맞춰주세요</small></h3>${low.length ? `<button class="btn sm gold" data-act="restock-all">부족 ${low.length}개 발주 담기</button>` : ''}</div>
     <div class="stks">${used.map(line).join('')}</div>
@@ -494,6 +531,21 @@ function closeCalc() {
   $('#close-out').innerHTML = `<div class="li"><span class="mut">현금 매출 (매출 − 카드 − 이체)</span><span class="num">₩${E.won(cashSales)}</span></div><div class="li"><span class="mut">금고에 있어야 할 돈</span><span class="num">₩${E.won(expected)}</span></div>
     ${any ? `<div class="li"><span class="mut">센 돈</span><span class="num">₩${E.won(counted)}</span></div><div class="li"><b>차액</b><b class="num ${Math.abs(diff) >= 10000 ? 'down' : diff ? 'warn' : 'up'}">${diff ? (diff > 0 ? '+' : '−') + '₩' + E.won(Math.abs(diff)) : '딱 맞아요'}</b></div>${Math.abs(diff) >= 10000 ? '<p class="note down" style="margin:0">1만 원 넘게 차이 나요. 저장하면 대표님께 알림이 가요.</p>' : ''}` : '<p class="note" style="margin:0">금고 현금을 세서 장수를 넣으면 차액을 계산해요.</p>'}`;
   f.dataset.diff = any ? diff : ''; f.dataset.cash = cashSales;
+}
+// 발주 배송 추적: 접수 → 준비 중 → 배송 중 → 도착, 도착 예정일(오후 3시 전 주문은 다음 날)
+const OSTEP = ['접수', '준비 중', '배송 중', '도착'];
+function etaText(o) {
+  if (o.status === '도착') return `✅ ${o.done_at ? fmtDT(o.done_at) : ''} 도착했어요`;
+  if (!o.eta) return '운영사가 확인하고 있어요';
+  const [y, m, d] = o.eta.split('-').map(Number), n = Math.round((new Date(y, m - 1, d) - new Date(now.getFullYear(), now.getMonth(), now.getDate())) / 864e5), lab = `${m}/${d}(${E.WD[E.wdOf(y, m, d)]})`;
+  return n <= 0 ? `🚚 오늘 도착 예정이에요` : n === 1 ? `🚚 내일 ${lab} 도착 예정` : `🚚 ${lab} 도착 예정`;
+}
+function orderRow(o) {
+  const k = Math.max(0, OSTEP.indexOf(o.status));
+  return `<div class="ord"><div class="row between"><b>${o.items.map(i => `${esc(item(i.id)?.n)}×${i.q}`).join(', ')}</b><span class="pill ${k === 3 ? 'g' : 'y'}">${esc(o.status)}</span></div>
+    <small class="mut">${fmtDT(o.created_at)} 주문 · ₩${E.won(o.total)}</small>
+    <div class="osteps">${OSTEP.map((t, i) => `<div class="${i <= k ? 'on' : ''} ${i === k ? 'cur' : ''}"><i></i><small>${t}</small></div>`).join('')}</div>
+    <div class="row between"><b class="eta ${k === 3 ? 'up' : ''}">${etaText(o)}</b>${o.tracking ? `<a class="btn sm" target="_blank" rel="noopener" href="https://search.naver.com/search.naver?query=${encodeURIComponent(`${o.courier || ''} ${o.tracking}`)}">📦 ${esc(o.courier || '택배')} 배송 조회</a>` : ''}</div></div>`;
 }
 function vOrder() {
   const cart = Object.entries(S.cart).filter(([, n]) => n > 0).map(([id, n]) => ({ ...item(id), q: n })), pay = cart.filter(i => i.c !== 'alc'), alc = cart.filter(i => i.c === 'alc'), tot = pay.reduce((a, i) => a + i.sp * i.q, 0);
@@ -508,7 +560,7 @@ function vOrder() {
     ${tot ? `<div class="li"><b>+EV 주문 합계</b><b class="num">₩${E.won(tot)}</b></div>` : ''}
     ${alc.length ? `<small class="mut">주류 · 도매업체 직접 결제</small>${alc.map(i => `<div class="li"><span>${esc(i.n)} × ${i.q} <button class="btn sm" data-act="cart" data-v="${i.id}" data-n="-1">−</button></span><span class="num">₩${E.won(i.sp * i.q)}</span></div>`).join('')}` : ''}
     <button class="btn pri full" data-act="order" style="margin-top:12px">주문 요청하기</button>` : '<p class="mut" style="margin:0">담은 상품이 없어요.</p>'}</div>
-  <div class="card"><h3>주문 기록</h3>${S.orders.map(o => `<div class="li"><div><b>${o.items.map(i => `${esc(item(i.id)?.n)}×${i.q}`).join(', ')}</b><small>${fmtDT(o.created_at)} · ₩${E.won(o.total)}</small></div><span class="pill ${o.status === '도착' ? 'g' : 'y'}">${esc(o.status)}</span></div>`).join('') || '<div class="empty">아직 주문이 없어요</div>'}</div>`;
+  <div class="card"><h3>주문 기록</h3>${S.orders.map(orderRow).join('') || '<div class="empty">아직 주문이 없어요</div>'}</div>`;
 }
 // ===== 딜러 교육 · 사장님 강의 =====
 const LESSONS = [
@@ -534,14 +586,31 @@ function lessonList(open) {
   return LESSONS.map(([t, d, body], i) => `<details class="lesson" ${S.openLesson === i ? 'open' : ''}><summary><span class="thumb">${cover(LESSON_ICON[i], t, 150 + i * 30, '', false)}<i>${done.has(i + 1) ? '✓' : i + 1}</i></span><span><b>${t}</b><small>${d}</small></span><span class="pill ${done.has(i + 1) ? 'g' : ''}">${open ? (done.has(i + 1) ? '완료' : '열림') : '🔒'}</span></summary>
     ${open ? `<ol>${body.map(x => `<li>${x}</li>`).join('')}</ol>${S.mode === 'staff' ? `<button class="btn sm ${done.has(i + 1) ? '' : 'pri'}" data-act="lesson" data-v="${i + 1}" ${done.has(i + 1) ? 'disabled' : ''}>${done.has(i + 1) ? '들었어요' : '다 읽었어요'}</button>` : ''}` : ''}</details>`).join('');
 }
+const QKEY = [0, 1, 2, 2, 0], quizList = () => S.myQuiz?.length ? S.myQuiz.map(x => [x.q, x.o]) : QUIZ, passN = n => Math.ceil(n * .8);
 function quizBlock() {
-  const last = S.quizRes; if (S.quizOn) return `<form class="card f" id="quiz-form"><h3>최종 시험 <small>4개 이상 맞히면 합격</small></h3>${QUIZ.map(([q, os], i) => `<fieldset class="qz"><legend>${i + 1}. ${q}</legend>${os.map((o, j) => `<label><input type="radio" name="q${i}" value="${j}" required> ${o}</label>`).join('')}</fieldset>`).join('')}<button class="btn pri full">제출하기</button></form>`;
-  return `<div class="card"><h3>최종 시험</h3>${last ? `<p>지난 결과 <b class="${last.passed ? 'up' : 'down'}">${last.score}/5 · ${last.passed ? '합격' : '재시험'}</b></p>` : '<p class="mut">강의 5개를 다 들으면 볼 수 있어요.</p>'}<button class="btn ${last?.passed ? '' : 'pri'} full" data-act="quiz-start" ${(S.lessons || []).length >= 5 ? '' : 'disabled'}>${last ? '다시 보기' : '시험 보기'}</button><p class="note">결과는 대표·점장에게 바로 알림으로 가요.</p></div>`;
+  const last = S.quizRes, QL = quizList(); if (S.quizOn) return `<form class="card f" id="quiz-form"><h3>최종 시험 <small>${QL.length}문제 · ${passN(QL.length)}개 이상 맞히면 합격</small></h3>${QL.map(([q, os], i) => `<fieldset class="qz"><legend>${i + 1}. ${q}</legend>${os.map((o, j) => `<label><input type="radio" name="q${i}" value="${j}" required> ${o}</label>`).join('')}</fieldset>`).join('')}<button class="btn pri full">제출하기</button></form>`;
+  return `<div class="card"><h3>최종 시험</h3>${last ? `<p>지난 결과 <b class="${last.passed ? 'up' : 'down'}">${last.score}/${last.total || 5} · ${last.passed ? '합격' : '재시험'}</b></p>` : '<p class="mut">강의 5개를 다 들으면 볼 수 있어요.</p>'}<button class="btn ${last?.passed ? '' : 'pri'} full" data-act="quiz-start" ${(S.lessons || []).length >= 5 ? '' : 'disabled'}>${last ? '다시 보기' : '시험 보기'}</button><p class="note">결과는 대표·점장에게 바로 알림으로 가요.</p></div>`;
 }
 function vLearn() {
   return `<h1>🎓 딜러 교육</h1><p class="sub">${esc(S.store?.name || '')}에서 열어준 강의예요 · ${(S.lessons || []).length}/5 완료</p>
     ${S.academy ? `<div class="card">${lessonList(true)}</div>${quizBlock()}` : '<div class="card empty">매장에서 딜러 교육을 아직 열지 않았어요.</div>'}`;
 }
+// 최종 시험: 대표·점장이 문제를 보고 우리 매장에 맞게 고칠 수 있음 (정답은 딜러에게 안 보임)
+const examItems = () => S.cquiz?.length ? S.cquiz : QUIZ.map(([q, o], i) => ({ q, o, a: QKEY[i] }));
+function examCard() {
+  const L = examItems(), mine = !!S.cquiz?.length, show = S.examOpen;
+  return `<div class="card"><div class="row between"><h3 style="margin:0">✎ 최종 시험 <small>${mine ? '우리 매장 시험' : '+EV 기본 시험'} · ${L.length}문제 · ${passN(L.length)}개 이상 합격</small></h3><button class="btn sm" data-act="exam-view">${show ? '접기' : '문제 보기'}</button></div>
+    ${show ? `<ol class="exam">${L.map(x => `<li><b>${esc(x.q)}</b><div>${x.o.map((o, j) => `<span class="${j === x.a ? 'ok' : ''}">${j === x.a ? '✓ ' : ''}${esc(o)}</span>`).join('')}</div></li>`).join('')}</ol>` : ''}
+    <div class="row" style="margin-top:10px"><button class="btn sm pri" data-act="exam-edit">✏️ 우리 매장에 맞게 고치기</button>${mine ? '<button class="btn sm" data-act="exam-reset">기본 시험으로 되돌리기</button>' : ''}</div>
+    <p class="note">하우스 룰·우리 매장 칩 단위·블라인드 구조 같은 문제를 넣어보세요. 정답은 대표·점장만 봐요.</p></div>`;
+}
+function examSheet() {
+  const L = S.examDraft || (S.examDraft = examItems().map(x => ({ ...x, o: [...x.o] })));
+  openSheet(`<h2 style="margin:0 0 10px">우리 매장 시험 만들기</h2><form class="f" id="cquiz-form">${L.map((x, i) => `<fieldset class="qedit"><legend>${i + 1}번 <button type="button" class="btn sm red" data-act="exam-del" data-v="${i}">삭제</button></legend>
+    <input name="q${i}" value="${esc(x.q)}" placeholder="문제"><div class="grid2">${[0, 1, 2, 3].map(j => `<label class="qo"><input type="radio" name="a${i}" value="${j}" ${x.a === j ? 'checked' : ''} title="정답"><input name="o${i}_${j}" value="${esc(x.o[j] || '')}" placeholder="보기 ${j + 1}"></label>`).join('')}</div></fieldset>`).join('')}
+    <button type="button" class="btn full" data-act="exam-add">+ 문제 추가</button><p class="note">동그라미를 누른 보기가 정답이에요. 80% 이상 맞히면 합격이에요.</p><button class="btn pri full">저장하기</button></form>`);
+}
+const examKeep = () => { const f = $('#cquiz-form'); if (!f) return; const fd = new FormData(f); S.examDraft = S.examDraft.map((x, i) => ({ q: fd.get('q' + i) ?? x.q, o: [0, 1, 2, 3].map(j => fd.get(`o${i}_${j}`) ?? x.o[j]), a: +(fd.get('a' + i) ?? x.a) })); };
 function vEdu() {
   const own = isOwner(), open = !!S.company?.academy_at, n = S.hires ?? 3;
   return `${storeHead('교육')}
@@ -550,7 +619,8 @@ function vEdu() {
     <div class="row" style="margin-top:12px"><span class="mut" style="font-size:13px">1년에 뽑는 신입 딜러</span><button class="btn sm" data-act="hires" data-v="-1">−</button><b class="num" style="min-width:40px;text-align:center">${n}명</b><button class="btn sm" data-act="hires" data-v="1">+</button></div>
     <div class="vs"><div><small class="mut">지금처럼 가르치면 (${n}명)</small><b class="num down">₩${E.won(n * 320000)}</b><small class="mut">1명당 선배 동행 20시간 × 13,000 + 실수 손실 약 6만</small></div><div class="x">VS</div><div class="g"><small class="mut">+EV 딜러 교육 (인원 무제한)</small><b class="num up">₩${E.won(ACADEMY_PRICE)}</b><small class="mut">${n * 320000 > ACADEMY_PRICE ? `${n}명이면 <b class="up">₩${E.won(n * 320000 - ACADEMY_PRICE)}</b> 아껴요` : '1명만 뽑아도 거의 본전이에요'}</small></div></div>
     ${open ? `<div class="pill g" style="margin-top:12px">✓ ${esc(S.company.name)} 전 매장 이용 중</div>` : own ? `<button class="btn gold" data-act="academy-buy" style="margin-top:12px">₩${E.won(ACADEMY_PRICE)} · 바로 열기</button>${payNote()}` : `<button class="btn" data-act="ask-owner" data-v="딜러 교육 구매" style="margin-top:12px">대표님께 구매 요청</button>`}</div>
-  <div class="card"><h3>딜러 교육 강의 <small>매장당 한 번 · 평생</small></h3>${lessonList(open)}<div class="lesson"><summary><span class="no">✎</span><span><b>최종 시험</b><small>홀덤 용어·룰 5문제 · 4개 이상 맞히면 합격</small></span><span class="pill">${open ? '열림' : '🔒'}</span></summary></div></div>
+  <div class="card"><h3>딜러 교육 강의 <small>매장당 한 번 · 평생</small></h3>${lessonList(open)}</div>
+  ${examCard()}
   <div class="card"><h3>우리 딜러 학습 현황</h3>${open ? (S.acBoard?.length ? `<div class="tbl"><table style="min-width:0"><thead><tr><th>딜러</th><th class="r">진도</th><th class="r">시험</th><th>결과</th></tr></thead><tbody>${S.acBoard.map(r => `<tr><td><b>${esc(r.nick)}</b></td><td class="r num">${r.done * 20}%</td><td class="r num">${r.score ?? '—'}${r.score != null ? '/5' : ''}</td><td><span class="pill ${r.passed ? 'g' : r.score != null ? 'r' : ''}">${r.passed ? '합격' : r.score != null ? '재시험' : '진행 중'}</span></td></tr>`).join('')}</tbody></table></div>` : '<p class="mut" style="margin:0">앱에 가입해 소속된 직원이 들으면 여기에 보여요.</p>') : '<p class="mut" style="margin:0">열면 딜러별 진도와 시험 점수가 여기에 보여요.</p>'}</div>
   ${own ? `<div class="card"><h3>사장님 강의 <small>매장을 키우는 운영 노하우 · 준비 중</small></h3><div class="courses">${OWNER_COURSES.map(([ic, t, d, p], i) => { const on = (S.interest || []).includes(i); return `<div class="course">${cover(ic, t, 20 + i * 55, `₩${E.won(p)} · 준비 중`)}<div class="cb"><small class="mut">${d}</small><button class="btn sm ${on ? '' : 'pri'}" data-act="interest" data-v="${i}">${on ? '✓ 알림 신청됨' : '🔔 열리면 알림'}</button></div></div>`; }).join('')}</div><p class="note">강의가 열리면 알림으로 알려드려요. 신청이 많은 강의부터 먼저 만들어요.</p></div>` : ''}`;
 }
@@ -591,7 +661,7 @@ function vSched() {
       ${S.clip ? '' : `<button class="chip add" data-act="add-d" data-d="${k}">+</button>`}</div>`;
   }
   const sc = S.selChip && !S.clip ? (() => { const p = S.members.find(x => x.id === S.selChip.m), [yy, mm, dd] = S.selChip.d.split('-').map(Number), t = p && E.shiftOn(p.id, yy, mm, dd, S.tpl, S.ov); return t ? `<div class="clipbar sel"><span>✅ <b>${esc(p.nick)} · ${mm}/${dd} ${t5(t.s)}–${t5(t.e)}</b> </span><span class="row"><button class="btn sm" data-act="edit-d" data-m="${p.id}" data-d="${S.selChip.d}">수정</button><button class="btn sm" data-act="clip" data-m="${p.id}" data-d="${S.selChip.d}">복사</button><button class="btn sm" data-act="unsel">✕</button></span></div>` : ''; })() : '';
-  const selbar = S.clip ? '' : sc || '<div class="clipbar sel idle"><span class="mut">이름을 누르면 선택돼요 · 끌어서 옮기기 · Ctrl+C / Ctrl+V</span></div>';
+  const selbar = S.clip ? '' : sc || '<div class="clipbar sel idle"><span class="mut">한 번 누르면 선택 · 두 번 누르면 수정 · 끌어서 옮기기 · Ctrl+C → 빈칸 누르고 Ctrl+V</span></div>';
   const clip = S.clip ? `<div class="clipbar"><span>📋 <b>${esc(S.clip.nick)} ${t5(S.clip.s)}–${t5(S.clip.e)}</b> 복사됨 — 붙일 날짜를 계속 누르세요 <small class="mut">(Ctrl+V도 돼요)</small></span><button class="btn sm pri" data-act="clip-end">다 했어요</button></div>` : '';
   return `${head}${clip}<div class="card"><div class="row between" style="margin-bottom:8px"><div class="row needs"><span class="mut" style="font-size:12px">적정 인원</span>${[...E.WD, '공휴일'].map((w, i) => `<label class="row" style="gap:3px;font-size:12px">${w}<input type="number" min="0" max="20" value="${need[i] ?? need[6]}" data-need="${i}" style="width:48px;padding:5px"></label>`).join('')}</div>${short ? `<span class="pill r">인원 부족 ${short}일</span>` : '<span class="pill g">모든 날 충분</span>'}</div>
     ${selbar}<div class="cal">${E.WD.map(w => `<div class="h">${w}</div>`).join('')}${'<div></div>'.repeat(lead)}${cells}</div>
@@ -644,7 +714,9 @@ function vSales() {
   ${stockCard()}
   ${dailyCal()}`;
 }
-const EMP = ['정규', '파트타임', '땜빵'], tenure = d => { if (!d) return ''; const [y, m] = d.split('-').map(Number), n = (now.getFullYear() - y) * 12 + now.getMonth() + 1 - m; return n >= 12 ? `${Math.floor(n / 12)}년 ${n % 12 ? n % 12 + '개월' : ''}` : `${Math.max(0, n)}개월`; };
+// 직원 정렬: 점장 → 정규(매니저·플로어·딜러 순) → 파트타임 → 대타
+const rankOf = p => (p.role === 'owner' ? 0 : p.role === 'manager' ? 1 : 2) * 100 + ({ 정규: 0, 파트타임: 20, 대타: 40 }[p.emp_type || '파트타임'] ?? 20) + ({ 매니저: 0, 플로어: 5, 딜러: 10 }[p.job_role] ?? 15);
+const EMP = ['정규', '파트타임', '대타'], tenure = d => { if (!d) return ''; const [y, m] = d.split('-').map(Number), n = (now.getFullYear() - y) * 12 + now.getMonth() + 1 - m; return n >= 12 ? `${Math.floor(n / 12)}년 ${n % 12 ? n % 12 + '개월' : ''}` : `${Math.max(0, n)}개월`; };
 function vStaff() {
   const all = S.members.filter(p => p.role !== 'owner'), f = S.empF || '전체', staff = f === '전체' ? all : all.filter(p => (p.emp_type || '파트타임') === f);
   const rows = all.map(p => ({ p, r: payOf(p) })), sum = k => rows.reduce((a, x) => a + x.r[k], 0), cnt = t => all.filter(p => (p.emp_type || '파트타임') === t).length;
@@ -653,9 +725,9 @@ function vStaff() {
   ${S.joins.length ? `<div class="card" style="border-color:rgba(245,158,11,.5)"><h3>소속 신청 <small>${S.joins.length}건</small></h3>${S.joins.map(j => `<div class="li"><div><b>${esc(j.name)}</b><small>경력 ${j.career_months}개월 · ${esc(j.bio || '')}</small></div><button class="btn sm pri" data-act="join-open" data-r="${j.req_id}">승인</button></div>`).join('')}</div>` : ''}
   <div class="seg sub2" style="margin-top:12px">${[['list', '👥 직원 현황'], ['pay', '💵 급여 대장']].map(([k, l]) => `<button data-act="stab" data-v="${k}" aria-pressed="${(S.staffTab || 'list') === k}">${l}</button>`).join('')}</div>
   ${(S.staffTab || 'list') === 'list' ? `
-  <div class="stats4"><div><small>전체</small><b class="num">${all.length}명</b></div><div><small>정규</small><b class="num">${cnt('정규')}</b></div><div><small>파트타임</small><b class="num">${cnt('파트타임')}</b></div><div><small>땜빵</small><b class="num">${cnt('땜빵')}</b></div></div>
+  <div class="stats4"><div><small>전체</small><b class="num">${all.length}명</b></div><div><small>정규</small><b class="num">${cnt('정규')}</b></div><div><small>파트타임</small><b class="num">${cnt('파트타임')}</b></div><div><small>대타</small><b class="num">${cnt('대타')}</b></div></div>
   <div class="row between" style="margin:10px 0"><div class="chips">${['전체', ...EMP].map(t => `<button class="fchip ${f === t ? 'on' : ''}" data-act="empf" data-v="${t}">${t}</button>`).join('')}</div><button class="btn pri sm" data-act="staff-new">+ 직원 등록</button></div>
-  ${staff.map(p => `<div class="card emp"><div class="row between"><div class="row" style="gap:6px"><b style="font-size:17px">${esc(p.nick)}</b><span class="pill">${esc(p.job_role || '-')}</span><span class="pill et ${{ 정규: 'g', 파트타임: '', 땜빵: 'y' }[p.emp_type || '파트타임']}">${esc(p.emp_type || '파트타임')}</span>${p.role === 'manager' ? '<span class="pill y">점장</span>' : ''}${p.user_id ? '<span class="pill g">앱 연결</span>' : ''}</div>
+  ${staff.map(p => `<div class="card emp"><div class="row between"><div class="row" style="gap:6px"><b style="font-size:17px">${esc(p.nick)}</b><span class="pill">${esc(p.job_role || '-')}</span><span class="pill et ${{ 정규: 'g', 파트타임: '', 대타: 'y' }[p.emp_type || '파트타임']}">${esc(p.emp_type || '파트타임')}</span>${p.role === 'manager' ? '<span class="pill y">점장</span>' : ''}${p.user_id ? '<span class="pill g">앱 연결</span>' : ''}</div>
       <span class="row">${isOwner() && p.user_id ? `<button class="btn sm" data-act="mgr" data-m="${p.id}" data-v="${p.role !== 'manager'}">${p.role === 'manager' ? '점장 해제' : '점장 권한'}</button>` : ''}${isOwner() || p.role === 'staff' ? `<button class="btn sm" data-act="staff-edit" data-m="${p.id}">수정</button>` : ''}</span></div>
     <div class="kv">${kv('실명', esc(p.real_name || ''))}${kv('연락처', p.phone ? `<a href="tel:${esc(p.phone)}">${esc(p.phone)}</a>` : '')}${kv('시급', p.hourly_rate ? `₩${E.won(p.hourly_rate)}` : '')}${kv('계약', p.contract === '4대' ? '4대보험' : '3.3% 프리랜서')}${kv('입사일', p.joined_on ? `${p.joined_on} <small class="mut">(${tenure(p.joined_on)})</small>` : '')}${kv('수당', [p.night_pay ? '야간' : '', (p.labor_law ?? p.contract === '4대') ? '연장·주휴' : ''].filter(Boolean).join(' · ') || '없음')}</div>
     <div class="acct">${p.bank_name ? `🏦 <b>${esc(p.bank_name)}</b> <span class="num">${esc(p.bank_acct || '')}</span> <small class="mut">예금주 ${esc(p.bank_holder || '-')}</small>${p.bank_acct ? `<button class="btn sm" data-act="copy" data-v="${esc(p.bank_acct)}">계좌 복사</button>` : ''}` : '<span class="mut">🏦 계좌 미등록</span>'}</div></div>`).join('') || `<div class="card empty">${all.length ? '해당하는 직원이 없어요' : '아직 직원이 없어요'}</div>`}
@@ -711,7 +783,7 @@ function vJobs() {
     <div class="fl incbox"><span>인센티브</span><div class="seg brk"><label><input type="radio" name="inc_on" value="0" checked><span>없음</span></label><label><input type="radio" name="inc_on" value="1"><span>있음</span></label></div><input name="inc" class="incin" placeholder="예: 토너먼트 1회당 1만 원, 월 개근 5만 원"></div>
     <div class="fl"><span>우대 조건 <small class="mut">(선택)</small></span><div class="days wrap">${PREFER.map(x => `<label><input type="checkbox" name="pf" value="${x}"><span>${x}</span></label>`).join('')}</div><input name="pf_etc" placeholder="직접 입력 (예: 영어 가능)"></div>
     <label class="fl">내용<textarea name="body" rows="3" placeholder="게임 종류, 복장, 분위기"></textarea></label>
-    ${urg ? '' : `<div class="grid2"><label class="fl">광고 기간<select name="days">${[3, 5, 7, 15, 30].map(d => `<option value="${d}" ${d === 7 ? 'selected' : ''}>${d}일${E.FEES.DISC[d] ? ` · ${E.FEES.DISC[d] * 100}% 할인` : ''}</option>`).join('')}</select></label></div>
+    ${urg ? '' : `<label class="fl">게시 기간<select name="days">${[3, 5, 7, 15, 30].map(d => `<option value="${d}" ${d === 7 ? 'selected' : ''}>${d}일 · ${E.won(E.postBase(d))}원${E.FEES.DISC[d] ? ` (옵션 ${E.FEES.DISC[d] * 100}% 할인)` : ''}</option>`).join('')}</select></label>
     <div class="fl"><span>노출 방식</span><div class="expo">${[['0', '기본', '올린 순서대로'], ['2', '끌올 2회', `하루 ${E.won(E.FEES.JUMP[2])}원`], ['5', '끌올 5회', `하루 ${E.won(E.FEES.JUMP[5])}원`], ['8', '끌올 8회', `하루 ${E.won(E.FEES.JUMP[8])}원`], ['top', '📌 상단 고정', `하루 ${E.won(E.FEES.TOP_DAY)}원 · 끌올 포함`]].map(([v, t, d]) => `<label><input type="radio" name="expo" value="${v}" ${v === '5' ? 'checked' : ''}><span><b>${t}</b><small>${d}</small></span></label>`).join('')}</div>
       <small class="mut">끌올은 정해진 간격마다 목록 맨 위로 올라가요. 상단 고정은 기간 내내 끌올 공고보다 항상 위에 있어요.</small></div>`}
     <label class="tog"><span><b>✨ 반짝 강조</b><small>${urg ? '3,300원' : '하루 3,300원'} · 공고 옆 표시가 깜빡여요</small></span><input type="checkbox" name="flash"></label>
@@ -727,18 +799,43 @@ function feeBox() {
   const f = $('#post-form'), box = $('#fee-box'); if (!f || !box) return; const v = postVals(f), urg = (S.postKind || 'urgent') === 'urgent';
   const L = E.feeLines(urg ? 'urgent' : 'hire', { pay: +v.pay || 0, heads: v.heads, flash: !!v.flash, top: v.top, jump: v.jump, days: +v.days || 7 }), tot = L.reduce((a, x) => a + x[1], 0);
   box.innerHTML = `<div class="receipt"><div class="rh">결제 계산서</div>${L.map(([n, a]) => `<div class="rl"><span>${esc(n)}</span><span class="num ${a <= 0 ? 'up' : ''}">${a === 0 ? '무료' : `${a < 0 ? '−' : ''}₩${E.won(Math.abs(a))}`}</span></div>`).join('')}<div class="rl tot"><b>합계</b><b class="num">₩${E.won(tot)}</b></div>
-    ${urg ? `<small class="mut">딜러 급여 ₩${E.won((+v.pay || 0) * v.heads)}는 근무 후 딜러에게 그대로 가요. 매칭 수수료는 사람을 구했을 때만 받아요.</small>` : v.jump && !v.top ? `<small class="up">알바몬 같은 끌올(하루 ${v.jump}회)은 하루 ${E.won({ 2: 27500, 5: 28600, 8: 29700 }[v.jump])}원이에요. +EV는 ${E.won(E.FEES.JUMP[v.jump])}원.</small>` : ''}</div>`;
-  const b = $('#post-btn'); if (b) b.textContent = tot ? `₩${E.won(tot)} 결제하고 공고 올리기` : '무료로 공고 올리기';
+    ${urg ? `<small class="mut">딜러 급여 ₩${E.won((+v.pay || 0) * v.heads)}는 근무 후 딜러에게 그대로 가요. 매칭 수수료는 사람을 구했을 때만 받아요.</small>` : `<small class="mut">등록비는 알바몬 즉시 등록(7일 8,800원)과 같은 수준이에요.${v.jump && !v.top ? ` 끌올은 알바몬 하루 ${E.won({ 2: 27500, 5: 28600, 8: 29700 }[v.jump])}원 → +EV ${E.won(E.FEES.JUMP[v.jump])}원.` : ''} 올린 뒤에도 관리에서 기간·노출을 늘릴 수 있어요.</small>`}</div>`;
+  const b = $('#post-btn'); if (b) b.textContent = `₩${E.won(tot)} 결제하고 공고 올리기`;
+}
+// 공고 수정 + 연장/옵션 추가 (추가 금액은 서버 post_extra_fee 와 같은 식)
+const optFee = (top, jump, flash, d) => Math.round(((top ? E.FEES.TOP_DAY : E.FEES.JUMP[jump] || 0) + (flash ? E.FEES.FLASH_DAY : 0)) * d * (1 - (d >= 30 ? .2 : d >= 15 ? .15 : d >= 7 ? .1 : 0)) / 100) * 100;
+const leftDays = p => Math.max(1, Math.ceil((new Date(p.expires_at) - Date.now()) / 864e5));
+function extraFee(p, x) { return x.days > 0 ? E.postBase(x.days) + optFee(x.top, x.jump, x.flash, x.days) : optFee(x.top && !p.top, x.jump > p.jump_per_day ? x.jump : 0, x.flash && !p.flash, leftDays(p)); }
+function postEdit(p) {
+  const hire = p.kind === 'hire';
+  return `<form class="f pedit" id="pedit-${p.id}" data-p="${p.id}"><h4 style="margin:12px 0 0">✏️ 공고 고치기</h4>
+    <label class="fl">제목<input name="title" value="${esc(p.title)}" required></label>
+    ${hire ? `<div class="grid2"><label class="fl">급여<input name="pay_text" value="${esc(p.pay_text || '')}"></label><label class="fl">근무 시간<input name="work_time" value="${esc(p.work_time || '')}"></label></div>` : ''}
+    <label class="fl">인센티브 <small class="mut">(없으면 비워두세요)</small><input name="incentive" value="${esc(p.incentive || '')}"></label>
+    <label class="fl">내용<textarea name="body" rows="2">${esc(p.body || '')}</textarea></label>
+    <button class="btn full" name="save" value="1">고친 내용 저장 (무료)</button>
+    ${hire ? `<h4 style="margin:8px 0 0">⏫ 기간 늘리기 · 노출 올리기</h4>
+    <div class="grid2"><label class="fl">기간 추가<select name="days"><option value="0">늘리지 않음</option>${[3, 5, 7, 15, 30].map(d => `<option value="${d}">+${d}일</option>`).join('')}</select></label>
+      <label class="fl">노출<select name="expo"><option value="${p.top ? 'top' : p.jump_per_day}">지금 그대로</option>${[['2', '끌올 2회'], ['5', '끌올 5회'], ['8', '끌올 8회'], ['top', '📌 상단 고정']].filter(([v]) => v === 'top' ? !p.top : !p.top && +v > p.jump_per_day).map(([v, t]) => `<option value="${v}">${t}</option>`).join('')}</select></label></div>
+    <label class="tog"><span><b>✨ 반짝 강조</b><small>하루 3,300원</small></span><input type="checkbox" name="flash" ${p.flash ? 'checked disabled' : ''}></label>
+    <div class="xfee"></div>` : ''}</form>`;
+}
+function xfeeBox(f) {
+  const p = S.posts.find(x => x.id === f.dataset.p), box = f.querySelector('.xfee'); if (!p || !box) return;
+  const v = Object.fromEntries(new FormData(f)), x = { days: +v.days || 0, top: v.expo === 'top' || p.top, jump: v.expo === 'top' ? 0 : +v.expo || 0, flash: !!v.flash || p.flash }, fee = extraFee(p, x);
+  box.innerHTML = fee > 0 ? `<div class="receipt"><div class="rl"><span>${x.days ? `+${x.days}일 등록` : `남은 ${leftDays(p)}일 동안 노출 올리기`}</span><b class="num">₩${E.won(fee)}</b></div></div><button class="btn gold full" name="extra" value="1">₩${E.won(fee)} 결제하고 적용</button>` : '<p class="note">기간이나 노출을 고르면 추가 금액이 바로 계산돼요.</p>';
 }
 async function manage(postId, kind) {
   const box = $('#mg-' + postId); if (!box) return; const apps = await q(sb.rpc('post_applicants', { p_post: postId })), slots = kind === 'urgent' ? await q(sb.rpc('post_slots', { p_post: postId })) : [];
   const btn = s => ({ MATCHED: `<button class="btn sm" data-act="slot" data-s="${s.slot_id}" data-v="start">출근 확인</button><button class="btn sm red" data-act="slot" data-s="${s.slot_id}" data-v="noshow">안 왔어요</button>`,
     WORKING: `<button class="btn sm" data-act="slot" data-s="${s.slot_id}" data-v="extra">+1시간 연장</button>`,
     DONE: `<button class="btn sm pri" data-act="slot" data-s="${s.slot_id}" data-v="ok">근무 완료 확인·지급</button><button class="btn sm red" data-act="slot" data-s="${s.slot_id}" data-v="dispute">문제 신고</button>` }[s.status] || '');
+  const P = S.posts.find(x => x.id === postId);
   box.innerHTML = `${slots.map(s => `<div class="slot"><span><b class="num">${t5(s.start_t)}–${t5(s.end_t)}</b> · ₩${E.won(s.pay)}${s.extra ? ` <span class="up">+₩${E.won(s.extra)}</span>` : ''}<br><small class="mut">${s.dealer_name ? esc(s.dealer_name) : '아직 채용 전'}</small></span><span class="row"><span class="pill ${SLOT[s.status][0]}">${SLOT[s.status][1]}</span>${btn(s)}</span></div>`).join('')}
   <div style="margin-top:8px;font-size:12px;color:var(--muted)">지원자 ${apps.length}명</div>
   ${apps.map(x => `<div class="slot"><div><b>${esc(x.name)}</b> <small class="mut">경력 ${x.career_months}개월</small><div style="font-size:13px">${esc(x.bio)}</div></div>
-    ${x.status === 'applied' ? `<button class="btn sm pri" data-act="hire" data-a="${x.app_id}" data-p="${postId}" data-k="${kind}">채용하기</button>` : x.status === 'hired' ? `<span class="row"><button class="btn sm" data-act="contact" data-a="${x.app_id}">📞 연락처</button><button class="btn sm red" data-act="cancel-hire" data-a="${x.app_id}" data-p="${postId}" data-k="${kind}">채용 취소</button></span>` : `<span class="pill">${{ rejected: '불채용', cancelled: '취소', expired: '마감' }[x.status] || x.status}</span>`}</div>`).join('') || '<p class="note">아직 지원자가 없어요. 연락처는 채용하기를 누른 뒤에만 보여요.</p>'}`;
+    ${x.status === 'applied' ? `<button class="btn sm pri" data-act="hire" data-a="${x.app_id}" data-p="${postId}" data-k="${kind}">채용하기</button>` : x.status === 'hired' ? `<span class="row"><button class="btn sm" data-act="contact" data-a="${x.app_id}">📞 연락처</button><button class="btn sm red" data-act="cancel-hire" data-a="${x.app_id}" data-p="${postId}" data-k="${kind}">채용 취소</button></span>` : `<span class="pill">${{ rejected: '불채용', cancelled: '취소', expired: '마감' }[x.status] || x.status}</span>`}</div>`).join('') || '<p class="note">아직 지원자가 없어요. 연락처는 채용하기를 누른 뒤에만 보여요.</p>'}${P ? postEdit(P) : ''}`;
+  const ef = $('#pedit-' + postId); if (ef) { enhanceInputs(ef); xfeeBox(ef); }
 }
 function vMore() {
   const sub = S.sub;
@@ -758,11 +855,12 @@ function vMore() {
   if (sub === 'qr') return `${storeHead('출퇴근 코드')}${back}<div class="card" style="text-align:center"><p class="sub">직원은 앱의 <b>출퇴근</b> 탭에서 이 번호를 넣으면 기록돼요. 30초마다 바뀌어서 사진으로 찍어 보내도 못 써요.</p>
     <div id="qr-code" class="num" style="font-size:56px;font-weight:800;letter-spacing:.18em;color:#6EE7B7">······</div><div class="mut" id="qr-left">불러오는 중</div></div>`;
   if (sub === 'settings') {
-    const c = S.company || {}, trial = c.plan === 'trial' ? Math.max(0, Math.ceil((new Date(c.trial_ends) - now) / 864e5)) : null;
+    const c = S.company || {}, pro = c.plan === 'pro', diag = c.diag_until && new Date(c.diag_until) > now;
     return `${storeHead('매장 설정')}${back}
-    <div class="card"><h3>요금제 ${trial != null ? `<small class="warn">무료 체험 D-${trial} · 끝나면 고른 요금제로 이어져요</small>` : ''}</h3><div class="plans">
-      <div class="plan ${c.plan === 'basic' ? 'cur' : ''}"><b>베이직</b><b class="num">무료</b><small>매장 관리 전부 — 매출 마감 · 스케줄 · 급여 · 출퇴근 · 구인 · 로테이션 · 발주 · 내 매장 지난달 비교</small>${c.plan === 'basic' ? '<span class="pill">지금 요금제</span>' : isOwner() ? '<button class="btn sm" data-act="plan-down">베이직으로 바꾸기</button>' : ''}</div>
-      <div class="plan ${c.plan !== 'basic' ? 'cur' : ''}"><span class="pill y">추천</span><b>프로</b><b class="num">매장당 월 ₩${E.won(PRICE.pro)}</b><small>베이직 전부 + 다른 매장과 비교 (순위 · 경고등 평균) + ✦ 매장 개선 (매달 처방 · 이번 달 꼭 할 일)</small>${c.plan === 'pro' ? '<span class="pill g">지금 요금제</span>' : isOwner() ? '<button class="btn sm gold" data-act="plan" data-v="pro">프로로 올리기</button>' : '<button class="btn sm" data-act="ask-owner" data-v="프로 요금제">대표님께 요청</button>'}</div></div>
+    <div class="card"><h3>요금제</h3><div class="plans">
+      <div class="plan ${!pro ? 'cur' : ''}"><b>베이직</b><b class="num">무료</b><small>매장 관리 전부 — 매출 마감 · 스케줄 · 급여 · 출퇴근 · 구인 · 로테이션 · 발주 · 내 매장 지난달 비교</small>${!pro ? '<span class="pill">지금 요금제</span>' : isOwner() ? '<button class="btn sm" data-act="plan-down">베이직으로 바꾸기</button>' : ''}</div>
+      <div class="plan ${pro ? 'cur' : ''}"><span class="pill y">추천</span><b>프로</b><b class="num">매장당 월 ₩${E.won(PRICE.pro)}</b><small>베이직 전부 + 다른 매장과 비교 (순위 · 경고등 평균) + ✦ 매장 개선 (매달 처방 · 이번 달 꼭 할 일)</small>${c.plan === 'pro' ? '<span class="pill g">지금 요금제</span>' : isOwner() ? '<button class="btn sm gold" data-act="plan" data-v="pro">프로로 올리기</button>' : '<button class="btn sm" data-act="ask-owner" data-v="프로 요금제">대표님께 요청</button>'}</div></div>
+      ${!pro ? `<div class="plan1"><div><b>🔍 한 번만 진단받기</b><small>주변 매장과 비교한 순위·경고등·처방을 30일 동안 열어요 ${diag ? `<b class="up">· ${new Date(c.diag_until).toLocaleDateString('ko-KR')}까지 열림</b>` : ''}</small></div>${isOwner() ? `<button class="btn sm gold" data-act="diag">₩${E.won(10000)}</button>` : ''}</div>` : ''}
       ${S.downgrade ? (rx => `<div class="card" style="border-color:var(--red);margin-top:10px"><b>베이직으로 바꾸면 이렇게 돼요</b><ul style="margin:8px 0;padding-left:18px;font-size:14px"><li>우리 매장 순위·경고등·매달 처방이 잠겨요</li>${rx && rx.rev.length + rx.cost.length ? `<li>이번 달 꼭 할 일 ${rx.rev.length + rx.cost.length}개 (다 하면 매달 +₩${man([...rx.rev, ...rx.cost].reduce((a, r) => a + r[3], 0))})를 볼 수 없어요</li>` : ''}</ul><div class="row"><button class="btn pri" data-act="plan-keep">프로 그대로 쓰기</button><button class="btn" data-act="plan" data-v="basic">그래도 베이직으로</button></div><p class="note">기록은 그대로 남아서 다시 프로로 오면 이어져요.</p></div>`)(S.bench?.ready && !S.bench.locked ? rxOf(S.bench) : null) : ''}
       <p class="note">프로는 카드로 30일씩 결제해요 (매장 ${S.stores.length}곳 × ₩${E.won(PRICE.pro)}). ${c.paid_until ? `${new Date(c.paid_until).toLocaleDateString('ko-KR')}까지 결제돼 있어요. ` : ''}</p>${payNote()}</div>
     <form class="f card" id="store-form"><h3>매장 정보</h3><label class="fl">매장 이름<input name="name" value="${esc(S.store.name)}" ${isOwner() ? '' : 'disabled'}></label><label class="fl">지역<input name="area" value="${esc(S.store.area || '')}" ${isOwner() ? '' : 'disabled'}></label><label class="fl">주소 <small class="mut">구인 공고에 지도로 나가요</small><input name="address" value="${esc(S.store.address || '')}" placeholder="예: 서울 강남구 테헤란로 8길 21, 3층" ${isOwner() ? '' : 'disabled'}></label>
@@ -770,8 +868,8 @@ function vMore() {
       <div class="grid2"><label class="fl">야간 시작<input type="time" name="ns" value="${t5(S.store.night_start)}" ${isOwner() ? '' : 'disabled'}></label><label class="fl">야간 끝<input type="time" name="ne" value="${t5(S.store.night_end)}" ${isOwner() ? '' : 'disabled'}></label></div>
       ${isOwner() ? '<button class="btn pri full">저장</button>' : '<p class="note">매장 정보는 대표님만 바꿀 수 있어요.</p>'}</form>
     ${isOwner() ? `<form class="f card" id="addstore-form"><h3>매장 추가</h3><div class="grid2"><label class="fl">매장 이름<input name="name" required placeholder="예: 홍대 2호점"></label><label class="fl">지역<input name="area"></label></div>
-      ${c.plan === 'basic' ? '<div class="promo"><span>베이직은 매장을 <b>무료</b>로 추가해요.</span></div><button class="btn pri full">무료로 매장 추가</button>' : `<div class="promo"><span>프로 요금제예요. 새 매장도 <b>월 ₩${E.won(PRICE.pro)}</b>이 바로 결제되고 프로로 시작해요.</span></div><button class="btn gold full">₩${E.won(PRICE.pro)} 결제하고 매장 추가</button>${payNote()}`}</form>
-    <div class="card"><h3>사업자 정보</h3><div class="li"><span>사업자등록번호</span><span class="num">${esc((c.biz_no || '').replace(/(\d{3})(\d{2})(\d{5})/, '$1-$2-$3'))}</span></div><div class="li"><span>확인 상태</span><span class="pill ${c.biz_verified ? 'g' : 'y'}">${c.biz_verified ? '확인 완료' : '운영사 확인 중'}</span></div></div>` : ''}`;
+      ${!pro ? '<div class="promo"><span>베이직은 매장을 <b>무료</b>로 추가해요.</span></div><button class="btn pri full">무료로 매장 추가</button>' : `<div class="promo"><span>프로 요금제예요. 새 매장도 <b>월 ₩${E.won(PRICE.pro)}</b>이 바로 결제되고 프로로 시작해요.</span></div><button class="btn gold full">₩${E.won(PRICE.pro)} 결제하고 매장 추가</button>${payNote()}`}</form>
+    <div class="card"><h3>사업자 정보</h3><div class="li"><span>사업자등록번호</span><span class="num">${esc((c.biz_no || '').replace(/(\d{3})(\d{2})(\d{5})/, '$1-$2-$3'))}</span></div><div class="li"><span>확인 상태</span><span class="pill ${c.biz_verified ? 'g' : 'y'}">${c.biz_verified ? '✓ 국세청 형식 확인' : '번호가 맞지 않아요 · 문의로 알려주세요'}</span></div></div>` : ''}`;
   }
   if (sub === 'inq') return `${storeHead('운영사 문의')}${back}${inqBlock()}`;
   if (sub === 'rot') return S.rot ? vRot() : `${storeHead('테이블 로테이션')}<div class="boot">불러오는 중…</div>`;
@@ -840,14 +938,19 @@ function transferBlock() {
       <b class="lh">${esc(l.headline)}</b><small class="mut">${esc(l.area)} · ${l.pyeong || '-'}평 · 테이블 ${l.tables || '-'}대</small>
       <div class="ps3"><div><small>권리금</small><b class="num">₩${man(l.premium)}</b></div><div><small>월 순이익</small><b class="num up">₩${man(l.monthly_profit || 0)}</b></div><div><small>회수</small><b class="num">${payback(l) ? payback(l) + '개월' : '-'}</b></div></div></button>`).join('') || '<div class="card empty">지금 나온 매물이 없어요</div>'}
     <p class="note">✅ 매출 검증은 +EV 매일 마감 데이터로 확인된 숫자예요. 상호와 정확한 위치는 상담 후에만 알려드려요.</p>`;
-  if (tab === 'fee') return `${head}<div class="card fee-hero"><small>+EV 점포 양도양수</small><h2>등록은 <span class="up">0원</span>,<br>팔렸을 때만 내세요</h2><p class="mut">매출 검증 배지로 제값 받고, 상호는 끝까지 비공개예요.</p></div>
+  if (tab === 'fee') { const P = S.feeP || 1e8, fee = P * .1, AD = 1490000, M0 = monthSummary(S.y, S.m), mp = Math.max(0, M0.left);
+    return `${head}<div class="card fee-hero"><small>+EV 점포 양도양수</small><h2>사장님, 그동안<br>정말 고생 많으셨습니다</h2><p>버텨 온 시간과 쌓아 온 매출, 그 값을 <b>끝까지 제대로</b> 받아 드릴게요.</p></div>
+    <div class="card quote"><p>“무릎에 사서 어깨에 판다.”</p><small>가게도 같아요. 매출이 꺾인 뒤엔 권리금도 같이 꺾여요. <b>잘될 때 파는 것</b>이 가장 비싸게 파는 전략이에요.${mp ? ` 지금 우리 매장 순이익이면 권리금 <b class="up">₩${man(mp * 10)}~${man(mp * 12)}</b> 선이에요.` : ''}</small></div>
     <div class="fees">
-      <div class="fee"><small>기본 등록</small><b class="num">0<span>원</span></b><ul><li>90일 게시</li><li>✅ +EV 매출 검증 배지</li><li>상호·위치 비공개</li><li>관심 매수자 상담 연결</li></ul></div>
-      <div class="fee best"><span class="pill y">빨리 팔고 싶다면</span><small>프리미엄 노출</small><b class="num">99,000<span>원/월</span></b><ul><li>매물 목록 맨 위 📌</li><li>관심 매수자에게 먼저 알림</li><li>기본 등록 혜택 전부</li></ul><small class="mut">하루 약 3,300원</small></div>
-      <div class="fee"><small>성사 수수료</small><b class="num">5<span>%</span></b><ul><li>권리금 기준, <b>거래가 됐을 때만</b></li><li>안 팔리면 0원</li><li>계약서 검토 도움</li></ul></div></div>
-    <div class="card"><h3>다른 곳과 비교하면</h3><div class="li"><span class="mut">점포 거래 사이트 매물 광고 (최상단 3개월)</span><b class="num">₩3,300,000</b></div><div class="li"><span class="mut">+EV 프리미엄 3개월</span><b class="num up">₩297,000</b></div>
-      <p class="note">점포라인 광고 안내 기준이에요. +EV는 홀덤펍만 모아서, 홀덤펍을 찾는 사람에게만 보여줘요.</p></div>
-    <button class="btn gold full" data-act="trtab" data-v="sell">무료로 매장 내놓기 상담 →</button>`;
+      <div class="fee"><small>기본 등록</small><b class="num">0<span>원</span></b><ul><li>90일 게시</li><li>✅ +EV 매출 검증 배지</li><li>상호·위치 끝까지 비공개</li><li>관심 매수자 상담 연결</li></ul></div>
+      <div class="fee best"><span class="pill y">30일 집중 매칭</span><small>빠르게 팔기</small><b class="num">149<span>만 원</span></b><ul><li>3개월 매물 맨 위 📌 고정</li><li>홀덤펍 창업 희망자에게 먼저 연락</li><li>전담 매니저 + 매출 리포트 제작</li><li><b class="up">팔리면 수수료에서 전액 빼 드려요</b></li></ul><small class="mut">점포 거래 사이트 최상단 3개월 330만 원의 절반 이하</small></div>
+      <div class="fee"><small>성사 수수료</small><b class="num">10<span>%</span></b><ul><li>권리금 기준, <b>거래가 됐을 때만</b></li><li>안 팔리면 0원</li><li>권리 계약서 검토·잔금까지 동행</li></ul></div></div>
+    <div class="card"><h3>권리금으로 계산해 보기</h3><div class="chips">${[5e7, 1e8, 2e8, 3e8].map(v => `<button class="fchip ${P === v ? 'on' : ''}" data-act="feep" data-v="${v}">${man(v)}</button>`).join('')}</div>
+      <div class="li"><span>권리금</span><b class="num">₩${E.won(P)}</b></div><div class="li"><span>성사 수수료 10%</span><b class="num">₩${E.won(fee)}</b></div>
+      <div class="li"><span>30일 집중 매칭을 썼다면</span><b class="num up">광고비 ₩${E.won(AD)} 차감 → ₩${E.won(fee - AD)}</b></div>
+      <div class="li tot"><span><b>사장님 손에 남는 돈</b></span><b class="num up" style="font-size:20px">₩${man(P - fee)}</b></div>
+      <p class="note">권리금 중개 수수료는 보통 10~20%예요. +EV는 10% 하나로, 매출 검증으로 권리금을 제값 받게 도와드려요.</p></div>
+    <button class="btn gold full" data-act="trtab" data-v="sell">무료로 매장 내놓기 상담 →</button>`; }
   const a = S.sellA || [], M = monthSummary(S.y, S.m), mp = Math.max(0, M.left);
   return `${head}<div class="card chat"><h3>💬 매장 내놓기 상담 <small>상호는 끝까지 비공개</small></h3>
     ${a.map((x, i) => `<div class="bub a">${SELL_Q[i]}</div><div class="bub me">${esc(x)}</div>`).join('')}
@@ -934,10 +1037,10 @@ function vHqDash() {
   return `<h1>운영사</h1><p class="sub">${S.y}년 ${S.m}월</p><div class="grid2"><div class="card kpi"><div class="l">입점 매장</div><div class="v num">${st.length}곳</div></div><div class="card kpi"><div class="l">사업자 확인 대기</div><div class="v num warn">${(S.companies || []).filter(c => !c.biz_verified).length}곳</div></div>
   <div class="card kpi"><div class="l">이번 달 매장 매출 합계</div><div class="v num">₩${man(sales)}</div></div><div class="card kpi"><div class="l">답변 대기 문의</div><div class="v num ${open ? 'down' : ''}">${open}건</div></div></div>
   <div class="card"><h3>요금제 현황</h3>${['trial', 'basic', 'pro'].map(k => `<div class="li"><span>${{ trial: '무료 체험', basic: '베이직', pro: '프로' }[k]}</span><b class="num">${(S.companies || []).filter(c => c.plan === k).length}곳</b></div>`).join('')}<p class="note">예상 월 구독 매출 ₩${E.won((S.companies || []).reduce((a, c) => a + (PRICE[c.plan] || 0), 0))}</p></div>
-  <div class="card"><h3>발주 요청 <small>${(S.hqOrders || []).filter(o => o.status !== '도착').length}건 진행 중</small></h3>${(S.hqOrders || []).map(o => { const st = (S.stats || []).find(x => x.store_id === o.store_id); return `<div class="li"><div><b>${esc(st?.store || '매장')}</b> <small>${o.items.map(i => `${esc(item(i.id)?.n)}×${i.q}${i.alc ? '(주류)' : ''}`).join(', ')} · ₩${E.won(o.total)} · ${o.tax_invoice ? '세금계산서' : '계산서 없음'} · ${fmtDT(o.created_at)}</small></div><span class="row">${['접수', '준비 중', '배송 중', '도착'].map(s => `<button class="btn sm ${o.status === s ? 'pri' : ''}" data-act="ostat" data-o="${o.id}" data-v="${s}">${s}</button>`).join('')}</span></div>`; }).join('') || '<div class="empty">발주 요청이 없어요</div>'}</div>
+  <div class="card"><h3>발주 요청 <small>${(S.hqOrders || []).filter(o => o.status !== '도착').length}건 진행 중</small></h3>${(S.hqOrders || []).map(o => { const st = (S.stats || []).find(x => x.store_id === o.store_id); return `<div class="li"><div><b>${esc(st?.store || '매장')}</b> <small>${o.items.map(i => `${esc(item(i.id)?.n)}×${i.q}${i.alc ? '(주류)' : ''}`).join(', ')} · ₩${E.won(o.total)} · ${o.tax_invoice ? '세금계산서' : '계산서 없음'} · ${fmtDT(o.created_at)}</small></div><span class="row">${OSTEP.map(s => `<button class="btn sm ${o.status === s ? 'pri' : ''}" data-act="ostat" data-o="${o.id}" data-v="${s}">${s}</button>`).join('')}</span></div>${o.status !== '도착' ? `<form class="row oship" data-o="${o.id}" style="margin:-4px 0 10px;gap:6px"><input name="courier" placeholder="택배사" value="${esc(o.courier || '')}" style="width:90px"><input name="tracking" placeholder="송장번호" value="${esc(o.tracking || '')}" style="flex:1"><input type="date" name="eta" value="${o.eta || ''}" style="width:auto"><button class="btn sm pri">배송 정보 저장</button></form>` : ''}`; }).join('') || '<div class="empty">발주 요청이 없어요</div>'}</div>
   <div class="card"><h3>출금 요청 <small>${(S.hqWds || []).filter(x => x.status !== '송금 완료').length}건 대기</small></h3>${(S.hqWds || []).map(x => `<div class="li"><div><b>₩${E.won(x.amount)}</b> ${x.instant ? '<span class="pill y">⚡ 번개</span>' : ''}<small>${esc((S.hqProfiles || []).find(p => p.id === x.user_id)?.name || '')} · ${esc(x.bank || '')} · ${fmtDT(x.created_at)}</small></div>${x.status === '송금 완료' ? '<span class="pill g">송금 완료</span>' : `<button class="btn sm pri" data-act="wd-done" data-v="${x.id}">송금했어요</button>`}</div>`).join('') || '<div class="empty">출금 요청이 없어요</div>'}<p class="note">번개 출금은 10분 안에 보내주세요. 은행 이체 후 '송금했어요'를 누르면 딜러에게 알림이 가요.</p></div>
-  <div class="card"><h3>결제 ${PAY_TEST ? '<span class="pill y">테스트 모드</span>' : ''} <small>이번 달 ₩${E.won((S.hqPays || []).filter(x => x.status === 'done' && x.approved_at?.slice(0, 7) === TODAY.slice(0, 7)).reduce((a, x) => a + x.amount - x.refunded, 0))}</small></h3>
-    ${(S.hqPays || []).filter(x => x.status === 'done').slice(0, 30).map(x => { const due = x.refund_due - x.refunded; return `<div class="li"><div><b>${esc(x.order_name)}</b><small>${fmtDT(x.approved_at)} · ₩${E.won(x.amount)}${x.refunded ? ` · 환불 ₩${E.won(x.refunded)}` : ''}</small></div>${due > 0 ? `<button class="btn sm gold" data-act="refund" data-o="${x.order_id}">₩${E.won(due)} 환불</button>` : ''}</div>`; }).join('') || '<div class="empty">아직 결제가 없어요</div>'}
+  <div class="card"><h3>결제 ${PAY_TEST ? '<span class="pill y">테스트 모드</span>' : ''} <small>이번 달 ₩${E.won((S.hqPays || []).filter(x => x.status === 'done' && x.approved_at?.slice(0, 7) === TODAY.slice(0, 7)).reduce((a, x) => a + x.amount - x.refunded, 0))}</small> <button class="btn sm" data-act="tax-csv">🧾 계산서 발행 목록</button></h3>
+    ${(S.hqPays || []).filter(x => x.status === 'done').slice(0, 30).map(x => { const due = x.refund_due - x.refunded; return `<div class="li"><div><b>${esc(x.order_name)}</b>${x.tax_invoice ? ' <span class="pill y">🧾 계산서</span>' : ''}<small>${fmtDT(x.approved_at)} · ₩${E.won(x.amount)}${x.refunded ? ` · 환불 ₩${E.won(x.refunded)}` : ''}</small></div>${due > 0 ? `<button class="btn sm gold" data-act="refund" data-o="${x.order_id}">₩${E.won(due)} 환불</button>` : ''}</div>`; }).join('') || '<div class="empty">아직 결제가 없어요</div>'}
     <p class="note">긴급 구인이 마감됐는데 못 구한 자리가 있으면 '환불' 버튼이 생겨요. 누르면 그 금액만 카드로 돌려줘요.</p></div>`;
 }
 function vHqGoods() {
@@ -972,11 +1075,13 @@ function vHqInq() {
 // ===== 시트 =====
 function openSheet(html) { const s = $('#sheet'); s.innerHTML = `<div class="in">${html}</div>`; s.hidden = false; enhanceInputs(s); }
 // 금액: 쉼표 + "13만 5,900원" 읽기 / 휴대폰: 010-0000-0000 / 사업자번호: 000-00-00000 (10자리)
-const MONEY = /^(sales|card|transfer|expense|start|pay|taxi|pamt|price|amount|goal|rent|mgmt|elec|water|net|rate)$/;
+const MONEY = /^(start_cash|net_fee|cctv_fee|pos_fee|rent_etc|sales|card|transfer|expense|start|pay|taxi|pamt|price|amount|goal|rent|mgmt|elec|water|net|rate)$/;
 const digits = v => String(v ?? '').replace(/[^\d]/g, '');
 const fmtMoney = v => { const d = digits(v); return d ? (+d).toLocaleString('ko-KR') : ''; };
 const readWon = n => { if (!n) return ''; const e = Math.floor(n / 1e8), m = Math.floor(n % 1e8 / 1e4), r = n % 1e4; return [e ? `${e}억` : '', m ? `${m.toLocaleString('ko-KR')}만` : '', r ? r.toLocaleString('ko-KR') : ''].filter(Boolean).join(' ') + '원'; };
 const fmtPhone = v => { let d = digits(v); if (d && !d.startsWith('0')) d = '010' + d; d = d.slice(0, 11); return d.length < 4 ? d : d.length < 8 ? `${d.slice(0, 3)}-${d.slice(3)}` : `${d.slice(0, 3)}-${d.slice(3, d.length - 4)}-${d.slice(-4)}`; };
+// 국세청 사업자등록번호 검증식 (DB biz_ok 와 같은 계산)
+const bizOk = v => { const d = digits(v); if (d.length !== 10) return false; const w = [1, 3, 7, 1, 3, 7, 1, 3, 5]; let t = w.reduce((a, x, i) => a + x * +d[i], 0) + Math.floor(+d[8] * 5 / 10); return (10 - t % 10) % 10 === +d[9]; };
 const fmtBiz = v => { const d = digits(v).slice(0, 10); return d.length < 4 ? d : d.length < 6 ? `${d.slice(0, 3)}-${d.slice(3)}` : `${d.slice(0, 3)}-${d.slice(3, 5)}-${d.slice(5)}`; };
 function enhanceInputs(root) {
   root.querySelectorAll('input').forEach(i => {
@@ -995,16 +1100,21 @@ $('#sheet').addEventListener('click', e => { if (e.target.id === 'sheet') closeS
 
 // ===== 스케줄 복사·붙여넣기 =====
 function clipFrom(m, k) { const [y, mo, dd] = k.split('-').map(Number), t = E.shiftOn(m, y, mo, dd, S.tpl, S.ov); if (!t) return; S.clip = { m, from: k, s: t.s, e: t.e, brk: t.brk ?? 30, nick: S.members.find(x => x.id === m)?.nick || '' }; S.schedView = 'month'; render(); toast(`${S.clip.nick} 근무를 복사했어요. 붙일 날짜를 누르세요`); }
+// 엑셀처럼 바로 반영: 화면 먼저 바꾸고 저장은 뒤에서 (실패하면 다시 불러옴)
+function putOv(rows) {
+  rows.forEach(r => { const i = S.ov.findIndex(o => o.member_id === r.member_id && o.work_date === r.work_date); if (i >= 0) S.ov[i] = { ...S.ov[i], ...r }; else S.ov.push(r); });
+  render(); sb.from('shift_overrides').upsert(rows).then(({ error }) => { if (error) { toast('저장하지 못했어요. 다시 불러올게요'); reload(); } });
+}
 function moveShift(m, from, to, copy) { if (from === to) return; const [y, mo, dd] = from.split('-').map(Number), t = E.shiftOn(m, y, mo, dd, S.tpl, S.ov); if (!t) return;
-  busy(async () => { await q(sb.from('shift_overrides').upsert({ member_id: m, work_date: to, off: false, start_t: t.s, end_t: t.e, break_min: t.brk ?? 30 }));
-    if (!copy) await q(sb.from('shift_overrides').upsert({ member_id: m, work_date: from, off: true, start_t: null, end_t: null, break_min: null }));
-    S.selChip = { m, d: to }; await reload(); toast(`${+to.slice(8)}일로 ${copy ? '복사' : '옮겼'}했어요`.replace('옮겼했어요', '옮겼어요')); }); }
+  S.selChip = { m, d: to }; S.selCell = null;
+  putOv([{ member_id: m, work_date: to, off: false, start_t: t.s, end_t: t.e, break_min: t.brk ?? 30 }, ...(copy ? [] : [{ member_id: m, work_date: from, off: true, start_t: null, end_t: null, break_min: null }])]);
+  toast(`${+to.slice(8)}일로 ${copy ? '복사했어요' : '옮겼어요'}`); }
 document.addEventListener('dragstart', e => { const c = e.target.closest?.('[data-act=chip]'); if (c) { S.dragChip = { m: c.dataset.m, d: c.dataset.d }; e.dataTransfer.effectAllowed = 'copyMove'; } });
 document.addEventListener('dragover', e => { if (S.dragChip && e.target.closest?.('.cell[data-d]')) { e.preventDefault(); e.dataTransfer.dropEffect = e.ctrlKey || e.altKey ? 'copy' : 'move'; } });
 document.addEventListener('drop', e => { const cell = e.target.closest?.('.cell[data-d]'); if (cell && S.dragChip) { e.preventDefault(); const c = S.dragChip; S.dragChip = null; moveShift(c.m, c.d, cell.dataset.d, e.ctrlKey || e.altKey); } });
 document.addEventListener('dragend', () => { S.dragChip = null; });
 document.addEventListener('dblclick', e => { const c = e.target.closest?.('[data-act=chip]'); if (c) { S.edit = { memberId: c.dataset.m, date: c.dataset.d }; shiftSheet(S.edit); } });
-function pasteTo(k) { const c = S.clip; if (!c || k === c.from) return; S.selCell = k; busy(async () => { await q(sb.from('shift_overrides').upsert({ member_id: c.m, work_date: k, off: false, start_t: c.s, end_t: c.e, break_min: c.brk })); await reload(); toast(`${+k.slice(8)}일에 붙였어요`); }); }
+function pasteTo(k) { const c = S.clip; if (!c || k === c.from) return; S.selCell = k; S.selChip = { m: c.m, d: k }; putOv([{ member_id: c.m, work_date: k, off: false, start_t: c.s, end_t: c.e, break_min: c.brk }]); toast(`${+k.slice(8)}일에 붙였어요`); }
 document.addEventListener('mouseover', e => { const el = e.target.closest('[data-d]'); S.hover = el ? { m: el.dataset.m, d: el.dataset.d } : null; });
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape' && !$('#sheet').hidden) return closeSheet();
@@ -1037,7 +1147,7 @@ document.addEventListener('click', e => {
   if (a === 'clip') { clipFrom(d.m, d.d); closeSheet(); }
   if (a === 'clip-end') { S.clip = null; render(); }
   if (a === 'paste') { if (e.target.closest('.dn')) return; pasteTo(d.d); }
-  if (a === 'chip') { if (S.clip) return pasteTo(d.d); const same = S.selChip?.m === d.m && S.selChip.d === d.d; if (same) { S.edit = { memberId: d.m, date: d.d }; return shiftSheet(S.edit); } S.selChip = { m: d.m, d: d.d }; S.selCell = null; render(); return; }
+  if (a === 'chip') { if (S.clip) return pasteTo(d.d); if (S.selChip?.m === d.m && S.selChip.d === d.d) return; S.selChip = { m: d.m, d: d.d }; S.selCell = d.d; render(); return; }
   if (a === 'cellsel') { if (e.target.closest('.dn, .chip')) return; S.selCell = d.d; S.selChip = null; render(); return; }
   if (a === 'unsel') { S.selChip = S.selCell = null; render(); return; }
   if (a === 'edit-d') { if (S.clip) return pasteTo(d.d); S.edit = { memberId: d.m, date: d.d }; shiftSheet(S.edit); }
@@ -1091,10 +1201,10 @@ document.addEventListener('click', e => {
   if (a === 'lay-edit') { S.editLayout = true; S.selItem = null; render(); }
   if (a === 'item') { S.selItem = S.selItem === d.v ? null : d.v; render(); }
   if (a === 'cell' && S.selItem) { const [x, y] = d.v.split(',').map(Number), it = S.layout.find(i => i.id === S.selItem); if (it.x !== undefined && S.layout.every(o => o === it || o.y !== y || o.x + o.w <= x || x + it.w <= o.x) && x + it.w <= 8) { it.x = x; it.y = y; S.selItem = null; } else toast('들어갈 자리가 없어요'); render(); }
-  if (a === 'lay-add') { const ids = S.layout.filter(i => !i.counter).map(i => +i.id.slice(1)), id = 'T' + ((ids.length ? Math.max(...ids) : 0) + 1), rows = Math.max(...S.layout.map(i => i.y)) + 2; let spot = null;
-    for (let y = 0; y < rows && !spot; y++) for (let x = 0; x <= 6 && !spot; x += 1) if (S.layout.every(o => o.y !== y || o.x + o.w <= x || x + 2 <= o.x)) spot = { x, y };
-    S.layout.push({ id, w: 2, ...spot }); render(); }
-  if (a === 'lay-del') { if (!S.selItem || S.selItem === 'C') return toast('지울 테이블을 먼저 누르세요'); const R = rotState(); if (R.t[S.selItem]) rotMove(R.t[S.selItem].m, 'BREAK'); S.layout = S.layout.filter(i => i.id !== S.selItem); S.selItem = null; render(); }
+  if (a === 'lay-add') { const fx = d.v, w = fx && fx !== 'bar' ? 1 : 2, ids = S.layout.filter(i => /^T\d+$/.test(i.id)).map(i => +i.id.slice(1)), id = fx ? fx.toUpperCase() + Date.now().toString(36).slice(-4) : 'T' + ((ids.length ? Math.max(...ids) : 0) + 1), rows = Math.max(...S.layout.map(i => i.y)) + 2; let spot = null;
+    for (let y = 0; y < rows && !spot; y++) for (let x = 0; x <= 8 - w && !spot; x += 1) if (S.layout.every(o => o.y !== y || o.x + o.w <= x || x + w <= o.x)) spot = { x, y };
+    S.layout.push({ id, w, ...(fx ? { fx } : {}), ...spot }); S.selItem = id; render(); }
+  if (a === 'lay-del') { if (!S.selItem || S.selItem === 'C') return toast('지울 칸을 먼저 누르세요'); const R = rotState(); if (R.t[S.selItem]) rotMove(R.t[S.selItem].m, 'BREAK'); S.layout = S.layout.filter(i => i.id !== S.selItem); S.selItem = null; render(); }
   if (a === 'lay-save') busy(async () => { await q(sb.rpc('set_layout', { p_store: S.store.id, p_layout: S.layout })); S.store.layout = S.layout; S.editLayout = false; S.selItem = null; await saveRot(); render(); toast('배치를 저장했어요'); });
   if (a === 'stk') busy(async () => { const id = +d.i, row = S.stock.find(s => s.item_id === id) || { store_id: S.store.id, item_id: id, qty: 0, min: 2, use_per_day: .3 }, k = d.f;
     row[k] = Math.max(0, Math.round(+row[k] || 0) + +d.d); await q(sb.from('stock').upsert({ store_id: S.store.id, item_id: id, qty: Math.round(row.qty), min: Math.round(row.min), use_per_day: row.use_per_day ?? .3 })); if (!S.stock.includes(row)) S.stock.push(row); render(); });
@@ -1107,7 +1217,7 @@ document.addEventListener('click', e => {
   if (a === 'open-edit') { S.open = null; render(); }
   if (a === 'prod') { const p = item(d.v); openSheet(`<div class="udetail">${p.img ? `<img src="${esc(p.img)}" alt="">` : `<div class="ph big">${SHOP_ICON[p.c] || '📦'}<small>사진 준비 중</small></div>`}</div><small class="mut">${SHOP_CAT[p.c]} · ${esc(p.u)}</small><h2 style="margin:4px 0">${esc(p.n)}</h2><div><s class="mut num">₩${E.won(p.p)}</s> <b class="num up" style="font-size:22px">₩${E.won(p.sp)}</b> <span class="pill g">${Math.round((1 - p.sp / p.p) * 100)}% 할인</span></div>${p.body ? `<p>${esc(p.body)}</p>` : ''}<button class="btn pri full" data-act="cart" data-v="${p.id}">주문서에 담기${S.cart[p.id] ? ` (지금 ${S.cart[p.id]}개)` : ''}</button>`); }
   if (a === 'order') busy(async () => { const items = Object.entries(S.cart).map(([id, n]) => ({ id: +id, q: n, price: item(id).sp, alc: item(id).c === 'alc' })), total = items.filter(i => !i.alc).reduce((x, i) => x + i.price * i.q, 0);
-    await q(sb.from('orders').insert({ store_id: S.store.id, items, total, tax_invoice: $('#tax-inv')?.checked !== false })); S.cart = {}; await reload(); toast('주문을 요청했어요. 운영사가 확인하고 알려드려요'); });
+    await q(sb.from('orders').insert({ store_id: S.store.id, items, total, tax_invoice: $('#tax-inv')?.checked !== false })); S.cart = {}; await reload(); toast('주문했어요. 도착 예정일은 아래 주문 기록에서 볼 수 있어요'); });
   if (a === 'ostat') busy(async () => { await q(sb.from('orders').update({ status: d.v }).eq('id', d.o)); await reload(); toast(`${d.v}(으)로 바꿨어요`); });
   if (a === 'plan-down') { S.downgrade = true; render(); }
   if (a === 'plan-keep') { S.downgrade = false; render(); toast('프로를 계속 써요'); }
@@ -1116,6 +1226,15 @@ document.addEventListener('click', e => {
   if (a === 'tickets') busy(() => pay('tickets', { pack: +d.v }));
   if (a === 'pro') busy(() => pay('pro'));
   if (a === 'wd-done') busy(async () => { await q(sb.from('withdrawals').update({ status: '송금 완료' }).eq('id', d.v)); await reload(); toast('송금 완료로 바꿨어요'); });
+  if (a === 'pay-go') busy(async () => { const o = S.payOrder; if (!o) return; closeSheet(); await payGo(o, d.v); });
+  if (a === 'tax-csv') { const C = Object.fromEntries((S.companies || []).map(c => [c.id, c])); download('세금계산서_발행대상.csv', [['결제일', '상호', '사업자번호', '품목', '공급가액', '부가세', '합계'], ...(S.hqPays || []).filter(x => x.status === 'done' && x.tax_invoice).map(x => [x.approved_at?.slice(0, 10), C[x.company_id]?.name || '', C[x.company_id]?.biz_no || '', x.order_name, Math.round(x.amount / 1.1), x.amount - Math.round(x.amount / 1.1), x.amount])]); return; }
+  if (a === 'exam-view') { S.examOpen = !S.examOpen; render(); return; }
+  if (a === 'exam-edit') { S.examDraft = null; examSheet(); return; }
+  if (a === 'exam-add') { examKeep(); S.examDraft.push({ q: '', o: ['', '', '', ''], a: 0 }); examSheet(); return; }
+  if (a === 'exam-del') { examKeep(); S.examDraft.splice(+d.v, 1); examSheet(); return; }
+  if (a === 'exam-reset') busy(async () => { await q(sb.from('company_quiz').delete().eq('company_id', S.company.id)); S.cquiz = null; render(); toast('+EV 기본 시험으로 되돌렸어요'); });
+  if (a === 'feep') { S.feeP = +d.v; render(); return; }
+  if (a === 'diag') busy(() => pay('diag'));
   if (a === 'paypost') busy(() => pay('post', { post: d.p }));
   if (a === 'refund') busy(async () => { const { data, error } = await sb.functions.invoke('pay-refund', { body: { orderId: d.o } }); if (error || !data?.ok) return toast(data?.message || '환불에 실패했어요'); await reload(); toast(`₩${E.won(data.refunded)} 환불했어요`); });
   if (a === 'hires') { S.hires = Math.max(1, (S.hires ?? 3) + +d.v); render(); }
@@ -1142,7 +1261,7 @@ function download(name, rows) {
   const blob = new Blob(['﻿' + rows.map(r => r.map(v => `"${String(v ?? '').replace(/"/g, '""')}"`).join(',')).join('\r\n')], { type: 'text/csv' });
   const l = document.createElement('a'); l.href = URL.createObjectURL(blob); l.download = name; l.click();
 }
-document.addEventListener('input', e => { if (e.target.closest('#post-form')) feeBox(); if (e.target.closest('#report-form')) closeCalc(); });
+document.addEventListener('input', e => { const pe = e.target.closest('.pedit'); if (pe) xfeeBox(pe); if (e.target.closest('#post-form')) feeBox(); if (e.target.closest('#report-form')) closeCalc(); });
 document.addEventListener('change', e => {
   const t = e.target, d = t.dataset;
   if (t.name === 'photo' && t.files?.[0]) { const pv = $('#photo-prev'); if (pv) pv.innerHTML = `<img src="${URL.createObjectURL(t.files[0])}" alt=""><small>다시 누르면 바꿔요</small>`; }
@@ -1161,7 +1280,7 @@ document.addEventListener('submit', e => {
       if (S.authMode === 'signup') { const { data, error } = await sb.auth.signUp({ email: v.email, password: v.pw, options: { data: { name: v.name }, emailRedirectTo: location.origin + location.pathname } }); if (error) return toast(error.message.includes('registered') ? '이미 가입된 이메일이에요. 로그인해 주세요' : error.message); if (!data.session) toast('확인 메일을 보냈어요. 메일의 버튼을 눌러주세요'); }
       else { const { error } = await sb.auth.signInWithPassword({ email: v.email, password: v.pw }); if (error) toast(error.message.includes('Invalid') ? '이메일이나 비밀번호가 달라요' : error.message); }
     }
-    if (id === 'owner-form') { await q(sb.rpc('create_company', { p_name: v.name, p_brand: v.brand || null, p_biz_no: v.biz, p_store: v.store, p_area: v.area || null, p_nick: v.nick })); await q(sb.from('profiles').update({ name: v.nick }).eq('id', S.user.id)); toast('매장을 만들었어요! 2주 무료로 시작해요'); await boot(); }
+    if (id === 'owner-form') { if (!bizOk(v.biz)) return toast('사업자등록번호가 맞지 않아요. 사업자등록증의 10자리를 다시 확인해 주세요'); await q(sb.rpc('create_company', { p_name: v.name, p_brand: v.brand || null, p_biz_no: v.biz, p_store: v.store, p_area: v.area || null, p_nick: v.nick })); await q(sb.from('profiles').update({ name: v.nick }).eq('id', S.user.id)); toast('매장을 만들었어요! 사업자번호도 바로 확인됐어요'); await boot(); }
     if (id === 'dealer-form') { await q(sb.rpc('start_dealer', { p_name: v.name, p_phone: v.phone, p_career: +v.career || 0, p_bio: v.bio || '' })); toast(S.mode === 'onboard' ? '환영해요! 지원권 3장을 드렸어요' : '저장했어요'); await boot(); }
     if (id === 'join-code-form') { const name = await q(sb.rpc('request_join', { p_code: v.code })); toast(`${name}에 소속 신청했어요. 승인되면 알림이 와요`); f.reset(); }
     if (id === 'join-form') { await q(sb.rpc('approve_join', { p_req: f.dataset.r, p_member: v.member || null, p_rate: +v.rate || 0, p_role: v.role, p_contract: v.contract })); closeSheet(); await reload(); toast('승인했어요. 이제 직원 앱에서 스케줄·급여가 보여요'); }
@@ -1184,7 +1303,9 @@ document.addEventListener('submit', e => {
       S.lastStart = +v.start || S.lastStart; await reload(); const M = monthSummary(S.y, S.m), g = goalOf(S.y, S.m);
       toast(Math.abs(+f.dataset.diff || 0) >= 10000 ? '마감했어요. 금고 차액을 대표님께 알렸어요' : g ? `마감했어요. 이번 달 목표 ${Math.floor(M.sales / g * 100)}% 달성 (₩${man(M.sales)} / ₩${man(g)})` : '마감을 저장했어요. 수고하셨어요');
     }
-    if (id === 'quiz-form') { const r = await q(sb.rpc('submit_quiz', { p_answers: QUIZ.map((_, i) => +v['q' + i]) })); S.quizRes = r; S.quizOn = false; render(); scrollTo(0, 0); toast(r.passed ? `합격! ${r.score}/5 · 대표님께 결과가 갔어요` : `${r.score}/5 · 4개 이상이면 합격이에요. 다시 도전해요`); }
+    if (id === 'quiz-form') { const r = await q(sb.rpc('submit_quiz', { p_answers: quizList().map((_, i) => +v['q' + i]) })); S.quizRes = r; S.quizOn = false; render(); scrollTo(0, 0); toast(r.passed ? `합격! ${r.score}/${r.total} · 대표님께 결과가 갔어요` : `${r.score}/${r.total} · ${passN(r.total)}개 이상이면 합격이에요. 다시 도전해요`); }
+    if (id === 'cquiz-form') { const fd = new FormData(f), items = []; for (let i = 0; fd.has('q' + i); i++) { const qq = (fd.get('q' + i) || '').trim(), o = [0, 1, 2, 3].map(j => (fd.get(`o${i}_${j}`) || '').trim()); if (!qq) continue; if (o.some(x => !x)) return toast(`${i + 1}번 보기 4개를 모두 채워주세요`); items.push({ q: qq, o, a: +fd.get('a' + i) || 0 }); }
+      if (items.length < 3) return toast('문제는 3개 이상 넣어주세요'); await q(sb.from('company_quiz').upsert({ company_id: S.company.id, items, updated_at: new Date().toISOString() })); S.cquiz = items; closeSheet(); render(); return toast(`우리 매장 시험 ${items.length}문제를 저장했어요. 다음 시험부터 이걸로 나가요`); }
     if (id === 'bank-form') { await q(sb.from('profiles').update({ bank_name: v.bank || null, bank_acct: (v.acct || '').replace(/[^0-9-]/g, '') || null, bank_holder: v.holder || null }).eq('id', S.user.id)); S.prof = await q(sb.from('profiles').select('*').eq('id', S.user.id).maybeSingle()); render(); toast('계좌를 저장했어요'); }
     if (id === 'pos-form') { const n = v.pos === '기타' ? (v.etc || '기타') : v.pos; await q(sb.from('inquiries').insert({ from_user: S.user.id, store_id: S.store.id, body: `[포스 연동] ${n} — ${S.store.name}` })); S.posAsk = n; closeSheet(); render(); toast(`${n} 연동을 신청했어요`); }
     if (id === 'expense-form') { await q(sb.from('expenses').insert({ store_id: S.store.id, category: v.cat, amount: +v.amount, spent_on: v.date || TODAY, source: 'bill' })); closeSheet(); await reload(); toast('비용을 추가했어요'); }
@@ -1194,12 +1315,20 @@ document.addEventListener('submit', e => {
       else await q(sb.from('members').insert({ ...row, company_id: S.store.company_id, store_id: S.store.id, role: 'staff' }));
       closeSheet(); await reload(); toast('저장했어요. 스케줄·급여에 바로 반영돼요');
     }
+    if (f.classList.contains('oship')) { await q(sb.from('orders').update({ courier: v.courier || null, tracking: v.tracking || null, eta: v.eta || null, ...(v.tracking ? { status: '배송 중' } : {}) }).eq('id', f.dataset.o)); await reload(); return toast('배송 정보를 저장했어요. 매장에서 바로 보여요'); }
+    if (id === 'equip-form') { const eq = {}; EQ.forEach(([k, , t]) => { const x = v[k]; if (x === undefined || x === '') return; eq[k] = typeof t === 'string' && t !== 'm' ? +x || 0 : x; }); await q(sb.from('stores').update({ equip: eq }).eq('id', S.store.id)); S.store.equip = eq; render(); return toast('저장했어요. 줄일 방법을 다시 계산했어요'); }
+    if (f.classList.contains('pedit')) {
+      const p = S.posts.find(x => x.id === f.dataset.p), btn = e.submitter?.name;
+      await q(sb.from('job_posts').update({ title: v.title, body: v.body || null, incentive: (v.incentive || '').trim() || null, ...(p.kind === 'hire' ? { pay_text: v.pay_text || null, work_time: v.work_time || null } : {}) }).eq('id', p.id));
+      if (btn === 'extra') { const x = { post: p.id, days: +v.days || 0, top: v.expo === 'top', jump: v.expo === 'top' ? 0 : +v.expo || 0, flash: !!v.flash }; return pay('post_extra', x); }
+      await reload(); return toast('공고를 고쳤어요');
+    }
     if (id === 'post-form') {
       const k = S.postKind || 'urgent', P = postVals(f), heads = P.heads;
       if (k === 'hire' && !P.wd.length) return toast('근무 요일을 골라주세요');
       if (P.inc_on === '1' && !(P.inc || '').trim()) return toast('인센티브 내용을 적어주세요');
       const PP = ({ p_store: S.store.id, p_kind: k, p_role: v.role, p_title: v.title, p_body: v.body || null, p_pay_text: k === 'hire' ? (P.ptype === '협의' || !+P.pamt ? '급여 협의' : `${P.ptype} ${E.won(+P.pamt)}원${P.nego ? ' (협의 가능)' : ''}`) : null, p_work_time: k === 'hire' ? `${P.wd.join('·')} ${v.s}–${v.e}` : null, p_heads: heads, p_taxi: +v.taxi || 0, p_flash: !!v.flash, p_top: P.top, p_days: +v.days || 1, p_jump: P.jump, p_slots: k === 'urgent' ? Array.from({ length: heads }, () => ({ start: v.s, end: v.e, pay: +v.pay || 0 })) : [], p_incentive: P.inc_on === '1' ? P.inc : null, p_prefer: P.pf.join(', ') || null });
-      const pid = await q(sb.rpc('create_post', PP)); if (await q(sb.rpc('post_open_free', { p_post: pid }))) { await reload(); return toast('무료로 공고를 올렸어요'); } await reload(); await pay('post', { post: pid });
+      const pid = await q(sb.rpc('create_post', PP)); await reload(); await pay('post', { post: pid });
     }
     if (id === 'attend-form') { const k = await q(sb.rpc('attend', { p_code: v.code.trim() })); toast(k === 'in' ? '출근했어요. 오늘도 화이팅!' : '퇴근했어요. 수고하셨어요'); await reload(); }
     if (id === 'inq-form') { await q(sb.from('inquiries').insert({ from_user: S.user.id, store_id: S.store?.id || null, body: v.body })); S.inq = await q(sb.from('inquiries').select('*').eq('from_user', S.user.id).order('created_at', { ascending: false })); render(); toast('운영사에 보냈어요. 답변이 오면 알림이 와요'); }
@@ -1211,7 +1340,7 @@ document.addEventListener('submit', e => {
     if (id === 'goal-form') { if (+v.goal) await q(sb.from('store_goals').upsert({ store_id: S.store.id, month: f.dataset.mon, goal: +v.goal })); else await q(sb.from('store_goals').delete().eq('store_id', S.store.id).eq('month', f.dataset.mon)); closeSheet(); await reload(); toast('목표를 저장했어요'); }
     if (id === 'fixed-form') { const fixed = Object.fromEntries(FIXED.map(([k]) => [k, +v[k] || 0]).filter(x => x[1])), month = f.dataset.mon; await q(sb.from('store_fixed').upsert({ store_id: S.store.id, month, fixed })); closeSheet(); await reload(); toast(`${+month.slice(5, 7)}월 고정비를 저장했어요`); }
     if (id === 'store-form') { await q(sb.from('stores').update({ name: v.name, area: v.area || null, address: v.address || null, pyeong: +v.py || null, tables: +v.tables || null, night_start: v.ns, night_end: v.ne }).eq('id', S.store.id)); await boot(); toast('저장했어요'); }
-    if (id === 'addstore-form') { if (S.company.plan !== 'basic') return pay('store', { name: v.name, area: v.area || '' }); await q(sb.rpc('add_store', { p_name: v.name, p_area: v.area || '' })); await boot(); toast('매장을 추가했어요. 위에서 매장을 골라 전환하세요'); }
+    if (id === 'addstore-form') { if (S.company.plan === 'pro') return pay('store', { name: v.name, area: v.area || '' }); await q(sb.rpc('add_store', { p_name: v.name, p_area: v.area || '' })); await boot(); toast('매장을 추가했어요. 위에서 매장을 골라 전환하세요'); }
     if (f.dataset.inq) { await q(sb.from('inquiries').update({ reply: v.reply, replied_at: new Date().toISOString() }).eq('id', f.dataset.inq)); await reload(); toast('답변을 보냈어요'); }
   });
 });
