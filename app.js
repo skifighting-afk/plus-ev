@@ -404,7 +404,7 @@ function lightsCard(full) {
     return `<div class="lt ${x.lv}"><span class="dot">${{ r: '🔴', y: '🟡', g: '🟢' }[x.lv]}</span><div><b>${x.n} <span class="num">${val(x.mine, x.unit)}</span></b>
       <small>${full ? `평균 ${val(x.avg, x.unit)} · ${x.lv === 'g' ? `평균보다 ${gap.toFixed(0)}% 좋아요` : `평균보다 ${gap.toFixed(0)}% ${x.key === 'util' ? '낮아요' : '높아요'}`}` : x.lv === 'g' ? `평균 ${val(x.avg, x.unit)} · ${gap.toFixed(0)}% 좋아요` : `평균 ${val(x.avg, x.unit)} · ${gap.toFixed(0)}% ${x.key === 'util' ? '낮아요' : '높아요'}`}</small>
       ${x.lv !== 'g' && r ? `<div class="fix">${full ? `→ <b>${esc(r[1])}</b> ·` : '→ 이걸 고치면'} <b class="up num">월 ${r[0].startsWith('rev') ? `+₩${man(r[3])} 더` : `₩${man(r[3])} 절감`}</b></div>` : ''}</div>${x.lv !== 'g' ? `<span class="pill ${x.lv}">${{ r: '위험', y: '주의' }[x.lv]}</span>` : ''}</div>`; };
-  return `<div class="card lcard" ${full && bad.length ? 'style="border-color:rgba(239,68,68,.45)"' : ''}><h3>우리 매장 경고등 <small>${bad.length ? `고칠 곳 <b class="down">${bad.length}개</b>` : '모두 좋아요'}</small></h3>
+  return `<div class="card lights2"><h3>우리 매장 경고등 <small>${bad.length ? `고칠 곳 <b class="down">${bad.length}개</b>` : '모두 좋아요'}</small></h3>
     ${!full && gain ? `<div class="bigwin"><small>경고등을 고치면 매달</small><b class="num">+₩${man(gain)}</b><small>더 남아요</small></div>` : ''}
     <div class="lts">${sorted.map(row).join('')}</div>
     ${!+B.mine.pyeong || !B.mine.tables ? `<p class="note">매장 평수·테이블 수를 넣으면 평당 비교가 정확해져요. <button class="btn sm" data-act="goto" data-t="more" data-s="settings">매장 설정</button></p>` : ''}
@@ -1194,7 +1194,7 @@ function vMe() {
 // ===== 운영사 =====
 function vHqDash() {
   const st = S.stats || [], sales = st.reduce((a, x) => a + +x.sales, 0), open = (S.inq || []).filter(x => !x.reply).length;
-  const T = S.hqToday || {}, R = S.hqRev || {}, KN = { subscription: '구독', jobs: '구인', boost: '중고 부스팅', franchise_post: '가맹 게시', franchise_lead: '가맹 리드', academy: '교육', dealer: '딜러' };
+  const T = S.hqToday || {}, R = S.hqRev || {}, KN = { subscription: '구독', jobs: '구인', boost: '중고 부스팅', franchise_post: '가맹 게시', franchise_lead: '가맹 리드', academy: '교육', dealer: '딜러', post: '구인', post_extra: '구인', store: '구독', plan: '구독', used_boost: '중고 부스팅', franchise: '가맹 게시', franchise_leads: '가맹 리드', fr_bill: '가맹 리드', tickets: '딜러', pro: '딜러' };
   const todo = [['biz', '사업자 확인 대기', 'stores'], ['inq', '답변 대기 문의', 'inq'], ['disputes', '긴급 근무 분쟁', 'dash'], ['pay_fail', '결제 미완료 (1시간+)', 'dash'], ['fr_disputes', '가맹 리드 이의제기', 'fr'], ['withdrawals', '출금 요청', 'dash'], ['trial_ending', '체험 종료 3일 전', 'stores'], ['expired', '체험 끝난 매장', 'stores']].filter(([k]) => +T[k] > 0);
   const months = [...new Set((R.by_kind || []).map(x => x.month))].sort(), kinds = [...new Set((R.by_kind || []).map(x => x.kind))], amt = (m, k) => (R.by_kind || []).filter(x => x.month === m && x.kind === k).reduce((a, x) => a + x.amount, 0);
   const A = R.activation || {}, DA = R.dealer_activation || {}, RT = R.retention || {};
