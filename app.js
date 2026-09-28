@@ -189,7 +189,9 @@ function render() {
     dealer: () => ({ jobs: vBoard, mywork: vMyWork, wallet: vWallet, me: vMe }[S.tab] || vBoard)(),
     hq: () => ({ dash: vHqDash, goods: vHqGoods, stores: vHqStores, data: vHqData, inq: vHqInq, notice: vHqNotice, fr: vHqFr }[S.tab] || vHqDash)() };
   const lock = S.mode === 'store' && S.company && !S.active ? `<div class="lockbar"><div><b>무료 체험이 끝났어요.</b> 지금은 보기만 돼요 — 입력한 데이터는 그대로 있어요.</div>${isOwner() ? `<span class="row"><button class="btn sm" data-act="plan" data-v="basic">베이직 ₩${E.won(PRICE.basic)}</button><button class="btn sm gold" data-act="plan" data-v="pro">프로 ₩${E.won(PRICE.pro)}</button></span>` : '<button class="btn sm" data-act="ask-owner" data-v="요금제">대표님께 요청</button>'}</div>` : '';
-  view.innerHTML = lock + (V[S.mode] || vAuth)(); enhanceInputs(view);
+  const c = S.company, paidPlan = c && (c.plan === 'pro' || c.plan === 'basic') && c.paid_until && new Date(c.paid_until) > now;
+  const planbar = S.mode === 'store' && S.tab === 'home' && !S.sub && c && S.active && isOwner() ? `<div class="planbar"><div>${paidPlan ? `<b>${c.plan === 'pro' ? '프로' : '베이직'} 이용 중</b><small>${new Date(c.paid_until).toLocaleDateString('ko-KR')}까지 · 회사당 월 ₩${E.won(c.plan === 'pro' ? PRICE.pro : PRICE.basic)}</small>` : `<b>무료 체험 D-${trialLeft(c)}</b><small>끝나면 베이직 ₩${E.won(PRICE.basic)} · 프로 ₩${E.won(PRICE.pro)} (회사당 월)</small>`}</div><button class="btn sm ${paidPlan && c.plan === 'pro' ? '' : 'gold'}" data-act="sub" data-v="settings">${paidPlan ? '요금제 관리' : '요금제 보기'}</button></div>` : '';
+  view.innerHTML = lock + planbar + (V[S.mode] || vAuth)(); enhanceInputs(view);
   if (S.mode === 'store' && S.tab === 'more' && S.sub === 'qr') startQR();
   if (S.mode === 'store' && S.tab === 'more' && S.sub === 'rot' && S.rot) rotTick();
   if (S.mode === 'store' && S.tab === 'sales') closeCalc();
@@ -947,6 +949,14 @@ function siseTag(u) {
   if (ps.length < 3) return ''; const qt = f => ps[Math.floor((ps.length - 1) * f)], lo = qt(.25), hi = qt(.75), tag = u.price < lo ? ['g', '시세보다 쌈'] : u.price > hi ? ['r', '시세보다 비쌈'] : ['', '시세 안'];
   return `<small class="mut" style="display:block">${kw} 시세 ₩${E.won(lo)}~${E.won(hi)} <span class="pill ${tag[0]}">${tag[1]}</span></small>`;
 }
+function usedSise() {
+  const f = document.getElementById('used-form'); if (!f) return; const kw = f.category.value, price = +f.price.value || 0;
+  const ago = Date.now() - 90 * 864e5, ps = S.used.filter(x => x.category === kw && new Date(x.created_at) > ago && x.price > 0).map(x => x.price);
+  const el = document.getElementById('used-sise'); if (!el) return;
+  if (ps.length < 3) { el.innerHTML = `<small class="mut">${kw} 시세 자료가 아직 적어요 · 비슷한 글 가격을 참고해 보세요</small>`; return; }
+  const avg = Math.round(ps.reduce((a, b) => a + b, 0) / ps.length / 1000) * 1000, rec = Math.round(avg * 0.9 / 1000) * 1000, d = price ? Math.round((price - avg) / avg * 100) : null;
+  el.innerHTML = `<small class="mut">최근 90일 ${kw} 평균 ₩${E.won(avg)} · 추천 <b data-act="used-rec" data-v="${rec}" style="cursor:pointer">₩${E.won(rec)}</b>(평균보다 10% 싸게)</small>${d === null ? '' : d <= -10 ? `<small class="up">평균보다 ${-d}% 싸요 · 보통 이런 글이 먼저 나가요</small>` : d >= 10 ? `<small class="warn">평균보다 ${d}% 비싸요 · 오래 남을 수 있어요</small>` : '<small class="mut">평균 가격대예요</small>'}`;
+}
 const USED_CAT = ['홀덤 테이블', '칩', '카드', '의자', '조명', 'CCTV', 'POS', '카메라', '인테리어 집기', '음향장비', '기타 매장용품'];
 const USED_ICON = { '홀덤 테이블': '', 칩: '', 카드: '', 의자: '', 조명: '', CCTV: '', POS: '', 카메라: '', '인테리어 집기': '', 음향장비: '', '기타 매장용품': '' };
 const USED_COND = ['새 상품', '거의 새것', '사용감 적음', '사용감 많음', '수리 필요'], USED_ST = ['판매중', '예약중', '판매완료'];
@@ -966,7 +976,7 @@ function usedBlock() {
     ${files.length ? `<div class="upv">${files.map((f, i) => `<button type="button" class="${(S.upCover || 0) === i ? 'on' : ''}" data-act="upcover" data-v="${i}"><img src="${f.url}" alt="">${(S.upCover || 0) === i ? '<i>대표</i>' : ''}</button>`).join('')}</div>` : ''}
     <div class="grid2"><label class="fl">카테고리<select name="category" required>${USED_CAT.map(c => `<option>${c}</option>`).join('')}</select></label><label class="fl">상품 상태<select name="condition">${USED_COND.map(c => `<option ${c === '사용감 적음' ? 'selected' : ''}>${c}</option>`).join('')}</select></label></div>
     <label class="fl">제목<input name="title" required placeholder="예: 10인 홀덤 테이블 2대"></label>
-    <div class="grid2"><label class="fl">판매 가격 (원)<input name="price" type="number" inputmode="numeric" required></label><label class="fl">수량 <small class="mut">(선택)</small><input name="qty" type="number" min="1" value="1"></label></div>
+    <div class="grid2"><label class="fl">판매 가격 (원)<input name="price" type="number" inputmode="numeric" required><span id="used-sise"></span></label><label class="fl">수량 <small class="mut">(선택)</small><input name="qty" type="number" min="1" value="1"></label></div>
     <label class="fl">지역<span class="row" style="flex-wrap:nowrap;gap:6px"><select name="sido" style="width:auto">${SIDO.map(x => `<option ${(S.store?.area || '').startsWith(x) ? 'selected' : ''}>${x}</option>`).join('')}</select><input name="area2" required placeholder="구·동 (예: 강남구 역삼동)"></span></label>
     <label class="fl">상세 설명<textarea name="body" rows="3" required placeholder="사용 기간, 하자, 포함 구성품"></textarea></label>
     <label class="fl">연락 방법<input name="contact" required placeholder="010-0000-0000 또는 카카오톡 오픈채팅 링크"></label>
@@ -1402,8 +1412,9 @@ document.addEventListener('click', e => {
   if (a === 'used-st') busy(async () => { await q(sb.from('used_items').update({ status: d.s }).eq('id', d.v)); const u = S.used.find(x => x.id === d.v); u.status = d.s; if (d.s === '판매완료') u.boost = null; usedSheet(d.v); render(); toast(`${d.s}(으)로 바꿨어요`); });
   if (a === 'used-boost') busy(() => pay('used_boost', { item: d.v, type: d.t }));
   if (a === 'jf') { S.jf = { ...(S.jf || { k: '전체', r: '전체', a: '전체' }), [d.k]: d.v }; render(); }
-  if (a === 'used-new') { S.usedNew = !S.usedNew; S.upFiles = []; S.upCover = 0; render(); }
+  if (a === 'used-new') { S.usedNew = !S.usedNew; S.upFiles = []; S.upCover = 0; render(); usedSise(); }
   if (a === 'used-open') usedSheet(d.v);
+  if (a === 'used-rec') { const f = document.getElementById('used-form'); f.price.value = d.v; usedSise(); return; }
   if (a === 'used-del') busy(async () => { await q(sb.from('used_items').delete().eq('id', d.v)); S.used = S.used.filter(x => x.id !== d.v); closeSheet(); render(); toast('글을 내렸어요'); });
   if (a === 'used-ask') busy(async () => { const u = S.used.find(x => x.id === d.v); await q(sb.from('inquiries').insert({ from_user: S.user.id, store_id: S.store?.id || null, body: `[중고 연락] ${u.title} (₩${E.won(u.price)}) — 판매자와 연결 부탁드려요` })); closeSheet(); toast('운영사에 연결을 요청했어요'); });
   if (a === 'trtab') { S.trTab = d.v; render(); }
@@ -1491,8 +1502,8 @@ function download(name, rows) {
   const blob = new Blob(['﻿' + rows.map(r => r.map(v => `"${String(v ?? '').replace(/"/g, '""')}"`).join(',')).join('\r\n')], { type: 'text/csv' });
   const l = document.createElement('a'); l.href = URL.createObjectURL(blob); l.download = name; l.click();
 }
-document.addEventListener('input', e => { const pe = e.target.closest('.pedit'); if (pe) xfeeBox(pe); if (e.target.closest('#post-form')) feeBox(); if (e.target.closest('#report-form')) closeCalc(); });
-document.addEventListener('change', e => {
+document.addEventListener('input', e => { const pe = e.target.closest('.pedit'); if (pe) xfeeBox(pe); if (e.target.closest('#post-form')) feeBox(); if (e.target.closest('#used-form')) usedSise(); if (e.target.closest('#report-form')) closeCalc(); });
+document.addEventListener('change', e => { if (e.target.name === 'category' && e.target.closest('#used-form')) usedSise();
   const t = e.target, d = t.dataset;
   if (d?.act === 'push') { pushToggle(t.checked).catch(err => { toast(err.message || '알림을 켤 수 없어요'); t.checked = !t.checked; }); return; }
   if (t.classList?.contains('qtype')) { examKeep(); S.examDraft[+t.name.slice(1)].type = t.value; if (t.value === 'mc' && !S.examDraft[+t.name.slice(1)].o.length) { S.examDraft[+t.name.slice(1)].o = ['', '', '', '']; S.examDraft[+t.name.slice(1)].a = 0; } examSheet(); return; }
