@@ -196,6 +196,9 @@ function render() {
   if (S.mode === 'store' && S.tab === 'more' && S.sub === 'rot' && S.rot) rotTick();
   if (S.mode === 'store' && S.tab === 'sales') closeCalc();
   if (S.mode === 'store' && S.tab === 'jobs') feeBox();
+  if (lock && !S.lockAsked) { S.lockAsked = 1; openSheet(`<h2>무료 체험 14일이 끝났어요</h2><p class="sub">매출·직원·스케줄 등 입력하신 내용은 <b>모두 저장돼 있어요.</b> 지금은 보기만 돼요. 연장하시겠어요?</p>
+    ${isOwner() ? `<div class="plans"><div class="plan"><b>베이직</b><b class="num">월 ₩${E.won(PRICE.basic)}</b><button class="btn sm" data-act="plan" data-v="basic">베이직으로 연장</button></div><div class="plan cur"><span class="pill y">추천</span><b>프로</b><b class="num">월 ₩${E.won(PRICE.pro)}</b><button class="btn sm gold" data-act="plan" data-v="pro">프로로 연장</button></div></div>` : '<p class="note">요금제는 대표님만 바꿀 수 있어요.</p><button class="btn full" data-act="ask-owner" data-v="요금제">대표님께 요청</button>'}
+    <button class="btn full" data-act="close" style="margin-top:8px">나중에 할게요</button>`); }
 }
 
 // ===== 로그인·첫 설정 =====
