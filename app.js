@@ -976,7 +976,7 @@ function usedBlock() {
     ${files.length ? `<div class="upv">${files.map((f, i) => `<button type="button" class="${(S.upCover || 0) === i ? 'on' : ''}" data-act="upcover" data-v="${i}"><img src="${f.url}" alt="">${(S.upCover || 0) === i ? '<i>대표</i>' : ''}</button>`).join('')}</div>` : ''}
     <div class="grid2"><label class="fl">카테고리<select name="category" required>${USED_CAT.map(c => `<option>${c}</option>`).join('')}</select></label><label class="fl">상품 상태<select name="condition">${USED_COND.map(c => `<option ${c === '사용감 적음' ? 'selected' : ''}>${c}</option>`).join('')}</select></label></div>
     <label class="fl">제목<input name="title" required placeholder="예: 10인 홀덤 테이블 2대"></label>
-    <div class="grid2"><label class="fl">판매 가격 (원)<input name="price" type="number" inputmode="numeric" required><span id="used-sise"></span></label><label class="fl">수량 <small class="mut">(선택)</small><input name="qty" type="number" min="1" value="1"></label></div>
+    <div class="grid2"><label class="fl">판매 가격 (원)<input name="price" type="number" inputmode="numeric" required></label><label class="fl">수량 <small class="mut">(선택)</small><input name="qty" type="number" min="1" value="1"></label></div><div id="used-sise"></div>
     <label class="fl">지역<span class="row" style="flex-wrap:nowrap;gap:6px"><select name="sido" style="width:auto">${SIDO.map(x => `<option ${(S.store?.area || '').startsWith(x) ? 'selected' : ''}>${x}</option>`).join('')}</select><input name="area2" required placeholder="구·동 (예: 강남구 역삼동)"></span></label>
     <label class="fl">상세 설명<textarea name="body" rows="3" required placeholder="사용 기간, 하자, 포함 구성품"></textarea></label>
     <label class="fl">연락 방법<input name="contact" required placeholder="010-0000-0000 또는 카카오톡 오픈채팅 링크"></label>
