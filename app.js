@@ -209,7 +209,7 @@ function vAuth() {
   <form class="f" id="auth-form">${up ? '<label class="fl">이름<input name="name" required autocomplete="name"></label>' : ''}
     <label class="fl">이메일<input name="email" type="email" required autocomplete="email"></label>
     <label class="fl">비밀번호 <input name="pw" type="password" minlength="6" required autocomplete="${up ? 'new-password' : 'current-password'}"></label>
-    <button class="btn pri full" type="submit">${up ? '가입하기' : '로그인'}</button></form>${up ? '<p class="note">가입하면 바로 시작돼요.</p>' : ''}</div>`;
+    <button class="btn pri full" type="submit">${up ? '가입하기' : '로그인'}</button></form>${up ? '<p class="note">가입하면 바로 시작돼요. 가입하면 <a href="legal.html#terms" target="_blank" rel="noopener">이용약관</a>과 <a href="legal.html#privacy" target="_blank" rel="noopener">개인정보처리방침</a>에 동의한 것으로 봐요.</p>' : ''}</div>`;
 }
 function vOnboard() {
   const k = S.onb;
@@ -245,7 +245,7 @@ function subnav() {
 }
 function storeHead(title) {
   return `<div class="row between"><div><h1>${title}</h1><p class="sub" style="margin:0">${esc(S.company?.name || '')} · ${esc(S.store?.name)}${S.company && !S.company.biz_verified ? ' · <button class="tlink warn" data-act="goto" data-t="more" data-s="settings">사업자번호 확인 필요</button>' : ''}</p></div>
-  <div class="row">${S.stores.length > 1 ? `<select id="store-sel" style="width:auto">${S.stores.map(s => `<option value="${s.id}" ${s.id === S.store.id ? 'selected' : ''}>${esc(s.name)}</option>`).join('')}</select>` : ''}</div></div>` + subnav();
+  <div class="row">${S.stores.length > 1 ? `<select id="store-sel" aria-label="매장 선택" style="width:auto">${S.stores.map(s => `<option value="${s.id}" ${s.id === S.store.id ? 'selected' : ''}>${esc(s.name)}</option>`).join('')}</select>` : ''}</div></div>` + subnav();
 }
 function monthNav() { return `<span class="row"><button class="btn sm" data-act="mon" data-v="-1">◀</button><b class="num">${S.y}년 ${S.m}월</b><button class="btn sm" data-act="mon" data-v="1">▶</button></span>`; }
 function monthSummary(y, m) {
@@ -756,7 +756,7 @@ function vSales() {
   return `${storeHead('매출 마감')}
   <div class="card pos"><div><b>포스기 연동</b><small>${ask ? `<span class="warn">${esc(ask)}</span> 연동 신청됨 · 준비되면 알림으로 알려드려요` : '연동하면 매출·카드·현금이 마감 때 자동으로 채워져요. 숫자는 그대로 고칠 수 있어요.'}</small></div>${ask ? '<span class="pill y">준비 중</span>' : '<button class="btn sm pri" data-act="pos">포스기 연동하기</button>'}</div>
   ${S.open ? `<div class="card openbar"><span><b>${fmtDT(S.open.opened_at).split(' ').slice(-2).join(' ')} 오픈</b> · 시작 시재 ₩${E.won(S.open.start_cash)}</span><button class="btn sm" data-act="open-edit">수정</button></div>`
-    : `<form class="f card openbar" id="open-form"><div><b>오늘 오픈</b><small class="mut" style="display:block">영업 전 금고에 있는 돈을 넣고 오픈하세요</small></div><div class="row" style="flex-wrap:nowrap"><input name="start_cash" type="number" inputmode="numeric" value="${S.lastStart ?? 300000}" style="width:140px"><button class="btn pri">오픈</button></div></form>`}
+    : `<form class="f card openbar" id="open-form"><div><b>오늘 오픈</b><small class="mut" style="display:block">영업 전 금고에 있는 돈을 넣고 오픈하세요</small></div><div class="row" style="flex-wrap:nowrap"><input name="start_cash" aria-label="시작 현금" type="number" inputmode="numeric" value="${S.lastStart ?? 300000}" style="width:140px"><button class="btn pri">오픈</button></div></form>`}
   <form class="f card" id="report-form"><div class="row between"><h3 style="margin:0">마감</h3><label class="fl" style="margin:0"><input type="date" name="date" value="${TODAY}" max="${TODAY}" style="width:auto"></label></div>
     <div class="grid2 big"><label class="fl">총매출 (원)<input name="sales" type="number" inputmode="numeric" required value="${r0.sales ?? ''}" placeholder="0"></label><label class="fl">엔트리 수<input name="entries" type="number" inputmode="numeric" value="${r0.entries ?? ''}" placeholder="0"></label></div>
     <details class="more" ${r0.card ? 'open' : ''}><summary>결제수단 · 금고 정산 <small class="mut">금고 차액을 잡아줘요</small></summary>
@@ -917,7 +917,7 @@ function vMore() {
       : `<div class="li"><div><b class="warn">체험이 끝났어요</b><small>보기만 돼요. 아래에서 요금제를 고르면 바로 이어서 입력할 수 있어요</small></div></div>`}
       ${!paid || !pro ? `<div class="plans" style="margin-top:10px"><div class="plan"><b>베이직</b><b class="num">월 ₩${E.won(PRICE.basic)}</b><small>매출 마감 · 손익 계산서 · 직원 · 스케줄 · 급여 · 출퇴근 · 발주 · 구인 게시</small>${isOwner() && !paid ? `<button class="btn sm" data-act="plan" data-v="basic">베이직 시작</button>` : ''}</div>
       <div class="plan cur"><span class="pill y">추천</span><b>프로</b><b class="num">월 ₩${E.won(PRICE.pro)}</b><small>베이직 전부 + 주변 매장 비교(순위·경고등) · 매달 처방·꼭 할 일 · 3개월 예측 · 월간 리포트 · 스케줄 AI 초안 우선</small>${isOwner() ? `<button class="btn sm gold" data-act="plan" data-v="pro">프로 시작</button>` : '<button class="btn sm" data-act="ask-owner" data-v="프로 요금제">대표님께 요청</button>'}</div></div>` : ''}
-      <p class="note">카드로 30일씩 결제해요. 매장이 몇 곳이든 요금은 같아요 (매장 추가 무료). 구인·장터·가맹은 요금제와 별개로 건별 결제예요.</p>${payNote()}</div>
+      <p class="note">카드로 30일씩 결제해요. 매장이 몇 곳이든 요금은 같아요 (매장 추가 무료). 구인·장터·가맹은 요금제와 별개로 건별 결제예요. <a href="legal.html#refund" target="_blank" rel="noopener">환불 규정</a> · <a href="legal.html#terms" target="_blank" rel="noopener">이용약관</a></p>${payNote()}</div>
     ${pushRow() ? `<div class="card">${pushRow()}</div>` : ''}
     <form class="f card" id="store-form"><h3>매장 정보</h3><label class="fl">매장 이름<input name="name" value="${esc(S.store.name)}" ${isOwner() ? '' : 'disabled'}></label><label class="fl">지역<input name="area" value="${esc(S.store.area || '')}" ${isOwner() ? '' : 'disabled'}></label><label class="fl">주소 <small class="mut">구인 공고에 지도로 나가요</small><input name="address" value="${esc(S.store.address || '')}" placeholder="예: 서울 강남구 테헤란로 8길 21, 3층" ${isOwner() ? '' : 'disabled'}></label>
       <div class="grid2"><label class="fl">평수<input type="number" name="py" min="1" step="0.1" value="${S.store.pyeong ?? ''}" placeholder="예: 32" ${isOwner() ? '' : 'disabled'}></label><label class="fl">테이블 수<input type="number" name="tables" min="1" value="${S.store.tables ?? ''}" placeholder="예: 7" ${isOwner() ? '' : 'disabled'}></label></div>
@@ -987,8 +987,8 @@ function usedBlock() {
       <div class="days wrap"><label><input type="checkbox" name="ship"><span>배송 가능</span></label><label><input type="checkbox" name="direct" checked><span>직거래 가능</span></label><label><input type="checkbox" name="nego"><span>네고 가능</span></label></div></div></details>
     <button class="btn pri full">무료로 올리기</button></form>` : ''}
   <div class="filters"><div class="chips">${['전체', ...USED_CAT].map(c => chip('c', c, c)).join('')}</div>
-    <div class="row" style="gap:6px;flex-wrap:wrap;margin-top:6px"><select data-uf="r" style="width:auto"><option ${F.r === '전체' ? 'selected' : ''}>전체</option>${SIDO.map(x => `<option ${F.r === x ? 'selected' : ''}>${x}</option>`).join('')}</select>
-      <select data-uf="st" style="width:auto">${['판매중', '예약중', '판매완료', '전체'].map(x => `<option ${F.st === x ? 'selected' : ''}>${x}</option>`).join('')}</select>
+    <div class="row" style="gap:6px;flex-wrap:wrap;margin-top:6px"><select data-uf="r" aria-label="지역" style="width:auto"><option ${F.r === '전체' ? 'selected' : ''}>전체</option>${SIDO.map(x => `<option ${F.r === x ? 'selected' : ''}>${x}</option>`).join('')}</select>
+      <select data-uf="st" aria-label="판매 상태" style="width:auto">${['판매중', '예약중', '판매완료', '전체'].map(x => `<option ${F.st === x ? 'selected' : ''}>${x}</option>`).join('')}</select>
       <input data-uf="min" type="number" placeholder="최소 가격" value="${F.min}" style="width:110px"><input data-uf="max" type="number" placeholder="최대 가격" value="${F.max}" style="width:110px">
       ${chip('sort', 'new', '최신순')}${chip('sort', 'low', '낮은 가격순')}</div></div>
   <div class="ugrid">${list.map(u => { const b = boostOn(u); return `<button class="ucard ${b === 'urgent' ? 'urg' : ''}" data-act="used-open" data-v="${u.id}"><div class="uimg">${usedThumb(u)}${b ? `<span class="pill ${b === 'urgent' ? 'r' : 'y'}">${BOOST[b][0]}</span>` : ''}${u.status && u.status !== '판매중' ? `<span class="ust">${u.status}</span>` : ''}</div><div class="ub"><b>${esc(u.title)}</b><span class="num">₩${E.won(u.price)}</span><small>${esc(u.category || '')} · ${esc((u.area || '').split(' ').slice(0, 2).join(' '))} · ${fmtDT(u.created_at).split(' ').slice(0, 2).join(' ')}</small></div></button>`; }).join('') || '<div class="card empty">조건에 맞는 물건이 없어요</div>'}</div>
