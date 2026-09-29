@@ -25,6 +25,8 @@ jobs:
       - name: bubblewrap 설정 (JDK·SDK 경로)
         run: |
           mkdir -p ~/.bubblewrap
+          sudo mkdir -p $ANDROID_HOME/tools/bin && sudo ln -sf $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager $ANDROID_HOME/tools/bin/sdkmanager
+          ls -la $ANDROID_HOME/tools/bin/
           echo "{\"jdkPath\":\"$JAVA_HOME\",\"androidSdkPath\":\"$ANDROID_HOME\"}" > ~/.bubblewrap/config.json
           yes | sdkmanager --licenses >/dev/null || true
 
