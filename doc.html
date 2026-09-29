@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>+EV 전자 서류</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet">
+<style>
+:root{--ink:#111;--mut:#667;--line:#dcdcd6;--g:#0f9d6b;--bg:#0B0F19}
+*{box-sizing:border-box}html,body{margin:0;background:var(--bg);font:15px/1.6 'Noto Sans KR',system-ui,sans-serif;color:var(--ink)}
+.bar{position:sticky;top:0;z-index:5;display:flex;gap:8px;justify-content:space-between;align-items:center;padding:10px 14px;padding-top:max(10px,env(safe-area-inset-top));background:rgba(11,15,25,.95);color:#eef2f8}
+.bar b{font-weight:900;font-style:italic}.bar b i{color:#10B981;font-style:normal}
+.btn{border:1px solid #2a3346;background:#1e2739;color:#eef2f8;border-radius:10px;padding:9px 14px;font:inherit;font-weight:700;cursor:pointer}.btn.pri{background:#10B981;border-color:#10B981;color:#04130D}
+.btn:disabled{opacity:.5}
+.paper{background:#fff;max-width:794px;margin:16px auto 40px;padding:44px 48px;border-radius:6px;box-shadow:0 20px 60px rgba(0,0,0,.4)}
+h1{text-align:center;font-size:26px;letter-spacing:.3em;margin:0 0 6px}
+.st{text-align:center;margin-bottom:24px}.pill{display:inline-block;padding:3px 10px;border-radius:99px;font-size:12px;font-weight:700;border:1px solid}
+.pill.ok{color:var(--g);border-color:var(--g)}.pill.wait{color:#b7791f;border-color:#b7791f}
+.body{white-space:pre-wrap;word-break:keep-all;font-size:14.5px;line-height:1.85}
+.body.mono{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13.5px}
+.sigs{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:34px}
+.sig{border:1px solid var(--line);border-radius:10px;padding:14px}.sig small{display:block;color:var(--mut);font-size:12px}.sig b{font-size:15px}
+.sig img{display:block;height:64px;max-width:100%;margin:6px 0}.sig .date{font-size:12px;color:var(--mut)}
+.sig .empty{height:64px;display:grid;place-items:center;color:#b7791f;font-size:13px}
+.audit{margin-top:26px;padding-top:12px;border-top:1px dashed var(--line);font-size:11px;color:var(--mut);word-break:break-all}
+.signbox{max-width:794px;margin:0 auto 60px;padding:20px;background:#121826;border:1px solid #2a3346;border-radius:14px;color:#eef2f8}
+.signbox h2{margin:0 0 6px;font-size:18px}.signbox p{margin:0 0 12px;color:#a3aec2;font-size:13.5px}
+.signbox input[type=text]{width:100%;padding:12px;border-radius:10px;border:1px solid #2a3346;background:#0e1422;color:#fff;font:inherit;font-size:16px}
+.pad{position:relative;margin:12px 0;background:#fff;border-radius:10px;height:160px}.pad canvas{width:100%;height:100%;display:block;border-radius:10px}
+.pad span{position:absolute;left:12px;top:8px;font-size:12px;color:#99a}
+.agree{display:flex;gap:10px;align-items:flex-start;margin:10px 0 14px;font-size:14px}.agree input{width:22px;height:22px;flex:none;margin-top:1px}
+.row{display:flex;gap:8px}.row .btn{flex:1}
+.msg{padding:60px 20px;text-align:center;color:#a3aec2}
+@media (max-width:640px){.paper{margin:0 0 20px;border-radius:0;padding:28px 20px}h1{font-size:21px}.sigs{grid-template-columns:1fr}}
+@media print{@page{size:A4;margin:14mm}html,body{background:#fff}.bar,.signbox,#toast{display:none!important}.paper{box-shadow:none;margin:0;padding:0;max-width:none}}
+</style>
+</head>
+<body>
+<div class="bar"><b><i>+</i>EV 전자 서류</b><span style="display:flex;gap:8px"><button class="btn" id="back" hidden>앱으로</button><button class="btn" id="print" hidden>인쇄 · PDF 저장</button></span></div>
+<div id="app"><div class="msg">불러오는 중…</div></div>
+<script type="module">
+import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
+import { sigPad } from './docs.js';
+const sb = createClient('https://hkcmsjwuwopxritafreg.supabase.co', 'sb_publishable_X7cb5p4Ja9y4TxrjbVQZAQ_P8n3E_W_');
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const dt = s => s ? new Date(s).toLocaleString('ko-KR', { dateStyle: 'long', timeStyle: 'short' }) : '';
+const P = new URLSearchParams(location.search), T = P.get('t'), app = document.getElementById('app');
+const back = document.getElementById('back'); if (P.get('from') === 'app') { back.hidden = false; back.onclick = () => history.length > 1 ? history.back() : (location.href = './'); }
+document.getElementById('print').onclick = () => window.print();
+async function load() {
+  if (!/^[0-9a-f-]{36}$/i.test(T || '')) { app.innerHTML = '<div class="msg">잘못된 링크예요.</div>'; return; }
+  const { data: d, error } = await sb.rpc('contract_view', { p_token: T });
+  if (error || !d) { app.innerHTML = '<div class="msg">서류를 찾을 수 없어요. 새 서류가 발송됐다면 새 링크로 열어 주세요.</div>'; return; }
+  const t = d.terms || {}, signed = d.status === 'signed', pay = d.kind === 'payslip';
+  document.title = `${d.title} · ${t.employee_name}`;
+  document.getElementById('print').hidden = false;
+  app.innerHTML = `<div class="paper"><h1>${esc(d.title)}</h1><div class="st"><span class="pill ${signed ? 'ok' : 'wait'}">${signed ? (pay ? '수령 확인 완료' : '체결 완료') : (pay ? '수령 확인 대기' : '근로자 서명 대기')}</span></div>
+    <div class="body ${pay ? 'mono' : ''}">${esc(d.body)}</div>
+    <div class="sigs"><div class="sig"><small>${pay ? '발행' : '사업주'}</small><b>${esc(t.company_name)} 대표 ${esc(t.owner_name || '')}</b>${t.biz_no ? `<small>사업자등록번호 ${esc(t.biz_no)}</small>` : ''}<img src="${d.owner_sig}" alt="사업주 서명"><div class="date">${dt(d.owner_signed_at)} 서명</div></div>
+      <div class="sig"><small>${pay ? '수령 확인' : '근로자'}</small><b>${esc(t.employee_name)}</b>${signed ? `<img src="${d.signer_sig}" alt="근로자 서명"><div class="date">${dt(d.signed_at)} 서명</div>` : '<div class="empty">서명 전</div>'}</div></div>
+    <div class="audit">전자서명 기록 · 문서 고유값(SHA-256) ${esc(d.body_hash)}${signed ? `<br>서명 고유값 ${esc(d.sign_hash)} · 서명 시각 ${dt(d.signed_at)}${d.sign_ip ? ` · 접속 IP ${esc(d.sign_ip)}` : ''}` : ''}<br>이 서류는 +EV에서 전자적으로 작성·교부되었으며, 서명 후 내용이 바뀌면 고유값이 달라집니다.</div></div>
+    ${signed ? '' : `<div class="signbox"><h2>${pay ? '명세서 수령 확인' : '계약서 서명'}</h2><p>${pay ? '내역을 확인했다면 이름을 적고 서명해 주세요.' : '위 내용을 끝까지 읽고, 이름을 적은 뒤 서명해 주세요. 서명하면 계약이 체결돼요.'}</p>
+      <input type="text" id="nm" placeholder="이름 (${esc(t.employee_name)})" autocomplete="name">
+      <div class="pad"><canvas id="cv"></canvas><span>여기에 서명</span></div>
+      <label class="agree"><input type="checkbox" id="ag"><span>${pay ? '위 급여 내역을 확인했습니다.' : '위 근로계약 내용을 모두 확인했고, 이 전자서명이 자필 서명과 같은 효력을 갖는 데 동의합니다.'}</span></label>
+      <div class="row"><button class="btn" id="clr">서명 지우기</button><button class="btn pri" id="go">${pay ? '확인하고 서명' : '서명하고 체결'}</button></div></div>`}`;
+  if (signed) return;
+  const pad = sigPad(document.getElementById('cv'));
+  document.getElementById('clr').onclick = () => pad.clear();
+  document.getElementById('go').onclick = async e => {
+    const nm = document.getElementById('nm').value.trim(), ag = document.getElementById('ag').checked;
+    if (!nm) return alertMsg('이름을 적어 주세요'); if (pad.isEmpty()) return alertMsg('서명을 그려 주세요'); if (!ag) return alertMsg('확인 체크를 눌러 주세요');
+    e.target.disabled = true;
+    const { error } = await sb.rpc('contract_sign', { p_token: T, p_name: nm, p_sig: pad.png(), p_agree: true });
+    e.target.disabled = false;
+    if (error) return alertMsg(error.message);
+    document.getElementById('toast')?.remove(); await load(); scrollTo(0, 0);
+  };
+}
+function alertMsg(m) { let t = document.getElementById('toast'); if (!t) { t = document.createElement('div'); t.id = 'toast'; t.style.cssText = 'position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#111;color:#fff;padding:10px 16px;border-radius:10px;z-index:9;font-size:14px'; document.body.append(t); } t.textContent = m; clearTimeout(t.h); t.h = setTimeout(() => t.remove(), 2600); }
+load();
+</script>
+</body>
+</html>
