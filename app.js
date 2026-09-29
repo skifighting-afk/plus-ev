@@ -12,7 +12,7 @@ const fmtDT = d => new Date(d).toLocaleString('ko-KR', { month: 'numeric', day: 
 const man = n => Math.abs(n) >= 1e8 ? `${(n / 1e8).toFixed(Math.round(n / 1e7) % 10 ? 1 : 0)}억` : `${E.won(n / 10000)}만`;
 function toast(m) { const t = $('#toast'); t.textContent = m; t.classList.add('on'); clearTimeout(toast.h); toast.h = setTimeout(() => t.classList.remove('on'), 2800); }
 async function q(p) { const { data, error } = await p; if (error) { toast(error.message); throw error; } return data; }
-const STORE_COLS = 'id,company_id,name,area,address,pyeong,tables,layout,night_start,night_end,need_by_wd,join_code,created_at,goal,fixed,holidays';
+const STORE_COLS = 'id,company_id,name,area,address,pyeong,tables,layout,night_start,night_end,need_by_wd,join_code,created_at,goal,fixed,holidays,contract_tpl';
 const PRICE = { get basic() { return PRICING.basicMonthly }, get pro() { return PRICING.proMonthly } }; // 값은 pricing.js
 // 무료 체험 중이거나 프로 결제 중이면 쓸 수 있어요. 끝나면 보기만 (데이터는 그대로). 서버 트리거(guard_active)와 같은 기준
 const compActive = c => !!c && (((c.plan === 'pro' || c.plan === 'basic') && c.paid_until && new Date(c.paid_until) > now) || (c.trial_ends && c.trial_ends >= TODAY) || (c.diag_until && new Date(c.diag_until) > now));
@@ -29,7 +29,7 @@ const docOf = (mid, kind, title) => (S.docs || []).find(d => d.member_id === mid
 const docPill = d => !d ? '<span class="pill">없음</span>' : d.status === 'signed' ? `<span class="pill g">${d.kind === 'payslip' ? '수령 확인' : '체결 완료'}</span>` : '<span class="pill y">서명 대기</span>';
 function docRow(p) {
   const d = docOf(p.id, 'labor');
-  return `<div class="docrow"><span><b>근로계약서</b> ${docPill(d)}${d?.signed_at ? `<small class="mut"> ${new Date(d.signed_at).toLocaleDateString('ko-KR')}</small>` : ''}</span><span class="row">${d ? `<button class="btn sm" data-act="doc-open" data-v="${d.token}">${d.status === 'signed' ? '보기·출력' : '보기'}</button>${d.status === 'sent' ? `<button class="btn sm" data-act="doc-link" data-v="${d.token}">링크</button>` : ''}` : ''}<button class="btn sm ${d ? '' : 'pri'}" data-act="doc-new" data-m="${p.id}">${d ? '새로 작성' : '작성하기'}</button></span></div>`;
+  return `<div class="docrow"><span><b>근로계약서</b> ${docPill(d)}${d?.signed_at ? `<small class="mut"> ${new Date(d.signed_at).toLocaleDateString('ko-KR')}</small>` : ''}</span><span class="row">${d ? `<button class="btn sm" data-act="doc-open" data-v="${d.token}">${d.status === 'signed' ? '보기·출력' : '보기'}</button>${d.status === 'sent' ? `<button class="btn sm" data-act="doc-link" data-v="${d.token}">링크</button>` : ''}` : ''}<button class="btn sm ${d ? '' : 'pri'}" data-act="doc-new" data-m="${p.id}">${d ? '다시 보내기' : '보내기'}</button></span></div>`;
 }
 const slipTitle = () => `${S.y}년 ${S.m}월 급여명세서`;
 function slipRow(p) {
@@ -51,22 +51,39 @@ let PAD = null, useLast = false;
 function mountPad() { const cv = $('#own-cv'); if (cv) { PAD = sigPad(cv); useLast = false; } }
 function ownerSig() { if (useLast && lastSig()) return lastSig(); if (!PAD || PAD.isEmpty()) return null; const v = PAD.png(); try { localStorage.setItem('ev-owner-sig', v) } catch { } return v; }
 const baseTerms = p => ({ company_name: S.company?.name || S.store.name, biz_no: String(S.company?.biz_no || '').replace(/^(\d{3})(\d{2})(\d{5})$/, '$1-$2-$3'), owner_name: S.prof?.name || '', store_name: S.store.name, employee_name: p.real_name || p.nick, role: p.job_role || '', contract: p.contract, hourly: p.hourly_rate || 0, bank: p.bank_name ? `${p.bank_name} ${p.bank_acct || ''} (${p.bank_holder || ''})` : '' });
+// 매장 표준 근로계약서 양식 — 한 번 저장해 두면 직원마다 이름·시급·입사일만 자동으로 바뀌어 나가요
+const TPL0 = { place: '', duty: '{직책} 업무', days: '근무표에 따름 (주 5일 이내)', tf: '19:00', tt: '03:00', brk: 60, payday: 10, extra: '' };
+const tplOf = () => ({ ...TPL0, place: S.store.address || S.store.name, ...(S.store.contract_tpl || {}) });
+const tplFields = (t, pre = '') => `<label class="fl">근무장소<input name="${pre}place" value="${esc(t.place)}"></label>
+    <div class="grid2"><label class="fl">업무 <small class="mut">{직책}은 직원 직책으로 바뀌어요</small><input name="${pre}duty" value="${esc(t.duty)}"></label><label class="fl">근로일<input name="${pre}days" value="${esc(t.days)}"></label></div>
+    <div class="grid2"><label class="fl">시작 시각<input type="time" name="${pre}tf" value="${esc(t.tf)}"></label><label class="fl">끝 시각<input type="time" name="${pre}tt" value="${esc(t.tt)}"></label></div>
+    <div class="grid2"><label class="fl">휴게(분)<input type="number" name="${pre}brk" value="${+t.brk || 0}"></label><label class="fl">급여일 (매월)<input type="number" name="${pre}payday" min="1" max="31" value="${+t.payday || 10}"></label></div>
+    <label class="fl">특약 <small class="mut">선택</small><input name="${pre}extra" value="${esc(t.extra)}" placeholder="예: 수습 3개월, 복장 규정"></label>`;
+function tplSheet() {
+  openSheet(`<h2>표준 근로계약서 양식</h2><p class="sub">매장 공통 조건을 한 번만 저장해 두세요. 보낼 때는 직원 <b>이름 · 시급 · 입사일 · 3.3%/4대보험 · 계좌</b>만 자동으로 바뀌어요.</p>
+  <form class="f" id="tpl-form">${tplFields(tplOf())}<button type="button" class="btn pri full" data-act="tpl-save">양식 저장</button></form>`);
+}
+const needContract = () => S.members.filter(p => p.role !== 'owner' && !['sent', 'signed'].includes(docOf(p.id, 'labor')?.status));
+function contractTerms(p, t, start) {
+  return { ...baseTerms(p), start: start || p.joined_on || TODAY, end: '', place: t.place, duty: String(t.duty || '').replace('{직책}', p.job_role || '딜러'), days: t.days, time_from: t.tf, time_to: t.tt, break_min: +t.brk || 0, payday: +t.payday || 10, night: !!p.night_pay, law: !!(p.labor_law ?? p.contract === '4대'), extra: t.extra || '' };
+}
 function contractSheet(mid) {
-  const p = S.members.find(x => x.id === mid); if (!p) return;
-  if (!p.real_name) toast('직원 실명을 먼저 넣으면 계약서에 실명으로 들어가요');
-  const t0 = S.tpl.find(t => t.member_id === p.id);
-  openSheet(`<h2>근로계약서 작성</h2><p class="sub">${esc(p.real_name || p.nick)} · 직원 정보로 채워 뒀어요. 확인하고 대표 서명을 하면 직원에게 바로 가요.</p>
+  const p = S.members.find(x => x.id === mid); if (!p) return; const t = tplOf();
+  openSheet(`<h2>근로계약서 보내기</h2><p class="sub">매장 표준 양식${S.store.contract_tpl ? '' : ' <small class="warn">(아직 저장 전 · 기본값)</small>'}으로 보내요.</p>
+  <div class="kvbox"><div><small>직원</small><b>${esc(p.real_name || p.nick)}${p.real_name ? '' : ' <small class="warn">실명 미등록</small>'}</b></div><div><small>시급</small><b>₩${E.won(p.hourly_rate || 0)}</b></div><div><small>시작일</small><b>${p.joined_on || TODAY}</b></div><div><small>계약</small><b>${p.contract === '4대' ? '4대보험' : '3.3%'}</b></div><div><small>근무</small><b>${esc(t.days)} · ${esc(t.tf)}~${esc(t.tt)}</b></div><div><small>급여일</small><b>매월 ${+t.payday || 10}일</b></div></div>
   <form class="f" id="doc-form" data-m="${p.id}">
-    <div class="grid2"><label class="fl">시작일<input type="date" name="start" value="${p.joined_on || TODAY}"></label><label class="fl">종료일 <small class="mut">비우면 기간 없음</small><input type="date" name="end"></label></div>
-    <label class="fl">근무장소<input name="place" value="${esc(S.store.address || S.store.name)}"></label>
-    <div class="grid2"><label class="fl">업무<input name="duty" value="${esc(p.job_role || '딜러')} 업무"></label><label class="fl">시급<input type="number" name="hourly" value="${p.hourly_rate || ''}"></label></div>
-    <label class="fl">근로일<input name="days" value="근무표에 따름 (주 ${new Set(S.tpl.filter(t => t.member_id === p.id).map(t => t.weekday)).size || 4}일 이내)"></label>
-    <div class="grid2"><label class="fl">시작 시각<input type="time" name="tf" value="${t0 ? t5(t0.start_t) : '19:00'}"></label><label class="fl">끝 시각<input type="time" name="tt" value="${t0 ? t5(t0.end_t) : '03:00'}"></label></div>
-    <div class="grid2"><label class="fl">휴게(분)<input type="number" name="brk" value="${t0?.break_min ?? 60}"></label><label class="fl">급여일 (매월)<input type="number" name="payday" min="1" max="31" value="10"></label></div>
-    <label class="fl">특약 <small class="mut">선택</small><input name="extra" placeholder="예: 수습 3개월, 복장 규정"></label>
+    <details class="more"><summary>이 직원만 내용 바꾸기 <small class="mut">양식은 그대로</small></summary><div class="f" style="margin-top:10px"><label class="fl">시작일<input type="date" name="start" value="${p.joined_on || TODAY}"></label>${tplFields(t, 'o_')}</div></details>
     ${sigBlock()}
-    <button type="button" class="btn pri full" data-act="doc-send">대표 서명하고 직원에게 보내기</button>
+    <button type="button" class="btn pri full" data-act="doc-send">대표 서명하고 보내기</button>
+    <button type="button" class="btn full" data-act="tpl-edit">표준 양식 관리</button>
   </form>`); mountPad();
+}
+function bulkSheet() {
+  const L = needContract();
+  if (!L.length) return toast('계약서를 보낼 직원이 없어요. 모두 발송·체결됐어요');
+  openSheet(`<h2>계약서 한 번에 보내기</h2><p class="sub">표준 양식으로 아직 계약서가 없는 직원에게 한꺼번에 보내요. 대표 서명은 한 번만 하면 돼요.</p>
+  <form class="f" id="bulk-form">${L.map(p => `<label class="tog"><span><b>${esc(p.real_name || p.nick)}</b><small>${esc(p.job_role || '')} · 시급 ₩${E.won(p.hourly_rate || 0)}${p.real_name ? '' : ' · <span class="warn">실명 미등록</span>'}</small></span><input type="checkbox" name="m_${p.id}" ${p.real_name && p.hourly_rate ? 'checked' : ''}></label>`).join('')}
+    ${sigBlock()}<button type="button" class="btn pri full" data-act="bulk-send">서명하고 선택한 직원에게 보내기</button></form>`); mountPad();
 }
 function slipSheet(mid) {
   const p = S.members.find(x => x.id === mid); if (!p) return; const r = payOf(p), nx = new Date(S.y, S.m, 10);
@@ -842,6 +859,7 @@ function vStaff() {
   <div class="seg sub2" style="margin-top:12px">${[['list', '직원 현황'], ['pay', '급여 대장']].map(([k, l]) => `<button data-act="stab" data-v="${k}" aria-pressed="${(S.staffTab || 'list') === k}">${l}</button>`).join('')}</div>
   ${(S.staffTab || 'list') === 'list' ? `
   <div class="row between" style="margin:12px 0 10px"><div class="chips">${['전체', ...EMP].map(t => `<button class="fchip ${f === t ? 'on' : ''}" data-act="empf" data-v="${t}">${t} <b class="num">${t === '전체' ? all.length : cnt(t)}</b></button>`).join('')}</div><button class="btn pri sm" data-act="staff-new">+ 직원 등록</button></div>
+  ${all.length ? `<div class="card tplbar"><div><b>표준 근로계약서</b><small>${S.store.contract_tpl ? `저장됨 · ${esc(tplOf().days)} · ${esc(tplOf().tf)}~${esc(tplOf().tt)} · 매월 ${tplOf().payday}일 지급` : '양식을 한 번 저장해 두면 직원마다 버튼 한 번으로 보내요'}</small></div><span class="row"><button class="btn sm" data-act="tpl-edit">${S.store.contract_tpl ? '양식 수정' : '양식 만들기'}</button>${needContract().length ? `<button class="btn sm pri" data-act="doc-bulk">미발송 ${needContract().length}명 한 번에 보내기</button>` : ''}</span></div>` : ''}
   ${staff.map(p => `<div class="card emp"><div class="row between"><div class="row" style="gap:6px"><b style="font-size:17px">${esc(p.nick)}</b><span class="pill">${esc(p.job_role || '-')}</span><span class="pill et ${{ 정규: 'g', 파트타임: '', 대타: 'y' }[p.emp_type || '파트타임']}">${esc(p.emp_type || '파트타임')}</span>${p.role === 'manager' ? '<span class="pill y">점장</span>' : ''}${p.user_id ? '<span class="pill g">앱 연결</span>' : ''}</div>
       <span class="row">${isOwner() && p.user_id ? `<button class="btn sm" data-act="mgr" data-m="${p.id}" data-v="${p.role !== 'manager'}">${p.role === 'manager' ? '점장 해제' : '점장 권한'}</button>` : ''}${isOwner() || p.role === 'staff' ? `<button class="btn sm" data-act="staff-edit" data-m="${p.id}">수정</button>` : ''}</span></div>
     <div class="kv">${kv('실명', esc(p.real_name || ''))}${kv('연락처', p.phone ? `<a href="tel:${esc(p.phone)}">${esc(p.phone)}</a>` : '')}${kv('시급', p.hourly_rate ? `₩${E.won(p.hourly_rate)}` : '')}${kv('계약', p.contract === '4대' ? '4대보험' : '3.3% 프리랜서')}${kv('입사일', p.joined_on ? `${p.joined_on} <small class="mut">(${tenure(p.joined_on)})</small>` : '')}${kv('수당', [p.night_pay ? '야간' : '', (p.labor_law ?? p.contract === '4대') ? '연장·주휴' : ''].filter(Boolean).join(' · ') || '없음')}</div>
@@ -1466,12 +1484,26 @@ document.addEventListener('click', e => {
   if (a === 'doc-share') { navigator.share?.({ title: '+EV 전자 서류', text: '근로계약서/명세서를 확인하고 서명해 주세요', url: docUrl(d.v) }).catch(() => { }); return; }
   if (a === 'sig-clear') { PAD?.clear(); useLast = false; return; }
   if (a === 'sig-last') { const cv = $('#own-cv'), img = new Image(); img.onload = () => { PAD?.clear(); const g = cv.getContext('2d'), r = window.devicePixelRatio || 1; g.drawImage(img, 0, 0, cv.width / r, cv.height / r); useLast = true; }; img.src = lastSig(); return; }
+  if (a === 'tpl-edit') return tplSheet();
+  if (a === 'doc-bulk') return bulkSheet();
+  if (a === 'tpl-save') return busy(async () => {
+    const v = formVals($('#tpl-form')), t = { place: v.place, duty: v.duty, days: v.days, tf: v.tf, tt: v.tt, brk: +v.brk || 0, payday: +v.payday || 10, extra: v.extra || '' };
+    await q(sb.rpc('save_contract_tpl', { p_store: S.store.id, p_tpl: t })); S.store.contract_tpl = t; closeSheet(); render(); toast('표준 계약서 양식을 저장했어요');
+  });
   if (a === 'doc-send') return busy(async () => {
     const f = $('#doc-form'), v = formVals(f), p = S.members.find(x => x.id === f.dataset.m), sig = ownerSig();
-    if (!sig) return toast('대표 서명을 그려 주세요'); if (!v.start || !+v.hourly) return toast('시작일과 시급을 넣어 주세요');
-    const t = { ...baseTerms(p), hourly: +v.hourly, start: v.start, end: v.end || '', place: v.place, duty: v.duty, days: v.days, time_from: v.tf, time_to: v.tt, break_min: +v.brk || 0, payday: +v.payday || 10, night: !!p.night_pay, law: !!(p.labor_law ?? p.contract === '4대'), extra: v.extra || '' };
-    const [r] = await q(sb.rpc('contract_create', { p_member: p.id, p_terms: t, p_body: laborBody(t), p_owner_sig: sig, p_kind: 'labor', p_title: '근로계약서' }));
-    await afterSend(r.token, t.employee_name);
+    if (!sig) return toast('대표 서명을 그려 주세요'); if (!+p.hourly_rate) return toast('직원 시급을 먼저 넣어 주세요');
+    const open = f.querySelector('details')?.open, t = open ? { place: v.o_place, duty: v.o_duty, days: v.o_days, tf: v.o_tf, tt: v.o_tt, brk: v.o_brk, payday: v.o_payday, extra: v.o_extra } : tplOf();
+    const terms = contractTerms(p, t, open ? v.start : null);
+    const [r] = await q(sb.rpc('contract_create', { p_member: p.id, p_terms: terms, p_body: laborBody(terms), p_owner_sig: sig, p_kind: 'labor', p_title: '근로계약서' }));
+    await afterSend(r.token, terms.employee_name);
+  });
+  if (a === 'bulk-send') return busy(async () => {
+    const v = formVals($('#bulk-form')), L = needContract().filter(p => v['m_' + p.id]), sig = ownerSig();
+    if (!L.length) return toast('보낼 직원을 골라 주세요'); if (!sig) return toast('대표 서명을 그려 주세요');
+    const bad = L.filter(p => !+p.hourly_rate); if (bad.length) return toast(`${bad.map(p => p.nick).join(', ')}님 시급을 먼저 넣어 주세요`);
+    for (const p of L) { const terms = contractTerms(p, tplOf()); await q(sb.rpc('contract_create', { p_member: p.id, p_terms: terms, p_body: laborBody(terms), p_owner_sig: sig, p_kind: 'labor', p_title: '근로계약서' })); }
+    await reload(); closeSheet(); toast(`${L.length}명에게 근로계약서를 보냈어요`);
   });
   if (a === 'slip-send') return busy(async () => {
     const f = $('#slip-form'), v = formVals(f), p = S.members.find(x => x.id === f.dataset.m), sig = ownerSig(), r = payOf(p);
