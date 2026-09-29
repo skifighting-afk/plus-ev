@@ -1,0 +1,75 @@
+name: Android 앱 빌드 (TWA)
+
+on:
+  workflow_dispatch:
+  push:
+    paths: ['android/**', '.github/workflows/android.yml']
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      KS_PASS: ${{ secrets.KEYSTORE_PASS || 'plusev2026' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: '17' }
+      - uses: android-actions/setup-android@v3
+      - uses: actions/setup-node@v4
+        with: { node-version: '20' }
+      - run: npm i -g @bubblewrap/cli
+
+      - name: bubblewrap 설정 (JDK·SDK 경로)
+        run: |
+          mkdir -p ~/.bubblewrap
+          echo "{\"jdkPath\":\"$JAVA_HOME\",\"androidSdkPath\":\"$ANDROID_HOME\"}" > ~/.bubblewrap/config.json
+          yes | sdkmanager --licenses >/dev/null || true
+
+      - name: 서명 키 (secret에 있으면 복원, 없으면 새로 생성)
+        working-directory: android
+        run: |
+          if [ -n "${{ secrets.ANDROID_KEYSTORE_B64 }}" ]; then
+            echo "${{ secrets.ANDROID_KEYSTORE_B64 }}" | base64 -d > android.keystore
+          else
+            keytool -genkeypair -v -keystore android.keystore -alias plusev -keyalg RSA -keysize 2048 -validity 10000 \
+              -storepass "$KS_PASS" -keypass "$KS_PASS" -dname "CN=+EV, OU=plusevapp, O=plusevapp.kr, L=Seoul, C=KR"
+          fi
+          keytool -list -v -keystore android.keystore -alias plusev -storepass "$KS_PASS" | grep SHA256 > fingerprint.txt
+          cat fingerprint.txt
+
+      - name: 안드로이드 프로젝트 생성 + 빌드
+        working-directory: android
+        env:
+          BUBBLEWRAP_KEYSTORE_PASSWORD: ${{ env.KS_PASS }}
+          BUBBLEWRAP_KEY_PASSWORD: ${{ env.KS_PASS }}
+        run: |
+          bubblewrap update --skipVersionUpgrade
+          bubblewrap build --skipPwaValidation
+          ls -la *.aab *.apk
+
+      - name: assetlinks.json 생성 (도메인 소유 증명)
+        working-directory: android
+        run: |
+          FP=$(grep -o 'SHA256: .*' fingerprint.txt | cut -d' ' -f2)
+          mkdir -p ../.well-known
+          echo "[{\"relation\":[\"delegate_permission/common.handle_all_urls\"],\"target\":{\"namespace\":\"android_app\",\"package_name\":\"kr.plusevapp.twa\",\"sha256_cert_fingerprints\":[\"$FP\"]}}]" > ../.well-known/assetlinks.json
+          cat ../.well-known/assetlinks.json
+
+      - name: assetlinks.json 저장소에 커밋
+        run: |
+          git config user.name "plus-ev-bot"; git config user.email "bot@plusevapp.kr"
+          git add .well-known/assetlinks.json
+          git diff --cached --quiet || git commit -m "assetlinks.json (TWA 서명 지문)" && git push || true
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: plusev-android
+          path: |
+            android/app-release-bundle.aab
+            android/app-release-signed.apk
+            android/android.keystore
+            android/fingerprint.txt
+            .well-known/assetlinks.json
