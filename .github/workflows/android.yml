@@ -35,7 +35,7 @@ jobs:
             echo "${{ secrets.ANDROID_KEYSTORE_B64 }}" | base64 -d > android.keystore
           else
             keytool -genkeypair -v -keystore android.keystore -alias plusev -keyalg RSA -keysize 2048 -validity 10000 \
-              -storepass "$KS_PASS" -keypass "$KS_PASS" -dname "CN=+EV, OU=plusevapp, O=plusevapp.kr, L=Seoul, C=KR"
+              -storepass "$KS_PASS" -keypass "$KS_PASS" -dname "CN=PlusEV, OU=plusevapp, O=plusevapp.kr, L=Seoul, C=KR"
           fi
           keytool -list -v -keystore android.keystore -alias plusev -storepass "$KS_PASS" | grep SHA256 > fingerprint.txt
           cat fingerprint.txt
