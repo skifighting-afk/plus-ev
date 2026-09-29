@@ -12,8 +12,9 @@ jobs:
   build:
     runs-on: ubuntu-latest
     env:
-      KS_PASS: ${{ secrets.KEYSTORE_PASS || 'plusev2026' }}
+      KS_PASS: ${{ secrets.KEYSTORE_PASS }}
     steps:
+      - run: test -n "$KS_PASS" || { echo '::error::KEYSTORE_PASS secret이 없어요. 저장소 Settings → Secrets → Actions 에 추가하세요.'; exit 1; }
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
         with: { distribution: temurin, java-version: '17' }
@@ -26,18 +27,18 @@ jobs:
         run: |
           mkdir -p ~/.bubblewrap
           sudo mkdir -p $ANDROID_HOME/tools/bin && sudo ln -sf $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager $ANDROID_HOME/tools/bin/sdkmanager
-          ls -la $ANDROID_HOME/tools/bin/
           echo "{\"jdkPath\":\"$JAVA_HOME\",\"androidSdkPath\":\"$ANDROID_HOME\"}" > ~/.bubblewrap/config.json
           yes | sdkmanager --licenses >/dev/null || true
 
-      - name: 서명 키 (secret에 있으면 복원, 없으면 새로 생성)
+      - name: 서명 키 (암호화된 키가 저장소에 있으면 복호화, 없으면 새로 생성 후 암호화)
         working-directory: android
         run: |
-          if [ -n "${{ secrets.ANDROID_KEYSTORE_B64 }}" ]; then
-            echo "${{ secrets.ANDROID_KEYSTORE_B64 }}" | base64 -d > android.keystore
+          if [ -f android.keystore.enc ]; then
+            openssl enc -d -aes-256-cbc -pbkdf2 -pass pass:"$KS_PASS" -in android.keystore.enc -out android.keystore
           else
             keytool -genkeypair -v -keystore android.keystore -alias plusev -keyalg RSA -keysize 2048 -validity 10000 \
               -storepass "$KS_PASS" -keypass "$KS_PASS" -dname "CN=PlusEV, OU=plusevapp, O=plusevapp.kr, L=Seoul, C=KR"
+            openssl enc -aes-256-cbc -pbkdf2 -pass pass:"$KS_PASS" -in android.keystore -out android.keystore.enc
           fi
           keytool -list -v -keystore android.keystore -alias plusev -storepass "$KS_PASS" | grep SHA256 > fingerprint.txt
           cat fingerprint.txt
@@ -60,11 +61,11 @@ jobs:
           echo "[{\"relation\":[\"delegate_permission/common.handle_all_urls\"],\"target\":{\"namespace\":\"android_app\",\"package_name\":\"kr.plusevapp.twa\",\"sha256_cert_fingerprints\":[\"$FP\"]}}]" > ../.well-known/assetlinks.json
           cat ../.well-known/assetlinks.json
 
-      - name: assetlinks.json 저장소에 커밋
+      - name: assetlinks.json·암호화 키 저장소에 커밋
         run: |
           git config user.name "plus-ev-bot"; git config user.email "bot@plusevapp.kr"
-          git add .well-known/assetlinks.json
-          git diff --cached --quiet || git commit -m "assetlinks.json (TWA 서명 지문)" && git push || true
+          git add .well-known/assetlinks.json android/android.keystore.enc
+          git diff --cached --quiet || (git commit -m "assetlinks.json + 암호화된 서명 키" && git push) || true
 
       - uses: actions/upload-artifact@v4
         with:
@@ -73,5 +74,6 @@ jobs:
             android/app-release-bundle.aab
             android/app-release-signed.apk
             android/android.keystore
+            android/android.keystore.enc
             android/fingerprint.txt
             .well-known/assetlinks.json
