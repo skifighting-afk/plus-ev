@@ -345,3 +345,18 @@ label.fl{line-height:1.4}
 .tlr.cov .tlt span,.tlt .bar{font-size:11.5px}
 .cell .dn small{font-size:10px}
 .note a{color:var(--brand);text-decoration:underline;text-underline-offset:2px}
+/* 요금제 화면 */
+.prHero{margin:14px 0 4px;padding:26px 22px;border-radius:var(--r-lg);background:radial-gradient(120% 140% at 0% 0%,rgba(16,185,129,.22),transparent 55%),var(--surface-2);border:1px solid var(--border)}
+.prEy{font-size:12px;letter-spacing:.14em;color:var(--brand);font-weight:700}
+.prHero h2{font-size:30px;line-height:1.15;margin:8px 0 10px;letter-spacing:-.03em}.prHero h2 em{font-style:normal;color:var(--brand)}
+.prHero p{margin:0;color:var(--text-secondary);font-size:14px}
+.prRep{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:1px;margin-top:12px;border:1px solid var(--line);border-radius:var(--r-md);overflow:hidden;background:var(--line)}
+.prRep div{background:var(--surface-1);padding:12px 14px;display:grid;gap:3px}.prRep s{font-size:12px;color:var(--muted)}.prRep b{font-size:14px}
+.prGrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px;margin-top:12px}
+.prCard{position:relative;display:flex;flex-direction:column;gap:12px;padding:22px 20px;border-radius:var(--r-lg);background:var(--surface-2);border:1px solid var(--border)}
+.prCard.pro{border-color:rgba(16,185,129,.55);background:linear-gradient(160deg,rgba(16,185,129,.16),transparent 60%),var(--surface-2)}
+.prCard.cur{outline:2px solid var(--brand)}
+.prCard .pill{position:absolute;top:16px;right:16px}
+.prCard h3{margin:0;font-size:16px}
+.prAmt b{font-size:32px;font-weight:800;letter-spacing:-.02em}.prAmt span{margin-left:6px;font-size:12px;color:var(--muted)}
+.prCard ul{list-style:none;margin:0;padding:0;display:grid;gap:8px;flex:1}.prCard li{font-size:14px;color:var(--text-secondary);padding-left:18px;position:relative}.prCard li::before{content:"";position:absolute;left:0;top:10px;width:9px;height:2px;background:var(--brand)}

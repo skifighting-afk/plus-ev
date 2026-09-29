@@ -1,7 +1,7 @@
 // 가격은 여기 한 곳. 서버(public.pricing 테이블)와 같은 키를 쓰고, 부팅 때 서버 값으로 덮어쓴다.
 // 운영자가 나중에 HQ 화면에서 pricing 테이블만 고치면 앱·서버 요금이 같이 바뀐다.
 export const PRICING = {
-  proMonthly: 35000, basicMonthly: 25000, storeAdd: 35000, trialDays: 14,
+  proMonthly: 35000, basicMonthly: 25000, storeAdd: 35000, trialDays: 30,
   jobs: { base: { 1: 4400, 3: 8800, 5: 12100, 14: 19800, 30: 33000 }, jump: { 0: 0, 2: 9900, 5: 19800, 8: 27500 }, topDay: 29700, flashDay: 5500, urgent: 10000, matchPct: 5, disc: { 14: 0.1, 30: 0.2 } },
   used: { top: 4900, urgent: 9900 },
   franchise: { postingMonthly: 300000, qualifiedLead: 50000 },

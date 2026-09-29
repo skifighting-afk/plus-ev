@@ -42,7 +42,7 @@ const detail = f => `<a class="btn sm" href="fr.html">‹ 전체 공고</a><div 
   <div class="cta">${f.tracking_number ? `<a class="btn gold full" href="tel:${esc(f.tracking_number.replace(/[^\d]/g, ''))}" data-call="${f.id}">전화 상담하기 · ${esc(f.tracking_number)}</a>` : '<a class="btn full" href="./">+EV 앱에서 상담 요청</a>'}${f.kakao ? `<a class="btn full" style="margin-top:8px" href="${esc(f.kakao)}" target="_blank" rel="noopener">카카오톡 상담</a>` : ''}<p class="note">전화는 +EV 안심번호로 연결돼요. 상담 내용은 본사와 직접 진행합니다.</p></div>`;
 const f = id && L.find(x => x.id === id);
 $('#view').innerHTML = f ? detail(f) : `<div class="hero2"><h1>홀덤펍 가맹 모집</h1><p>창업비용·가맹비·로열티를 한 번에 비교하고 바로 상담하세요.</p></div><div class="frlist">${L.map(card).join('') || '<div class="empty">지금 모집 중인 브랜드가 없어요</div>'}</div>
-  <div class="cta"><b>홀덤펍을 운영 중이신가요?</b><p class="mut" style="margin:4px 0 10px">매출·스케줄·급여·구인을 한 곳에서 — 14일 무료</p><a class="btn pri" href="./">+EV 시작하기</a></div>`;
+  <div class="cta"><b>홀덤펍을 운영 중이신가요?</b><p class="mut" style="margin:4px 0 10px">매출·스케줄·급여·구인을 한 곳에서 — 한 달 무료</p><a class="btn pri" href="./">+EV 시작하기</a></div>`;
 if (f) hit(f.id, 'detail'); else L.forEach(x => hit(x.id, 'view'));
 document.addEventListener('click', e => { const c = e.target.closest('[data-id]'); if (c) location.href = 'fr.html?id=' + c.dataset.id; const t = e.target.closest('[data-call]'); if (t) hit(t.dataset.call, 'click'); });
 </script>

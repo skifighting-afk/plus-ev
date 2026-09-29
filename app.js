@@ -190,15 +190,15 @@ function render() {
     hq: () => ({ dash: vHqDash, goods: vHqGoods, stores: vHqStores, data: vHqData, inq: vHqInq, notice: vHqNotice, fr: vHqFr }[S.tab] || vHqDash)() };
   const lock = S.mode === 'store' && S.company && !S.active ? `<div class="lockbar"><div><b>무료 체험이 끝났어요.</b> 지금은 보기만 돼요 — 입력한 데이터는 그대로 있어요.</div>${isOwner() ? `<span class="row"><button class="btn sm" data-act="plan" data-v="basic">베이직 ₩${E.won(PRICE.basic)}</button><button class="btn sm gold" data-act="plan" data-v="pro">프로 ₩${E.won(PRICE.pro)}</button></span>` : '<button class="btn sm" data-act="ask-owner" data-v="요금제">대표님께 요청</button>'}</div>` : '';
   const c = S.company, paidPlan = c && (c.plan === 'pro' || c.plan === 'basic') && c.paid_until && new Date(c.paid_until) > now;
-  const planbar = S.mode === 'store' && S.tab === 'home' && !S.sub && c && S.active && isOwner() ? `<div class="planbar"><div>${paidPlan ? `<b>${c.plan === 'pro' ? '프로' : '베이직'} 이용 중</b><small>${new Date(c.paid_until).toLocaleDateString('ko-KR')}까지 · 회사당 월 ₩${E.won(c.plan === 'pro' ? PRICE.pro : PRICE.basic)}</small>` : `<b>무료 체험 D-${trialLeft(c)}</b><small>끝나면 베이직 ₩${E.won(PRICE.basic)} · 프로 ₩${E.won(PRICE.pro)} (회사당 월)</small>`}</div><button class="btn sm ${paidPlan && c.plan === 'pro' ? '' : 'gold'}" data-act="sub" data-v="settings">${paidPlan ? '요금제 관리' : '요금제 보기'}</button></div>` : '';
+  const planbar = S.mode === 'store' && S.tab === 'home' && !S.sub && c && S.active && isOwner() ? `<div class="planbar"><div>${paidPlan ? `<b>${c.plan === 'pro' ? '프로' : '베이직'} 이용 중</b><small>${new Date(c.paid_until).toLocaleDateString('ko-KR')}까지 · 회사당 월 ₩${E.won(c.plan === 'pro' ? PRICE.pro : PRICE.basic)}</small>` : `<b>무료 체험 D-${trialLeft(c)}</b><small>끝나면 베이직 ₩${E.won(PRICE.basic)} · 프로 ₩${E.won(PRICE.pro)} (회사당 월)</small>`}</div><button class="btn sm ${paidPlan && c.plan === 'pro' ? '' : 'gold'}" data-act="sub" data-v="pricing">${paidPlan ? '요금제 관리' : '요금제 보기'}</button></div>` : '';
   view.innerHTML = lock + planbar + (V[S.mode] || vAuth)(); enhanceInputs(view);
   if (S.mode === 'store' && S.tab === 'more' && S.sub === 'qr') startQR();
   if (S.mode === 'store' && S.tab === 'more' && S.sub === 'rot' && S.rot) rotTick();
   if (S.mode === 'store' && S.tab === 'sales') closeCalc();
   if (S.mode === 'store' && S.tab === 'jobs') feeBox();
-  if (lock && !S.lockAsked) { S.lockAsked = 1; openSheet(`<h2>무료 체험 14일이 끝났어요</h2><p class="sub">매출·직원·스케줄 등 입력하신 내용은 <b>모두 저장돼 있어요.</b> 지금은 보기만 돼요. 연장하시겠어요?</p>
+  if (lock && !S.lockAsked) { S.lockAsked = 1; openSheet(`<h2>무료 체험 한 달이 끝났어요</h2><p class="sub">매출·직원·스케줄 등 입력하신 내용은 <b>모두 저장돼 있어요.</b> 지금은 보기만 돼요. 연장하시겠어요?</p>
     ${isOwner() ? `<div class="plans"><div class="plan"><b>베이직</b><b class="num">월 ₩${E.won(PRICE.basic)}</b><button class="btn sm" data-act="plan" data-v="basic">베이직으로 연장</button></div><div class="plan cur"><span class="pill y">추천</span><b>프로</b><b class="num">월 ₩${E.won(PRICE.pro)}</b><button class="btn sm gold" data-act="plan" data-v="pro">프로로 연장</button></div></div>` : '<p class="note">요금제는 대표님만 바꿀 수 있어요.</p><button class="btn full" data-act="ask-owner" data-v="요금제">대표님께 요청</button>'}
-    <button class="btn full" data-act="close" style="margin-top:8px">나중에 할게요</button>`); }
+    <button class="btn full" data-act="sub" data-v="pricing" style="margin-top:8px">요금표 자세히 보기</button><button class="btn full" data-act="close" style="margin-top:8px">나중에 할게요</button>`); }
 }
 
 // ===== 로그인·첫 설정 =====
@@ -235,9 +235,9 @@ function vOnboard() {
 
 // ===== 대표·점장 =====
 // 하단 탭 하나에 세부 메뉴를 묶음 (더보기 없음)
-const SUBNAV = { home: [['home', null, '브리핑'], ['improve', null, '매장 개선'], ['more', 'pnl', '월간 손익'], ['more', 'daily', '일 매출']], sched: [['sched', null, '근무표'], ['more', 'rot', '테이블 로테이션'], ['more', 'qr', '출퇴근 코드']],
+const SUBNAV = { home: [['home', null, '브리핑'], ['improve', null, '매장 개선'], ['more', 'pnl', '월간 손익'], ['more', 'daily', '일 매출'], ['more', 'pricing', '요금제']], sched: [['sched', null, '근무표'], ['more', 'rot', '테이블 로테이션'], ['more', 'qr', '출퇴근 코드']],
   sales: [['sales', null, '오픈·마감'], ['more', 'order', '재고·발주']], staff: [['staff', null, '직원·급여'], ['more', 'edu', '교육']], jobs: [['jobs', null, '우리 공고 올리기'], ['more', 'board', '전체 구인 공고']], market: [['more', 'used', '중고 장터'], ['more', 'transfer', '점포 양도양수'], ['more', 'franchise', '가맹 모집']] };
-const SUB_GROUP = { franchise: 'market', board: 'jobs', notice: 'home', daily: 'home', pnl: 'home', rot: 'sched', qr: 'sched', order: 'sales', edu: 'staff', used: 'market', transfer: 'market' };
+const SUB_GROUP = { pricing: 'home', franchise: 'market', board: 'jobs', notice: 'home', daily: 'home', pnl: 'home', rot: 'sched', qr: 'sched', order: 'sales', edu: 'staff', used: 'market', transfer: 'market' };
 const groupOf = () => S.tab === 'more' ? SUB_GROUP[S.sub] || null : S.tab === 'improve' ? 'home' : S.tab;
 function subnav() {
   const items = (SUBNAV[groupOf()] || []).filter(([, s]) => s !== 'transfer' || isOwner()); if (items.length < 2) return '';
@@ -908,16 +908,28 @@ function vMore() {
   }
   if (sub === 'qr') return `${storeHead('출퇴근 코드')}${back}<div class="card" style="text-align:center"><p class="sub">직원은 앱의 <b>출퇴근</b> 탭에서 이 번호를 넣으면 기록돼요. 30초마다 바뀌어서 사진으로 찍어 보내도 못 써요.</p>
     <div id="qr-code" class="num" style="font-size:56px;font-weight:800;letter-spacing:.18em;color:#6EE7B7">······</div><div class="mut" id="qr-left">불러오는 중</div></div>`;
+  if (sub === 'pricing') {
+    const c = S.company || {}, paid = (c.plan === 'pro' || c.plan === 'basic') && c.paid_until && new Date(c.paid_until) > now, own = isOwner();
+    const st = paid ? `<b>${c.plan === 'pro' ? '프로' : '베이직'} 이용 중</b> · ${new Date(c.paid_until).toLocaleDateString('ko-KR')}까지` : S.active ? `<b>무료 체험 D-${trialLeft(c)}</b> · 끝나도 데이터는 그대로예요` : '<b class="warn">체험이 끝났어요</b> · 요금제를 고르면 바로 이어서 써요';
+    const P = [['basic', '베이직', PRICE.basic, ['QR 출퇴근 · 근무표 · 근로계약서', '급여 자동 계산 · 명세서 발송 · 송금', 'POS 연동 매출 · 일 마감 · 월 예상 손익', '전국 최저가 발주 · 재고 알림', '딜러 모집 공고 무료']],
+      ['pro', '프로', PRICE.pro, ['베이직의 모든 기능', '빅데이터 컨설팅 · 주변 매장 비교 · 경고등', '매장 전체 목표 매출 · 직원 가이드북', '비용 줄이기 · 매출 늘리기 처방', '인터넷 · 세무사 · 노무사 업체 연결']]];
+    const btn = (k, n) => !own ? `<button class="btn full" data-act="ask-owner" data-v="${n} 요금제">대표님께 요청</button>` : paid && c.plan === k ? `<button class="btn full" data-act="plan" data-v="${k}">30일 연장 결제</button>` : paid && c.plan === 'pro' && k === 'basic' ? '<button class="btn full" disabled>프로 이용 중</button>' : `<button class="btn full ${k === 'pro' ? 'pri' : ''}" data-act="plan" data-v="${k}">${n} 결제하고 시작</button>`;
+    return `${storeHead('요금제')}${back}
+    <div class="prHero"><span class="prEy">오픈 프로모션</span><h2>처음 한 달은<br><em>무료로.</em></h2><p>${st}</p></div>
+    <div class="prRep"><div><s>단톡방 · 수기 출근부</s><b>QR 출퇴근</b></div><div><s>급여 엑셀 · 계산기</s><b>급여 자동 계산</b></div><div><s>거래처 전화 · 장부 앱</s><b>발주 · 손익</b></div><div><s>구인 사이트 · 지인 연락</s><b>딜러 구인</b></div></div>
+    <div class="prGrid">${P.map(([k, n, amt, f]) => `<div class="prCard ${k === 'pro' ? 'pro' : ''} ${c.plan === k && paid ? 'cur' : ''}">${k === 'pro' ? '<span class="pill y">추천</span>' : ''}<h3>${n}</h3><div class="prAmt"><b class="num">₩${E.won(amt)}</b><span>회사당 / 월</span></div><ul>${f.map(x => `<li>${x}</li>`).join('')}</ul>${btn(k, n)}</div>`).join('')}</div>
+    <p class="note">카드 · 카카오페이 · 네이버페이 · 토스페이 · 계좌이체로 30일씩 결제해요. 매장이 몇 곳이든 요금은 같아요. 구인 · 장터 · 가맹은 건별 결제예요. <a href="legal.html#refund" target="_blank" rel="noopener">환불 규정</a> · <a href="legal.html#terms" target="_blank" rel="noopener">이용약관</a></p>${payNote()}`;
+  }
   if (sub === 'settings') {
     const c = S.company || {}, pro = c.plan === 'pro', paid = (c.plan === 'pro' || c.plan === 'basic') && c.paid_until && new Date(c.paid_until) > now;
     return `${storeHead('매장 설정')}${back}
-    <div class="card"><h3>요금제 <small>14일 무료 체험 후 베이직 ₩${E.won(PRICE.basic)} · 프로 ₩${E.won(PRICE.pro)} (회사당 월 · 매장 수 무관)</small></h3>
+    <div class="card"><h3>요금제 <small>한 달 무료 체험 후 베이직 ₩${E.won(PRICE.basic)} · 프로 ₩${E.won(PRICE.pro)} (회사당 월 · 매장 수 무관)</small></h3>
       ${paid ? `<div class="li"><div><b>${pro ? '프로' : '베이직'} 이용 중</b><small>${new Date(c.paid_until).toLocaleDateString('ko-KR')}까지 결제돼 있어요${pro ? '' : ' · 매장 비교·경고등·처방은 프로에서'}</small></div>${isOwner() ? `<span class="row">${pro ? '' : `<button class="btn sm gold" data-act="plan" data-v="pro">프로로 올리기</button>`}<button class="btn sm" data-act="plan" data-v="${c.plan}">30일 연장</button></span>` : ''}</div>`
       : S.active ? `<div class="li"><div><b>무료 체험 중 · D-${trialLeft(c)}</b><small>${new Date(c.trial_ends).toLocaleDateString('ko-KR')}까지 프로 기능 전부. 그 뒤엔 보기만 돼요</small></div></div>`
       : `<div class="li"><div><b class="warn">체험이 끝났어요</b><small>보기만 돼요. 아래에서 요금제를 고르면 바로 이어서 입력할 수 있어요</small></div></div>`}
       ${!paid || !pro ? `<div class="plans" style="margin-top:10px"><div class="plan"><b>베이직</b><b class="num">월 ₩${E.won(PRICE.basic)}</b><small>매출 마감 · 손익 계산서 · 직원 · 스케줄 · 급여 · 출퇴근 · 발주 · 구인 게시</small>${isOwner() && !paid ? `<button class="btn sm" data-act="plan" data-v="basic">베이직 시작</button>` : ''}</div>
       <div class="plan cur"><span class="pill y">추천</span><b>프로</b><b class="num">월 ₩${E.won(PRICE.pro)}</b><small>베이직 전부 + 주변 매장 비교(순위·경고등) · 매달 처방·꼭 할 일 · 3개월 예측 · 월간 리포트 · 스케줄 AI 초안 우선</small>${isOwner() ? `<button class="btn sm gold" data-act="plan" data-v="pro">프로 시작</button>` : '<button class="btn sm" data-act="ask-owner" data-v="프로 요금제">대표님께 요청</button>'}</div></div>` : ''}
-      <p class="note">카드로 30일씩 결제해요. 매장이 몇 곳이든 요금은 같아요 (매장 추가 무료). 구인·장터·가맹은 요금제와 별개로 건별 결제예요. <a href="legal.html#refund" target="_blank" rel="noopener">환불 규정</a> · <a href="legal.html#terms" target="_blank" rel="noopener">이용약관</a></p>${payNote()}</div>
+      <button class="btn full" data-act="sub" data-v="pricing" style="margin-top:10px">요금표 전체 보기</button><p class="note">카드로 30일씩 결제해요. 매장이 몇 곳이든 요금은 같아요 (매장 추가 무료). 구인·장터·가맹은 요금제와 별개로 건별 결제예요. <a href="legal.html#refund" target="_blank" rel="noopener">환불 규정</a> · <a href="legal.html#terms" target="_blank" rel="noopener">이용약관</a></p>${payNote()}</div>
     ${pushRow() ? `<div class="card">${pushRow()}</div>` : ''}
     <form class="f card" id="store-form"><h3>매장 정보</h3><label class="fl">매장 이름<input name="name" value="${esc(S.store.name)}" ${isOwner() ? '' : 'disabled'}></label><label class="fl">지역<input name="area" value="${esc(S.store.area || '')}" ${isOwner() ? '' : 'disabled'}></label><label class="fl">주소 <small class="mut">구인 공고에 지도로 나가요</small><input name="address" value="${esc(S.store.address || '')}" placeholder="예: 서울 강남구 테헤란로 8길 21, 3층" ${isOwner() ? '' : 'disabled'}></label>
       <div class="grid2"><label class="fl">평수<input type="number" name="py" min="1" step="0.1" value="${S.store.pyeong ?? ''}" placeholder="예: 32" ${isOwner() ? '' : 'disabled'}></label><label class="fl">테이블 수<input type="number" name="tables" min="1" value="${S.store.tables ?? ''}" placeholder="예: 7" ${isOwner() ? '' : 'disabled'}></label></div>
