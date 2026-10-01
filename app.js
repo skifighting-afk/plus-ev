@@ -1288,7 +1288,7 @@ function vWallet() {
 }
 function vMe() {
   const p = S.prof;
-  return `<h1>내 정보</h1>${S.mode === 'staff' ? myDocsCard(false) : ''}<form class="f card" id="dealer-form"><label class="fl">이름(닉네임)<input name="name" value="${esc(p.name)}"></label><label class="fl">휴대폰<input name="phone" value="${esc(p.phone || '')}"></label>
+  return `<h1>내 정보</h1>${S.mode === 'staff' ? myDocsCard(false) : ''}<form class="f card" id="dealer-form"><label class="fl">이름(닉네임)<input name="name" value="${esc(p.name)}"></label><label class="fl">휴대폰 ${p.phone_verified_at ? '<span class="pill g">✓ 인증됨</span>' : '<span class="pill y">미인증</span>'}<span style="display:flex;gap:6px"><input name="phone" value="${esc(p.phone || '')}" style="flex:1"><button type="button" class="btn sm" data-act="otp-send">문자 인증</button></span></label>
   <label class="fl">경력 (개월)<input name="career" type="number" value="${p.career_months || 0}"></label><label class="fl">자기소개<textarea name="bio" rows="3">${esc(p.bio || '')}</textarea></label>
   <div class="grid2"><label class="fl">활동 지역 (시·도)<select name="area"><option value="">전국</option>${SIDO.map(a => `<option ${p.area === a ? 'selected' : ''}>${a}</option>`).join('')}</select></label><label class="fl">가능 게임<input name="games" value="${esc(p.games || '')}" placeholder="예: 홀덤, 오마하"></label></div>
   <label class="tog"><span><b>다른 매장 긴급 대타 받기</b><small>같은 지역 긴급 대타가 뜨면 알림을 드려요. 지원해서 근무하면 지갑으로 바로 지급</small></span><input type="checkbox" name="open_to_sub" ${p.open_to_sub ? 'checked' : ''}></label>
@@ -1480,6 +1480,7 @@ document.addEventListener('click', e => {
     else await q(sb.from('shift_templates').delete().eq('member_id', memberId).eq('weekday', weekday));
     closeSheet(); await reload(); toast('휴무로 바꿨어요');
   });
+  if (a === 'otp-send') { const ph = ($('#dealer-form [name=phone]')?.value || '').trim(); return busy(async () => { const { data, error } = await sb.functions.invoke('phone-otp', { body: { action: 'send', phone: ph } }); if (error || !data?.ok) return toast(data?.msg || '문자 발송에 실패했어요'); openSheet(`<h2>인증번호 입력</h2><p class="sub">${esc(ph)}로 보낸 6자리 숫자를 넣어주세요 (3분 안에)</p><form class="f" id="otp-form"><input name="code" required inputmode="numeric" maxlength="6" autocomplete="one-time-code" style="text-align:center;letter-spacing:.3em;font-size:22px"><button class="btn pri full">확인</button></form>`); }); }
   if (a === 'pw-eye') { const i = b.closest('.pwwrap').querySelector('input'); i.type = i.type === 'password' ? 'text' : 'password'; b.textContent = i.type === 'password' ? '👁' : '🙈'; return; }
   if (a === 'pw-forgot') { const em = ($('#auth-form [name=email]')?.value || '').trim(); if (!em) return toast('이메일을 먼저 적어주세요'); return busy(async () => { const { error } = await sb.auth.resetPasswordForEmail(em, { redirectTo: location.origin + location.pathname }); toast(error ? error.message : '재설정 메일을 보냈어요. 메일의 버튼을 누르면 새 비밀번호를 정할 수 있어요'); }); }
   if (a === 'biz-check') return busy(async () => { const { data, error } = await sb.functions.invoke('biz-verify', { body: { company_id: S.company.id } }); if (error || !data?.ok) return toast(data?.msg || '국세청 조회에 실패했어요. 잠시 후 다시 해주세요'); toast(`국세청 확인: ${data.status}`); await boot(); });
@@ -1660,6 +1661,7 @@ document.addEventListener('change', e => { if (e.target.name === 'category' && e
 document.addEventListener('submit', e => {
   e.preventDefault(); const f = e.target, v = formVals(f), id = f.id;
   busy(async () => {
+    if (id === 'otp-form') { const { data, error } = await sb.functions.invoke('phone-otp', { body: { action: 'verify', code: v.code } }); if (error || !data?.ok) return toast(data?.msg || '인증에 실패했어요'); closeSheet(); S.prof = await q(sb.from('profiles').select('*').eq('id', S.user.id).maybeSingle()); render(); return toast('휴대폰 인증 완료'); }
     if (id === 'newpw-form') { if (v.pw !== v.pw2) return toast('비밀번호가 서로 달라요'); const { error } = await sb.auth.updateUser({ password: v.pw }); if (error) return toast(error.message); closeSheet(); return toast('새 비밀번호로 바꿨어요'); }
     if (id === 'auth-form') {
       if (S.authMode === 'signup') { const { data, error } = await sb.auth.signUp({ email: v.email, password: v.pw, options: { data: { name: v.name }, emailRedirectTo: location.origin + location.pathname } }); if (error) return toast(error.message.includes('registered') ? '이미 가입된 이메일이에요. 로그인해 주세요' : error.message); if (!data.session) toast('확인 메일을 보냈어요. 메일의 버튼을 눌러주세요'); }
