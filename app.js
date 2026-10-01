@@ -260,7 +260,7 @@ function render() {
   const tabs = TABS[S.mode], nav = $('#tabs'); nav.hidden = !tabs;
   const g = S.mode === 'store' ? groupOf() : S.tab;
   if (tabs) nav.innerHTML = tabs.map(([k, i, l]) => `<button ${k === 'market' ? 'data-act="sub" data-v="used"' : `data-tab="${k}"`} ${g === k ? 'aria-current="page"' : ''}><span>${ICON[k] ? svg(k) : i}</span>${l}</button>`).join('');
-  $('#top-r').innerHTML = S.user ? `${S.mode === 'store' ? `<button class="btn sm icon ${S.sub === 'notice' ? 'on' : ''}" data-act="sub" data-v="notice" title="운영사 공지" aria-label="운영사 공지">${svg('notice')}</button><button class="btn sm icon ${S.sub === 'inq' ? 'on' : ''}" data-act="sub" data-v="inq" title="운영사 문의" aria-label="운영사 문의">${svg('inq')}</button><button class="btn sm icon ${S.sub === 'settings' ? 'on' : ''}" data-act="sub" data-v="settings" title="매장 설정" aria-label="매장 설정">${svg('settings')}</button>` : ''}<button class="btn sm" data-act="logout">로그아웃</button>` : '';
+  $('#top-r').innerHTML = S.user ? `${S.mode === 'store' ? `<button class="btn sm icon ${S.sub === 'notice' ? 'on' : ''}" data-act="sub" data-v="notice" title="운영사 공지" aria-label="운영사 공지">${svg('notice')}</button><button class="btn sm icon ${S.sub === 'inq' ? 'on' : ''}" data-act="sub" data-v="inq" title="운영사 문의" aria-label="운영사 문의">${svg('inq')}</button><button class="btn sm icon ${S.sub === 'settings' ? 'on' : ''}" data-act="sub" data-v="settings" title="매장 설정" aria-label="매장 설정">${svg('settings')}</button>` : ''}<a class="btn sm" href="guide.html#${S.mode === 'store' ? 'owner' : S.mode}" target="_blank" rel="noopener" title="사용 가이드">사용법</a><button class="btn sm" data-act="logout">로그아웃</button>` : '';
   const V = { auth: vAuth, onboard: vOnboard,
     store: () => ((S.tab === 'more' && S.sub === 'daily' ? vDaily : 0) || ({ improve: vImprove, home: vHome, sched: vSched, sales: vSales, staff: vStaff, jobs: vJobs, more: vMore }[S.tab] || vHome))(),
     staff: () => ({ learn: vLearn, work: vWork, attend: vAttend, jobs: vBoard, wallet: vWallet, me: vMe }[S.tab] || vWork)(),
@@ -282,7 +282,7 @@ function render() {
 // ===== 로그인·첫 설정 =====
 function vAuth() {
   const up = S.authMode === 'signup';
-  return `<div class="hero"><img src="icon-512.png" width="96" height="96" alt=""><h1>+EV</h1><p class="sub">홀덤펍 매출·스케줄·급여·구인을 한 곳에서</p></div>
+  return `<div class="hero"><img src="icon-512.png" width="96" height="96" alt=""><h1>+EV</h1><p class="sub">홀덤펍 매출·스케줄·급여·구인을 한 곳에서 · <a href="guide.html" target="_blank" rel="noopener">사용 가이드</a></p></div>
   <div class="card"><div class="seg" style="margin-bottom:14px"><button data-act="authmode" data-v="login" aria-pressed="${!up}">로그인</button><button data-act="authmode" data-v="signup" aria-pressed="${up}">처음이에요 (가입)</button></div>
   <form class="f" id="auth-form">${up ? '<label class="fl">이름<input name="name" required autocomplete="name"></label>' : ''}
     <label class="fl">이메일<input name="email" type="email" required autocomplete="email"></label>
