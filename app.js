@@ -138,7 +138,7 @@ const monthRange = (y = S.y, m = S.m) => [E.ymd(y, m, 1), E.ymd(y, m, E.daysIn(y
 
 // ===== 시작 =====
 let booted = false;
-sb.auth.onAuthStateChange((_e, session) => { const u = session?.user || null; if (!booted || u?.id !== S.user?.id) { booted = true; S.user = u; setTimeout(boot); } });
+sb.auth.onAuthStateChange((_e, session) => { if (_e === 'PASSWORD_RECOVERY') setTimeout(() => openSheet(`<h2>새 비밀번호</h2><p class="sub">6자 이상으로 정해 주세요.</p><form class="f" id="newpw-form"><label class="fl">새 비밀번호<input name="pw" type="password" minlength="6" required autocomplete="new-password"></label><label class="fl">한 번 더<input name="pw2" type="password" minlength="6" required autocomplete="new-password"></label><button class="btn pri full">바꾸기</button></form>`), 400); const u = session?.user || null; if (!booted || u?.id !== S.user?.id) { booted = true; S.user = u; setTimeout(boot); } });
 async function boot() {
   try {
     if (!S.pricingLoaded) { applyPricing(await q(sb.from('pricing').select('key,amount'))); S.pricingLoaded = true; pushState(); } // 가격은 서버 한 곳
@@ -286,8 +286,8 @@ function vAuth() {
   <div class="card"><div class="seg" style="margin-bottom:14px"><button data-act="authmode" data-v="login" aria-pressed="${!up}">로그인</button><button data-act="authmode" data-v="signup" aria-pressed="${up}">처음이에요 (가입)</button></div>
   <form class="f" id="auth-form">${up ? '<label class="fl">이름<input name="name" required autocomplete="name"></label>' : ''}
     <label class="fl">이메일<input name="email" type="email" required autocomplete="email"></label>
-    <label class="fl">비밀번호 <input name="pw" type="password" minlength="6" required autocomplete="${up ? 'new-password' : 'current-password'}"></label>
-    <button class="btn pri full" type="submit">${up ? '가입하기' : '로그인'}</button></form>${up ? '<p class="note">가입하면 바로 시작돼요. 가입하면 <a href="legal.html#terms" target="_blank" rel="noopener">이용약관</a>과 <a href="legal.html#privacy" target="_blank" rel="noopener">개인정보처리방침</a>에 동의한 것으로 봐요.</p>' : ''}</div>`;
+    <label class="fl">비밀번호 <span class="pwwrap"><input name="pw" type="password" minlength="6" required autocomplete="${up ? 'new-password' : 'current-password'}"><span role="button" tabindex="0" class="pweye" data-act="pw-eye" aria-label="비밀번호 보기">👁</span></span></label>
+    <button class="btn pri full" type="submit">${up ? '가입하기' : '로그인'}</button>${up ? '' : '<p class="note" style="text-align:center"><button type="button" class="tlink" data-act="pw-forgot">비밀번호를 잊으셨나요?</button></p>'}</form>${up ? '<p class="note">가입하면 바로 시작돼요. 가입하면 <a href="legal.html#terms" target="_blank" rel="noopener">이용약관</a>과 <a href="legal.html#privacy" target="_blank" rel="noopener">개인정보처리방침</a>에 동의한 것으로 봐요.</p>' : ''}</div>`;
 }
 function vOnboard() {
   const k = S.onb;
@@ -648,6 +648,9 @@ function stockCard() {
     <div class="stks">${used.map(line).join('')}</div>
     ${unused.length ? `<details class="more" ${used.length ? '' : 'open'}><summary>관리 안 하는 품목 ${unused.length}개 <small class="mut">+ 누르면 재고 관리가 시작돼요</small></summary><div class="stks">${unused.map(line).join('')}</div></details>` : ''}</div>`;
 }
+const xrowHtml = (c = 'goods', a = '') => `<div class="xrow"><select name="xc">${Object.entries(CAT).filter(([k]) => k !== 'card').map(([v, l]) => `<option value="${v}" ${v === c ? 'selected' : ''}>${l}</option>`).join('')}</select><input name="xa" type="number" inputmode="numeric" placeholder="금액" value="${a}"><button type="button" class="btn sm" data-act="xrow-del" aria-label="지우기">✕</button></div>`;
+function closeRows(r0) { const L = (S.expenses || []).filter(x => x.spent_on === TODAY && x.source === 'close'); if (L.length) return L.map(x => xrowHtml(x.category, x.amount)).join(''); return r0?.expense ? xrowHtml('goods', r0.expense) : ''; }
+function xsum() { const f = $('#report-form'); if (!f) return; f.elements.expense.value = [...f.querySelectorAll('.xrow [name=xa]')].reduce((s, i) => s + (+digits(i.value) || 0), 0) || ''; closeCalc(); }
 function closeCalc() {
   const f = $('#report-form'); if (!f) return; const v = n => +digits(f.elements[n]?.value) || 0, counted = BILLS.reduce((a, b) => a + b * v('b' + b), 0), cashSales = v('sales') - v('card') - v('transfer'), expected = v('start') + cashSales - v('expense'), diff = counted - expected, any = BILLS.some(b => f.elements['b' + b].value !== '');
   $('#close-out').innerHTML = `<div class="li"><span class="mut">현금 매출 (매출 − 카드 − 이체)</span><span class="num">₩${E.won(cashSales)}</span></div><div class="li"><span class="mut">금고에 있어야 할 돈</span><span class="num">₩${E.won(expected)}</span></div>
@@ -839,7 +842,7 @@ function vSales() {
     <div class="grid2 big"><label class="fl">총매출 (원)<input name="sales" type="number" inputmode="numeric" required value="${r0.sales ?? ''}" placeholder="0"></label><label class="fl">엔트리 수<input name="entries" type="number" inputmode="numeric" value="${r0.entries ?? ''}" placeholder="0"></label></div>
     <details class="more" ${r0.card ? 'open' : ''}><summary>결제수단 · 금고 정산 <small class="mut">금고 차액을 잡아줘요</small></summary>
       <div class="grid2"><label class="fl">카드<input name="card" type="number" inputmode="numeric" value="${r0.card ?? ''}"></label><label class="fl">계좌이체<input name="transfer" type="number" inputmode="numeric" value="${r0.transfer ?? ''}"></label>
-      <label class="fl">현금으로 쓴 돈 (소모품 등)<input name="expense" type="number" inputmode="numeric" value="${r0.expense ?? ''}"></label><label class="fl">시작 시재 ${S.open ? '<small class="mut">(오픈 때 넣은 금액)</small>' : ''}<input name="start" type="number" value="${S.open?.start_cash ?? S.lastStart ?? 300000}"></label></div>
+      <div class="fl"><span>현금으로 쓴 돈 <small class="mut">항목별로 넣으면 손익에 바로 잡혀요</small></span><div id="close-exp">${closeRows(r0)}</div><button type="button" class="btn sm" data-act="xrow-add" style="margin-top:6px">+ 지출 항목</button><input name="expense" type="hidden" value="${r0.expense ?? ''}"></div><label class="fl">시작 시재 ${S.open ? '<small class="mut">(오픈 때 넣은 금액)</small>' : ''}<input name="start" type="number" value="${S.open?.start_cash ?? S.lastStart ?? 300000}"></label></div>
       <small class="mut">금고 현금 세기 · 장수만 넣으세요</small><div class="bills">${BILLS.map(b => `<label class="fl">${E.won(b)}원<input name="b${b}" type="number" min="0" inputmode="numeric"></label>`).join('')}</div>
       <div id="close-out"></div></details>
     <label class="fl">메모<input name="memo" value="${esc(r0.memo || '')}" placeholder="특이사항·차액 이유"></label><button class="btn pri full">마감하기</button>
@@ -890,6 +893,7 @@ function staffSheet(id) {
     <label class="tog"><span><b>연장·주휴수당</b><small>4대보험은 기본으로 켜져요. 3.3%도 실제로는 근로자로 볼 수 있어 켜두는 게 안전해요.</small></span><input type="checkbox" name="law" ${(p.labor_law ?? p.contract === '4대') ? 'checked' : ''}></label>
     <div class="grid2"><label class="fl">은행<select name="bank"><option value="">선택</option>${BANKS.map(b => `<option ${p.bank_name === b ? 'selected' : ''}>${b}</option>`).join('')}</select></label><label class="fl">계좌번호<input name="acct" inputmode="numeric" value="${esc(p.bank_acct || '')}"></label></div>
     <label class="fl">예금주<input name="holder" value="${esc(p.bank_holder || p.real_name || '')}"></label>
+    ${id || typeof contractSheet !== 'function' ? '' : '<label class="tog"><span><b>근로계약서 바로 보내기</b><small>저장하면 계약서 작성 창이 열려요 (대표 서명 → 직원 폰으로 발송)</small></span><input type="checkbox" name="autodoc" checked></label>'}
     <button class="btn pri full">저장</button>${id ? '<button class="btn red full" type="button" data-act="staff-del">퇴사 처리</button>' : ''}<button class="btn full" type="button" data-act="close">취소</button></form>`);
 }
 function joinSheet(reqId) {
@@ -1016,7 +1020,7 @@ function vMore() {
       ${isOwner() ? '<button class="btn pri full">저장</button>' : '<p class="note">매장 정보는 대표님만 바꿀 수 있어요.</p>'}</form>
     ${isOwner() ? `<form class="f card" id="addstore-form"><h3>매장 추가</h3><div class="grid2"><label class="fl">매장 이름<input name="name" required placeholder="예: 홍대 2호점"></label><label class="fl">지역<input name="area"></label></div>
       <div class="promo"><span>매장 추가는 <b>무료</b>예요. 요금은 회사당 하나.</span></div><button class="btn pri full">매장 추가</button></form>
-    <div class="card"><h3>사업자 정보</h3><div class="li"><span>사업자등록번호</span><span class="num">${esc((c.biz_no || '').replace(/(\d{3})(\d{2})(\d{5})/, '$1-$2-$3'))}</span></div><div class="li"><span>확인 상태</span><span class="pill ${c.biz_verified ? 'g' : 'y'}">${c.biz_verified ? '✓ 국세청 형식 확인' : '번호가 맞지 않아요 · 문의로 알려주세요'}</span></div></div>` : ''}`;
+    <div class="card"><h3>사업자 정보</h3><div class="li"><span>사업자등록번호</span><span class="num">${esc((c.biz_no || '').replace(/(\d{3})(\d{2})(\d{5})/, '$1-$2-$3'))}</span></div><div class="li"><span>확인 상태</span><span class="row"><span class="pill ${c.biz_verified ? 'g' : 'y'}">${c.biz_verified ? '✓ 확인됨' : '미확인'}</span><button class="btn sm" data-act="biz-check">국세청 조회</button></span></div><p class="note">국세청 사업자등록 상태(계속·휴업·폐업)를 바로 조회해요.</p></div>` : ''}`;
   }
   if (sub === 'inq') return `${storeHead('운영사 문의')}${back}${inqBlock()}`;
   if (sub === 'rot') return S.rot ? vRot() : `${storeHead('테이블 로테이션')}<div class="boot">불러오는 중…</div>`;
@@ -1476,6 +1480,11 @@ document.addEventListener('click', e => {
     else await q(sb.from('shift_templates').delete().eq('member_id', memberId).eq('weekday', weekday));
     closeSheet(); await reload(); toast('휴무로 바꿨어요');
   });
+  if (a === 'pw-eye') { const i = b.closest('.pwwrap').querySelector('input'); i.type = i.type === 'password' ? 'text' : 'password'; b.textContent = i.type === 'password' ? '👁' : '🙈'; return; }
+  if (a === 'pw-forgot') { const em = ($('#auth-form [name=email]')?.value || '').trim(); if (!em) return toast('이메일을 먼저 적어주세요'); return busy(async () => { const { error } = await sb.auth.resetPasswordForEmail(em, { redirectTo: location.origin + location.pathname }); toast(error ? error.message : '재설정 메일을 보냈어요. 메일의 버튼을 누르면 새 비밀번호를 정할 수 있어요'); }); }
+  if (a === 'biz-check') return busy(async () => { const { data, error } = await sb.functions.invoke('biz-verify', { body: { company_id: S.company.id } }); if (error || !data?.ok) return toast(data?.msg || '국세청 조회에 실패했어요. 잠시 후 다시 해주세요'); toast(`국세청 확인: ${data.status}`); await boot(); });
+  if (a === 'xrow-add') { $('#close-exp')?.insertAdjacentHTML('beforeend', xrowHtml()); return; }
+  if (a === 'xrow-del') { b.closest('.xrow')?.remove(); xsum(); return; }
   if (a === 'staff-new') staffSheet(null);
   if (a === 'doc-new') return contractSheet(d.m);
   if (a === 'doc-slip') return slipSheet(d.m);
@@ -1631,7 +1640,7 @@ function download(name, rows) {
   const blob = new Blob(['﻿' + rows.map(r => r.map(v => `"${String(v ?? '').replace(/"/g, '""')}"`).join(',')).join('\r\n')], { type: 'text/csv' });
   const l = document.createElement('a'); l.href = URL.createObjectURL(blob); l.download = name; l.click();
 }
-document.addEventListener('input', e => { const pe = e.target.closest('.pedit'); if (pe) xfeeBox(pe); if (e.target.closest('#post-form')) feeBox(); if (e.target.closest('#used-form')) usedSise(); if (e.target.closest('#report-form')) closeCalc(); });
+document.addEventListener('input', e => { const pe = e.target.closest('.pedit'); if (pe) xfeeBox(pe); if (e.target.closest('#post-form')) feeBox(); if (e.target.closest('#used-form')) usedSise(); if (e.target.closest('#close-exp')) xsum(); else if (e.target.closest('#report-form')) closeCalc(); });
 document.addEventListener('change', e => { if (e.target.name === 'category' && e.target.closest('#used-form')) usedSise();
   const t = e.target, d = t.dataset;
   if (d?.act === 'push') { pushToggle(t.checked).catch(err => { toast(err.message || '알림을 켤 수 없어요'); t.checked = !t.checked; }); return; }
@@ -1651,6 +1660,7 @@ document.addEventListener('change', e => { if (e.target.name === 'category' && e
 document.addEventListener('submit', e => {
   e.preventDefault(); const f = e.target, v = formVals(f), id = f.id;
   busy(async () => {
+    if (id === 'newpw-form') { if (v.pw !== v.pw2) return toast('비밀번호가 서로 달라요'); const { error } = await sb.auth.updateUser({ password: v.pw }); if (error) return toast(error.message); closeSheet(); return toast('새 비밀번호로 바꿨어요'); }
     if (id === 'auth-form') {
       if (S.authMode === 'signup') { const { data, error } = await sb.auth.signUp({ email: v.email, password: v.pw, options: { data: { name: v.name }, emailRedirectTo: location.origin + location.pathname } }); if (error) return toast(error.message.includes('registered') ? '이미 가입된 이메일이에요. 로그인해 주세요' : error.message); if (!data.session) toast('확인 메일을 보냈어요. 메일의 버튼을 눌러주세요'); }
       else { const { error } = await sb.auth.signInWithPassword({ email: v.email, password: v.pw }); if (error) toast(error.message.includes('Invalid') ? '이메일이나 비밀번호가 달라요' : error.message); }
@@ -1674,7 +1684,8 @@ document.addEventListener('submit', e => {
     if (id === 'report-form') {
       await q(sb.from('daily_reports').upsert({ store_id: S.store.id, report_date: v.date, sales: +v.sales || 0, entries: +v.entries || null, card: +v.card || 0, cash: +f.dataset.cash || 0, transfer: +v.transfer || 0, expense: +v.expense || 0, cash_diff: f.dataset.diff === '' || f.dataset.diff == null ? null : +f.dataset.diff, memo: v.memo || null, reported_by: S.user.id }));
       await q(sb.from('expenses').delete().eq('store_id', S.store.id).eq('spent_on', v.date).eq('source', 'close'));
-      if (+v.expense) await q(sb.from('expenses').insert({ store_id: S.store.id, spent_on: v.date, category: 'goods', amount: +v.expense, source: 'close' }));
+      const xrows = [...f.querySelectorAll('.xrow')].map(r => ({ category: r.querySelector('[name=xc]').value, amount: +digits(r.querySelector('[name=xa]').value) || 0 })).filter(x => x.amount);
+      if (xrows.length) await q(sb.from('expenses').insert(xrows.map(x => ({ store_id: S.store.id, spent_on: v.date, category: x.category, amount: x.amount, source: 'close' }))));
       S.lastStart = +v.start || S.lastStart; track('sales_entry'); await reload(); const M = monthSummary(S.y, S.m), g = goalOf(S.y, S.m);
       toast(Math.abs(+f.dataset.diff || 0) >= 10000 ? '마감했어요. 금고 차액을 대표님께 알렸어요' : g ? `마감했어요. 이번 달 목표 ${Math.floor(M.sales / g * 100)}% 달성 (₩${man(M.sales)} / ₩${man(g)})` : '마감을 저장했어요. 수고하셨어요');
     }
@@ -1687,8 +1698,9 @@ document.addEventListener('submit', e => {
     if (id === 'staff-form') {
       const row = { nick: v.nick, real_name: v.real_name || null, job_role: v.job_role, contract: v.contract, hourly_rate: +v.rate || 0, joined_on: v.joined || null, night_pay: !!v.night, labor_law: !!v.law, bank_name: v.bank || null, bank_acct: (v.acct || '').replace(/[^0-9-]/g, '') || null, bank_holder: v.holder || null, emp_type: v.emp || '파트타임', phone: (v.phone || '').replace(/[^0-9-]/g, '') || null };
       if (f.dataset.m) await q(sb.from('members').update(row).eq('id', f.dataset.m));
-      else await q(sb.from('members').insert({ ...row, company_id: S.store.company_id, store_id: S.store.id, role: 'staff' }));
+      let newId = null; if (!f.dataset.m) { const ins = await q(sb.from('members').insert({ ...row, company_id: S.store.company_id, store_id: S.store.id, role: 'staff' }).select()); newId = ins?.[0]?.id || null; }
       closeSheet(); await reload(); toast('저장했어요. 스케줄·급여에 바로 반영돼요');
+      if (newId && v.autodoc && typeof contractSheet === 'function') setTimeout(() => contractSheet(newId), 400);
     }
     if (f.classList.contains('oship')) { await q(sb.from('orders').update({ courier: v.courier || null, tracking: v.tracking || null, eta: v.eta || null, ...(v.tracking ? { status: '배송 중' } : {}) }).eq('id', f.dataset.o)); await reload(); return toast('배송 정보를 저장했어요. 매장에서 바로 보여요'); }
     if (id === 'fr-form') {
