@@ -1,0 +1,19 @@
+[
+ {"title": ["+EV 사용 가이드", "대표편 · 로그인부터 마감까지"], "cap": "안녕하세요. 플러스이브이 사용 가이드, 대표편입니다. 로그인부터 마감까지 그대로 따라 해볼게요.", "dur": 5},
+ {"cap": "로그인하면 홈 브리핑이 먼저 보여요. 오늘 현황, 이번 달 예상 순이익, 지금 가장 큰 문제가 한눈에 들어와요.", "dur": 6, "hl": ".top3"},
+ {"cap": "아래 탭으로 홈, 스케줄, 매출, 직원, 구인, 장터를 오가요.", "dur": 4, "hl": "#tabs"},
+ {"cap": "먼저 직원 등록이에요. 직원 탭을 누르세요.", "dur": 3, "sel": "#tabs [data-tab=staff]"},
+ {"cap": "직원 등록 버튼을 누르면 입력창이 열려요.", "dur": 3, "sel": "[data-act=staff-new]"},
+ {"cap": "닉네임, 직책, 계약 형태, 시급을 넣어요. 계좌까지 넣어 두면 급여일에 바로 이체할 수 있어요.", "dur": 6, "act": "type", "sel": "#staff-form [name=nick]", "val": "가이드딜러", "sel2": "#staff-form [name=rate]", "val2": "13000"},
+ {"cap": "저장을 누르면 끝이에요. 급여는 스케줄대로 자동으로 계산돼요.", "dur": 4, "sel": "#staff-form button.pri"},
+ {"cap": "이제 스케줄이에요. 스케줄 탭을 누르세요.", "dur": 3, "sel": "#tabs [data-tab=sched]"},
+ {"cap": "매주 기본을 누르면 요일마다 반복되는 근무를 한 번에 정할 수 있어요.", "dur": 4, "sel": "[data-act=sview][data-v=week]"},
+ {"cap": "날짜마다 다른 날은 월간에서 그날만 고쳐요. 빨간 숫자는 사람이 모자란 날이에요.", "dur": 5, "sel": "[data-act=sview][data-v=month]"},
+ {"cap": "영업을 시작할 때는 매출 탭에서 오픈을 해요.", "dur": 3, "sel": "#tabs [data-tab=sales]"},
+ {"cap": "금고에 있는 시작 현금을 넣고 오픈을 누르면, 마감 때 금고 차액이 자동으로 계산돼요.", "dur": 5, "sel": "#open-form button"},
+ {"cap": "하루가 끝나면 마감이에요. 총매출과 엔트리 수만 넣어도 돼요.", "dur": 4, "act": "type", "sel": "#report-form [name=sales]", "val": "1250000", "sel2": "#report-form [name=entries]", "val2": "38"},
+ {"cap": "결제수단과 금고 정산을 펼치면 카드, 이체, 지폐 장수까지 넣어 차액을 맞출 수 있어요.", "dur": 5, "sel": "#report-form details summary"},
+ {"cap": "마감하기를 누르면 홈에 오늘 매출과 이번 달 순이익이 바로 반영돼요.", "dur": 4, "sel": "#report-form button.pri.full"},
+ {"cap": "홈으로 돌아오면 오늘 현황과 이번 달 계산서가 바뀌어 있어요. 매일 마감만 넣으면 손익은 자동이에요.", "dur": 6, "sel": "#tabs [data-tab=home]"},
+ {"cap": "더 자세한 사용법은 오른쪽 위 사용법 버튼에 있어요. 플러스이브이와 함께, 사장님은 장사만 하세요.", "dur": 6, "hl": "#top-r a[href^=guide]"}
+]
