@@ -144,6 +144,19 @@ function payInfoCard(me) {
   return `<div class="card" style="border-color:var(--gold)"><div class="row between"><div><b>급여 받을 정보를 넣어주세요</b><small class="mut" style="display:block">${[!me.real_name && '실명', !me.bank_acct && '계좌', me.bank_acct && !me.bank_holder && '예금주'].filter(Boolean).join('·')}이 없으면 명세서·이체가 늦어져요</small></div><button class="btn pri sm" data-act="my-pay">1분 입력</button></div></div>`;
 }
 const whtAll = () => [...whtRows(), ...(S.whtU || []).map(u => ({ p: { real_name: u.name, nick: '긴급 대타 ' + String(u.work_on).slice(5).replace('-', '/') }, gross: u.gross, it: u.it, lt: u.lt, net: u.net }))];
+// 출퇴근 기록: 새벽 8시 전 기록은 전날 근무로 묶음
+function attLogCard() {
+  const by = {};
+  (S.attStore || []).forEach(a => { const t = new Date(a.at), b = new Date(+t - 8 * 36e5), k = `${b.getMonth() + 1}/${b.getDate()}`, r = ((by[k] = by[k] || { _t: +b, m: {} }).m[a.member_id] = by[k].m[a.member_id] || {});
+    if (a.kind === 'in') { if (!r.in || t < r.in) r.in = t; } else if (!r.out || t > r.out) r.out = t; });
+  const hm = t => t.toTimeString().slice(0, 5), days = Object.entries(by).sort((x, y) => y[1]._t - x[1]._t).slice(0, 7);
+  return `<div class="card"><h3>출퇴근 기록 <small>${S.m}월 · 최근 ${days.length}일</small></h3>${days.map(([k, d]) => `<div class="li" style="display:block"><b>${k}</b>${Object.entries(d.m).map(([m, r]) => `<div class="row between" style="font-size:14px;margin-top:4px"><span>${esc(S.members.find(p => p.id === m)?.nick || '직원')}</span><span class="num">${r.in ? '🟢 ' + hm(r.in) : '<span class="down">출근 기록 없음</span>'} → ${r.out ? '⚪ ' + hm(r.out) : '<span class="warn">퇴근 전·누락</span>'}</span></div>`).join('')}</div>`).join('') || '<p class="note">이번 달 출퇴근 기록이 없어요. 직원이 QR을 찍으면 여기에 쌓여요.</p>'}</div>`;
+}
+// 자동 새로고침: 앱으로 돌아올 때 + 1분마다 (입력 중·시트 열림이면 건너뜀)
+document.addEventListener('input', e => { if (e.target.closest?.('#view')) S.dirty = true; }, true);
+const autoRefresh = () => { if (document.hidden || working || !S.user || S.dirty || !$('#sheet').hidden || /INPUT|TEXTAREA|SELECT/.test(document.activeElement?.tagName || '')) return; working = true; reload().catch(() => { }).finally(() => { working = false; }); };
+document.addEventListener('visibilitychange', () => { if (!document.hidden) autoRefresh(); });
+setInterval(autoRefresh, 60000);
 const qrDraw = async code => { const box = $('#qr-img'); if (!box) return; if (!window.QRCode) await new Promise((ok, no) => { const sc = document.createElement('script'); sc.src = 'https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js'; sc.onload = ok; sc.onerror = no; document.head.append(sc); }).catch(() => { }); if (!window.QRCode || box.dataset.c === code) return; box.dataset.c = code; box.innerHTML = ''; new QRCode(box, { text: `${location.origin}/?att=${code}`, width: 180, height: 180 }); };
 const inPk = H => { const pk = S.store?.peak; if (!pk?.from || !pk?.to || !+pk.extra) return false; const a = E.toMin(pk.from) / 60; let b = E.toMin(pk.to) / 60; if (b <= a) b += 24; return [H, H + 24, H - 24].some(x => x >= a && x < b); };
 const nearOf = j => { const p = S.prof || {}, ar = j.area || ''; return p.area2 && ar.includes(p.area2.replace(/(구|시|군)$/, '')) ? 2 : p.area && ar.startsWith(p.area) ? 1 : 0; };
@@ -306,7 +319,7 @@ function render() {
   const lock = S.mode === 'store' && S.company && !S.active ? `<div class="lockbar"><div><b>무료 체험이 끝났어요.</b> 지금은 보기만 돼요 — 입력한 데이터는 그대로 있어요.</div>${isOwner() ? `<span class="row"><button class="btn sm" data-act="plan" data-v="basic">베이직 ₩${E.won(PRICE.basic)}</button><button class="btn sm gold" data-act="plan" data-v="pro">프로 ₩${E.won(PRICE.pro)}</button></span>` : '<button class="btn sm" data-act="ask-owner" data-v="요금제">대표님께 요청</button>'}</div>` : '';
   const c = S.company, paidPlan = c && (c.plan === 'pro' || c.plan === 'basic') && c.paid_until && new Date(c.paid_until) > now;
   const planbar = S.mode === 'store' && S.tab === 'home' && !S.sub && c && S.active && isOwner() ? `<div class="planbar"><div>${paidPlan ? `<b>${c.plan === 'pro' ? '프로' : '베이직'} 이용 중</b><small>${new Date(c.paid_until).toLocaleDateString('ko-KR')}까지 · 회사당 월 ₩${E.won(c.plan === 'pro' ? PRICE.pro : PRICE.basic)}</small>` : `<b>무료 체험 D-${trialLeft(c)}</b><small>끝나면 베이직 ₩${E.won(PRICE.basic)} · 프로 ₩${E.won(PRICE.pro)} (회사당 월) · 끝나도 데이터는 그대로 남아요</small>`}</div><button class="btn sm ${paidPlan && c.plan === 'pro' ? '' : 'gold'}" data-act="sub" data-v="pricing">${paidPlan ? '요금제 관리' : '요금제 보기'}</button></div>` : '';
-  view.innerHTML = lock + planbar + (V[S.mode] || vAuth)(); enhanceInputs(view);
+  view.innerHTML = lock + planbar + (V[S.mode] || vAuth)(); enhanceInputs(view); S.dirty = false;
   if (S.mode === 'store' && S.tab === 'more' && S.sub === 'qr') startQR();
   if (S.mode === 'store' && S.tab === 'more' && S.sub === 'rot' && S.rot) rotTick();
   if (S.mode === 'store' && S.tab === 'sales') closeCalc();
@@ -1148,7 +1161,7 @@ function vMore() {
       <p class="note">이번 달은 지금 속도로 계산한 월말 예상이에요.</p></div>`;
   }
   if (sub === 'qr') return `${storeHead('출퇴근 코드')}${back}<div class="card" style="text-align:center"><p class="sub">직원은 앱의 <b>출퇴근</b> 탭에서 이 번호를 넣으면 기록돼요. 30초마다 바뀌어서 캡처해 보내도 못 써요.</p>
-    <div id="qr-code" class="num" style="font-size:56px;font-weight:800;letter-spacing:.18em;color:#6EE7B7">······</div><div class="mut" id="qr-left">불러오는 중</div><div id="qr-img" style="display:flex;justify-content:center;margin:14px 0 6px;background:#fff;padding:10px;border-radius:12px;width:max-content;margin-inline:auto"></div><p class="note">직원은 폰 카메라로 QR을 찍어도 출퇴근돼요</p></div>`;
+    <div id="qr-code" class="num" style="font-size:56px;font-weight:800;letter-spacing:.18em;color:#6EE7B7">······</div><div class="mut" id="qr-left">불러오는 중</div><div id="qr-img" style="display:flex;justify-content:center;margin:14px 0 6px;background:#fff;padding:10px;border-radius:12px;width:max-content;margin-inline:auto"></div><p class="note">직원은 폰 카메라로 QR을 찍어도 출퇴근돼요</p></div>${attLogCard()}`;
   if (sub === 'pricing') {
     const c = S.company || {}, paid = (c.plan === 'pro' || c.plan === 'basic') && c.paid_until && new Date(c.paid_until) > now, own = isOwner();
     const st = paid ? `<b>${c.plan === 'pro' ? '프로' : '베이직'} 이용 중</b> · ${new Date(c.paid_until).toLocaleDateString('ko-KR')}까지` : S.active ? `<b>무료 체험 D-${trialLeft(c)}</b> · 끝나도 데이터는 그대로예요` : '<b class="warn">체험이 끝났어요</b> · 요금제를 고르면 바로 이어서 써요';
@@ -1544,7 +1557,7 @@ function vHqInq() {
 // ===== 시트 =====
 function openSheet(html) { const s = $('#sheet'); s.innerHTML = `<div class="in">${html}</div>`; s.hidden = false; enhanceInputs(s); }
 // 금액: 쉼표 + "13만 5,900원" 읽기 / 휴대폰: 010-0000-0000 / 사업자번호: 000-00-00000 (10자리)
-const MONEY = /^(invest|fee|edu_fee|interior_est|lead_limit_amt|start_cash|net_fee|cctv_fee|pos_fee|rent_etc|sales|card|transfer|expense|start|pay|taxi|pamt|price|amount|goal|rent|mgmt|elec|water|net|rate)$/;
+const MONEY = /^(invest|fee|edu_fee|interior_est|lead_limit_amt|start_cash|net_fee|cctv_fee|pos_fee|rent_etc|sales|card|transfer|expense|start|pay|taxi|pamt|price|amount|goal|rent|mgmt|elec|water|net|rate|xa|dt_prize|dt_fnb|dt_etc|sale|per_shift|full_attend|goal_bonus)$/;
 const digits = v => String(v ?? '').replace(/[^\d]/g, '');
 const fmtMoney = v => { const d = digits(v); return d ? (+d).toLocaleString('ko-KR') : ''; };
 const readWon = n => { if (!n) return ''; const e = Math.floor(n / 1e8), m = Math.floor(n % 1e8 / 1e4), r = n % 1e4; return [e ? `${e}억` : '', m ? `${m.toLocaleString('ko-KR')}만` : '', r ? r.toLocaleString('ko-KR') : ''].filter(Boolean).join(' ') + '원'; };
