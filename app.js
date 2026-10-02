@@ -379,8 +379,8 @@ function subnav() {
   return `<nav class="subnav">${items.map(([t, s, l]) => { const on = t === 'more' ? S.tab === 'more' && S.sub === s : S.tab === t; return `<button ${t === 'more' ? `data-act="sub" data-v="${s}"` : `data-tab="${t}"`} ${on ? 'aria-current="page"' : ''}>${l}</button>`; }).join('')}</nav>`;
 }
 function storeHead(title) {
-  return `<div class="row between"><div><h1>${title}</h1><p class="sub" style="margin:0">${esc(S.company?.name || '')} · ${esc(S.store?.name)}${S.company && !S.company.biz_verified ? ' · <button class="tlink warn" data-act="goto" data-t="more" data-s="settings">사업자번호 확인 필요</button>' : ''}</p></div>
-  <div class="row">${S.stores.length > 1 ? `<select id="store-sel" aria-label="매장 선택" style="width:auto">${S.stores.map(s => `<option value="${s.id}" ${s.id === S.store.id ? 'selected' : ''}>${esc(s.name)}</option>`).join('')}</select>` : ''}</div></div>` + subnav();
+  return `<div class="row between sh"><div><h1>${title}</h1><p class="sub" style="margin:0">${esc(S.company?.name || '')} · ${esc(S.store?.name)}${S.company && !S.company.biz_verified ? ' · <button class="tlink warn" data-act="goto" data-t="more" data-s="settings">사업자번호 확인 필요</button>' : ''}</p></div>
+  <div class="row">${S.stores.length > 1 ? `<select id="store-sel" class="sh-sel" aria-label="매장 선택" style="width:auto">${S.stores.map(s => `<option value="${s.id}" ${s.id === S.store.id ? 'selected' : ''}>${esc(s.name)}</option>`).join('')}</select>` : ''}</div></div>` + subnav();
 }
 function monthNav() { return `<span class="row"><button class="btn sm" data-act="mon" data-v="-1">◀</button><b class="num">${S.y}년 ${S.m}월</b><button class="btn sm" data-act="mon" data-v="1">▶</button></span>`; }
 function monthSummary(y, m) {
@@ -1481,7 +1481,7 @@ function spinOpen() {
 }
 async function spinPlay() {
   const go = $('.rl-go'); if (!go || go.disabled) return; go.disabled = true; go.textContent = '딜링 중…';
-  const R = $('#roul'); R.classList.remove('done'); R.querySelectorAll('.rl-pay li').forEach(l => l.classList.remove('hit')); $('#rl-hand').textContent = ''; $('#rl-pt').textContent = '';
+  const R = $('#roul'); R.classList.remove('done', 'big', 'small'); delete R.dataset.tier; R.querySelectorAll('.rl-pay li').forEach(l => l.classList.remove('hit')); $('#rl-hand').textContent = ''; $('#rl-pt').textContent = '';
   const w = ms => new Promise(f => setTimeout(f, matchMedia('(prefers-reduced-motion: reduce)').matches ? ms / 4 : ms)), bz = n => { try { navigator.vibrate?.(n); } catch { } };
   const req = sb.rpc('spin_hand');
   const bd = $('#rl-bd'), me = $('#rl-me'); bd.innerHTML = '<span class="rl-slot"></span>'.repeat(5); me.innerHTML = '<span class="rl-slot"></span>'.repeat(2);
@@ -1496,7 +1496,9 @@ async function spinPlay() {
   st('리버'); const rv = put(bd, 0, 6); await w(350); rv.classList.add('tease'); await w(1100); rv.classList.remove('tease'); flip(rv); await w(550);
   R.querySelectorAll('.rl-c').forEach(e => e.classList.add(win.has(+e.dataset.i) ? 'win' : 'dim'));
   R.querySelector(`.rl-pay li[data-h="${r.hand}"]`)?.classList.add('hit');
-  R.classList.add('done', cat >= 3 ? 'big' : 'small'); $('#rl-hand').textContent = r.hand; st(cat >= 4 ? '🎉 대박!' : '나온 족보'); bz(cat >= 4 ? [60, 40, 120] : 40);
+  R.classList.add('done', cat >= 3 ? 'big' : 'small'); R.dataset.tier = cat;
+  if (cat >= 3) { const cf = document.createElement('div'); cf.className = 'rl-conf'; cf.innerHTML = Array.from({ length: cat >= 5 ? 44 : 26 }, (_, i) => `<i style="--x:${Math.round((Math.random() * 2 - 1) * 190)}px;--y:${Math.round(-90 - Math.random() * 190)}px;--r:${Math.round(Math.random() * 900 - 450)}deg;--d:${(i % 7) * .035}s"></i>`).join(''); $('#rl-res').appendChild(cf); setTimeout(() => cf.remove(), 2600); }
+  if (cat >= 4) { const fl = document.createElement('div'); fl.className = 'rl-flash'; R.appendChild(fl); setTimeout(() => fl.remove(), 1200); } $('#rl-hand').textContent = r.hand; st(cat >= 4 ? '🎉 대박!' : '나온 족보'); bz(cat >= 4 ? [60, 40, 120] : 40);
   const pt = $('#rl-pt'), t0 = performance.now(); const tick = n => { const k = Math.min(1, (n - t0) / 900); pt.textContent = `+${E.won(Math.round(r.points * k))}P`; if (k < 1) requestAnimationFrame(tick); }; requestAnimationFrame(tick);
   S.spinN = r.left_n; $('#rl-n').textContent = r.left_n;
   go.disabled = false; if (r.left_n > 0) { go.textContent = `한 번 더 (${r.left_n}회)`; go.dataset.act = 'spin-go'; } else { go.textContent = '지갑에서 보기'; go.dataset.act = 'spin-wallet'; }
