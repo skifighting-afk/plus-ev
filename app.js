@@ -305,6 +305,7 @@ const ICON = { home: '<path d="M3 11l9-8 9 8v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0
   me: '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>', mywork: '<rect x="6" y="3" width="12" height="18" rx="2"/><path d="M12 8l2.5 3.5L12 15l-2.5-3.5z"/>', dash: '<path d="M4 20V4M4 20h16M8 16v-5M12 16V8M16 16v-3"/>',
   stores: '<path d="M4 21V8l8-5 8 5v13M9 21v-6h6v6M4 21h16"/>', goods: '<path d="M3 8l9-5 9 5v8l-9 5-9-5V8zM3 8l9 5 9-5M12 13v8"/>', data: '<ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v12c0 1.7 3.6 3 8 3s8-1.3 8-3V6M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/>',
   inq: '<path d="M4 5h16v11H9l-5 4V5z"/>', notice: '<path d="M3 10v4h3l8 5V5L6 10H3zM18 9a4 4 0 0 1 0 6"/>', fr: '<path d="M3 21h18M5 21V9h5v12M14 21V4h5v17"/>', settings: '<path d="M4 7h9M17 7h3M4 17h3M11 17h9M4 12h13"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/><circle cx="19" cy="12" r="2"/>' };
+ICON.refresh = '<path d="M20 12a8 8 0 1 1-2.3-5.7M20 4v5h-5"/>'; ICON.menu = '<path d="M4 7h16M4 12h16M4 17h16"/>';
 const svg = k => `<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICON[k]}</svg>`;
 ICON.lounge = ICON.market;
 function render() {
@@ -313,7 +314,7 @@ function render() {
   const tabs = TABS[S.mode]?.filter(([k]) => !hideTab(k)), nav = $('#tabs'); if (tabs && hideTab(S.tab)) S.tab = 'sched'; nav.hidden = !tabs;
   const g = S.mode === 'store' ? groupOf() : S.tab;
   if (tabs) nav.innerHTML = tabs.map(([k, i, l]) => `<button ${k === 'market' ? 'data-act="sub" data-v="used"' : `data-tab="${k}"`} ${g === k ? 'aria-current="page"' : ''}><span>${ICON[k] ? svg(k) : i}</span>${l}</button>`).join('');
-  $('#top-r').innerHTML = S.user ? `${S.mode === 'store' ? `<button class="btn sm icon ${S.sub === 'notice' ? 'on' : ''}" data-act="sub" data-v="notice" title="운영사 공지" aria-label="운영사 공지">${svg('notice')}</button><button class="btn sm icon ${S.sub === 'inq' ? 'on' : ''}" data-act="sub" data-v="inq" title="운영사 문의" aria-label="운영사 문의">${svg('inq')}</button><button class="btn sm icon ${S.sub === 'settings' ? 'on' : ''}" data-act="sub" data-v="settings" title="매장 설정" aria-label="매장 설정">${svg('settings')}</button>` : ''}<a class="btn sm" href="guide.html#${S.mode === 'store' ? 'owner' : S.mode}" target="_blank" rel="noopener" title="사용 가이드">사용법</a><button class="btn sm" data-act="logout">로그아웃</button>` : '';
+  $('#top-r').innerHTML = S.user ? `${S.mode === 'store' ? `<button class="btn sm icon ${S.sub === 'notice' ? 'on' : ''}" data-act="sub" data-v="notice" title="운영사 공지" aria-label="운영사 공지">${svg('notice')}</button><button class="btn sm icon ${S.sub === 'inq' ? 'on' : ''}" data-act="sub" data-v="inq" title="운영사 문의" aria-label="운영사 문의">${svg('inq')}</button><button class="btn sm icon ${S.sub === 'settings' ? 'on' : ''}" data-act="sub" data-v="settings" title="매장 설정" aria-label="매장 설정">${svg('settings')}</button>` : ''}<button class="btn sm icon" data-act="refresh" title="새로고침" aria-label="새로고침">${svg('refresh')}</button><button class="btn sm icon" data-act="menu" title="메뉴 · 화면 색" aria-label="메뉴 · 화면 색">${svg('menu')}</button>` : '';
   const V = { auth: vAuth, onboard: vOnboard,
     store: () => ((S.tab === 'more' && S.sub === 'daily' ? vDaily : 0) || ({ improve: vImprove, home: vHome, sched: vSched, sales: vSales, staff: vStaff, jobs: vJobs, more: vMore }[S.tab] || vHome))(),
     staff: () => ({ learn: vLearn, work: vWork, attend: vAttend, jobs: vBoard, wallet: vWallet, me: vMe }[S.tab] || vWork)(),
@@ -1716,6 +1717,31 @@ document.addEventListener('keydown', e => {
 });
 // ===== 동작 =====
 let working = false;
+// ===== 색 테마 (화면만) =====
+const THEMES = {
+  mint: { name: '그래파이트 민트', sub: '기본 · 차분한 회색', v: { bg: '#111417', s1: '#171B1F', s2: '#1A1F23', s3: '#22282D', tx: '#ECEFF1', t2: '#B3BAC0', mu: '#8B949C', br: '#8FE3C4', b2: '#A6EDD2', on: '#0B2A20', go: '#E8C27A', dn: '#F08C7A' } },
+  felt: { name: '딥 펠트', sub: '짙은 옥색 + 금', v: { bg: '#0B1412', s1: '#101B18', s2: '#13201C', s3: '#1B2A25', tx: '#EEF4F1', t2: '#B5C4BE', mu: '#8FA39B', br: '#4CC08F', b2: '#6FD3A8', on: '#04140D', go: '#D9B45A', dn: '#E07A5F' } },
+  gold: { name: '미드나잇 샴페인', sub: '남색 + 샴페인 금', v: { bg: '#0D1117', s1: '#12171F', s2: '#161C25', s3: '#1D2430', tx: '#F1EEE6', t2: '#BDB8AC', mu: '#9097A3', br: '#D8B76A', b2: '#E6C987', on: '#1A1406', go: '#D8B76A', dn: '#E3876F' } },
+  classic: { name: '클래식', sub: '예전 남색 + 에메랄드', v: { bg: '#0B0F19', s1: '#121826', s2: '#171F30', s3: '#1E2739', tx: '#EEF2F8', t2: '#A3AEC2', mu: '#8C9AB3', br: '#10B981', b2: '#34D399', on: '#04130D', go: '#F59E0B', dn: '#EF4444' } }
+};
+const rgb = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16)).join(',');
+function applyTheme(k) {
+  const t = THEMES[k] || THEMES.mint, v = t.v, r = document.documentElement.style;
+  [['--bg', v.bg], ['--surface-1', v.s1], ['--surface-2', v.s2], ['--surface-3', v.s3], ['--text-primary', v.tx], ['--text-secondary', v.t2], ['--text-muted', v.mu], ['--brand', v.br], ['--positive', v.br], ['--brand-2', v.b2], ['--on-brand', v.on], ['--warning', v.go], ['--danger', v.dn], ['--brand-rgb', rgb(v.br)], ['--gold-rgb', rgb(v.go)], ['--danger-rgb', rgb(v.dn)], ['--bg-rgb', rgb(v.bg)]].forEach(([n, x]) => r.setProperty(n, x));
+  document.querySelector('meta[name=theme-color]')?.setAttribute('content', v.bg);
+}
+applyTheme(lsGet('ev_theme'));
+function menuSheet() {
+  const cur = lsGet('ev_theme') || 'mint';
+  openSheet(`<h3 style="margin:0">화면 색</h3><p class="mut" style="margin:4px 0 0;font-size:13px">이 폰에서만 바뀌어요</p><div class="thm">${Object.entries(THEMES).map(([k, t]) => `<button data-act="theme" data-v="${k}" aria-pressed="${k === cur}"><span class="sw">${[t.v.bg, t.v.s2, t.v.br, t.v.go, t.v.dn].map(c => `<i style="background:${c}"></i>`).join('')}</span><b>${t.name}</b><small>${t.sub}</small></button>`).join('')}</div>
+  <div class="menu-list"><a class="btn full" href="guide.html#${S.mode === 'store' ? 'owner' : S.mode}" target="_blank" rel="noopener">사용법 보기</a><button class="btn full" data-act="logout">로그아웃</button><button class="btn full" data-act="close">닫기</button></div>`);
+}
+async function refreshNow(btn) { if (working) return; btn?.classList.add('spin'); working = true; try { await reload(); toast('새로 고쳤어요'); } catch { toast('새로 고치지 못했어요. 잠시 후 다시 해주세요'); } finally { working = false; document.querySelector('[data-act=refresh]')?.classList.remove('spin'); } }
+// 당겨서 새로고침 (화면 맨 위에서 아래로 끌기)
+{ let y0 = null, d = 0; const ind = document.createElement('div'); ind.className = 'ptr'; ind.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.3-5.7M20 4v5h-5"/></svg>'; document.addEventListener('DOMContentLoaded', () => document.body.appendChild(ind)); if (document.body) document.body.appendChild(ind);
+  addEventListener('touchstart', e => { y0 = scrollY <= 0 && $('#sheet')?.hidden !== false && !$('#roul') && !$('#mpop') ? e.touches[0].clientY : null; d = 0; }, { passive: true });
+  addEventListener('touchmove', e => { if (y0 == null) return; d = Math.max(0, e.touches[0].clientY - y0); if (d > 10) { ind.classList.add('on'); ind.style.transform = `translateY(${Math.min(d, 90) * .7 - 20}px) rotate(${d * 3}deg)`; } }, { passive: true });
+  addEventListener('touchend', async () => { if (y0 == null) return; y0 = null; if (d > 80 && S.user && !working) { ind.classList.add('go'); ind.style.transform = 'translateY(40px)'; working = true; try { await reload(); toast('새로 고쳤어요'); } catch { } finally { working = false; } } ind.classList.remove('on', 'go'); ind.style.transform = ''; d = 0; }); }
 const busy = async fn => { if (working) return; working = true; document.body.classList.add('busy'); try { await fn(); } catch (e) { console.error(e); } finally { working = false; document.body.classList.remove('busy'); } };
 // 입금 축하: 지갑 잔액이 늘면 한 번 터뜨림 (기능 변경 없음 · 화면만)
 function moneyPop() {
@@ -1731,6 +1757,9 @@ document.addEventListener('click', e => {
   if (d.tab) { S.tab = d.tab; S.sub = null; closeSheet(); render(); scrollTo(0, 0); return; }
   const a = d.act;
   if (a === 'authmode') { S.authMode = d.v; render(); }
+  if (a === 'menu') return menuSheet();
+  if (a === 'theme') { lsSet('ev_theme', d.v === 'mint' ? '' : d.v); applyTheme(d.v); return menuSheet(); }
+  if (a === 'refresh') return refreshNow(b);
   if (a === 'logout') busy(async () => { await sb.auth.signOut(); });
   if (a === 'onb') { S.onb = d.v || null; render(); }
   if (a === 'close') closeSheet();
