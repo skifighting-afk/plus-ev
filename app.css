@@ -631,3 +631,23 @@ input:not([type=checkbox]):not([type=radio]),select,textarea{border-radius:12px}
 .startbar{height:8px;border-radius:999px;background:var(--surface-3);overflow:hidden;margin:12px 0 4px}.startbar i{display:block;height:100%;border-radius:999px;background:linear-gradient(90deg,var(--brand),var(--brand-2))}
 .home .card .li .btn.sm{border-radius:999px;padding-inline:14px}
 .lt{border-radius:14px}
+
+/* ===== 매출·직원 안쪽 카드 v2 (디자인만) ===== */
+.emp{padding:18px}.emp>.row:first-child b[style]{font-size:19px!important;font-weight:800}
+.emp .kv{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 14px;padding:14px;border-radius:14px;background:var(--surface-1);margin:14px 0 10px}
+.emp .kv small{font-size:11.5px;color:var(--text-muted)}.emp .kv b{font-size:15px;font-weight:700}
+.emp .acct{border-radius:14px;padding:10px 12px;background:var(--surface-3)}.emp .acct .btn{border-radius:999px}
+.docrow{border-top:1px solid var(--border-subtle)}.docrow .btn{border-radius:999px}
+.tplbar{border:1px solid rgba(var(--brand-rgb),.25);background:linear-gradient(100deg,rgba(var(--brand-rgb),.08),transparent 60%),var(--surface-2)}
+.tplbar .btn{border-radius:999px}
+.fchip{font-weight:700}.fchip.on{background:var(--text-primary);border-color:var(--text-primary);color:var(--bg)}
+/* 매출 */
+.openbar{border:1px solid rgba(var(--brand-rgb),.3);box-shadow:none!important;background:linear-gradient(100deg,rgba(var(--brand-rgb),.08),transparent 60%),var(--surface-2)}
+.card.pos{box-shadow:none!important;border:1px solid rgba(127,178,229,.28)}
+.grid2.big input{font:800 20px Archivo,'Gothic A1',sans-serif;letter-spacing:-.01em;min-height:54px}
+.f .fl{font-size:12.5px;font-weight:700;color:var(--text-secondary)}
+.f input,.f select,.f textarea{min-height:46px}
+details.more{border-radius:14px;background:var(--surface-1);border:1px solid var(--border-subtle);padding:12px 14px}
+details.more>summary{font-weight:800;cursor:pointer}
+.stk{border-radius:14px;background:var(--surface-1);border-color:var(--border-subtle)}
+.dcell{border-radius:12px}
