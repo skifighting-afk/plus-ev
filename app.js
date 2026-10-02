@@ -1448,12 +1448,55 @@ function spinCard() {
   <div class="li" style="margin-top:8px"><div><b>내 초대 코드 ${myRef()}</b><small>친구가 이 코드로 가입하고 첫 근무를 하면 룰렛 +1</small></div><button class="btn sm" data-act="ref-share">초대 링크 보내기</button></div>
   ${S.prof?.ref_by ? '' : `<div class="row" style="gap:6px;margin-top:8px"><input id="ref-in" placeholder="추천인 코드 6자리" maxlength="6" style="flex:1;text-transform:uppercase"><button class="btn sm" data-act="ref-set">등록</button></div>`}</div>`;
 }
-function spinSheet() {
-  openSheet(`<style>.ptab{display:grid;gap:14px;justify-items:center;padding:16px 0;background:radial-gradient(#1f6f4a,#0d3b27);border-radius:14px;margin:10px 0}.prow{display:flex;gap:6px}.pc{width:42px;height:60px;border-radius:7px;background:#fff;color:#111;font:700 16px/60px system-ui;text-align:center;box-shadow:0 2px 6px #0006}.pc.r{color:#d11}.pc.b{background:repeating-linear-gradient(45deg,#7a1d2b 0 6px,#5c1420 6px 12px);color:transparent}.phand{font:800 22px system-ui;color:#ffd54a;min-height:28px}</style>
-  <h3 style="margin:0">🎰 족보 룰렛 <small class="mut" id="pleft">${S.spinN || 0}회 남음</small></h3>
-  <div class="ptab"><div class="prow" id="pbd">${'<span class="pc b">?</span>'.repeat(5)}</div><div class="phand" id="phd"></div><div class="prow" id="pme">${'<span class="pc b">?</span>'.repeat(2)}</div></div>
-  <p class="note" style="margin:0">원페어부터 로티플까지, 나온 족보만큼 포인트가 쌓여요</p>
-  <div class="row" style="gap:6px;margin-top:10px"><button class="btn full" data-act="close">닫기</button><button class="btn gold full" data-act="spin-go" ${S.spinN > 0 ? '' : 'disabled'}>카드 받기</button></div>`);
+// ===== 족보 룰렛 v2: 풀스크린 테이블 · 실제 딜 · 뒤집기 · 족보표 =====
+const RL_IMG = 'https://hkcmsjwuwopxritafreg.supabase.co/storage/v1/object/public/assets/roulette/';
+const RL_PAY = [['로티플', 100000], ['포카드', 50000], ['풀하우스', 20000], ['플러시', 10000], ['스트레이트', 5000], ['트리플', 3000], ['투페어', 2000], ['원페어', 1000]];
+// 족보를 만드는 카드 위치 (하이라이트용)
+function rlWin(cs, cat) {
+  const P = cs.map(x => { const r = x.slice(0, -1); return [{ A: 14, K: 13, Q: 12, J: 11 }[r] || +r, '♠♥♦♣'.indexOf(x.slice(-1))]; });
+  const rc = {}, sc = [0, 0, 0, 0]; P.forEach(([r, s]) => { rc[r] = (rc[r] || 0) + 1; sc[s]++; }); const fs = sc.findIndex(n => n >= 5);
+  if (cat === 9) return P.map(([r, s], i) => s === fs && r >= 10 ? i : -1).filter(i => i >= 0);
+  if (cat === 5) return P.map(([r, s], i) => [r, s, i]).filter(x => x[1] === fs).sort((a, b) => b[0] - a[0]).slice(0, 5).map(x => x[2]);
+  if (cat === 4) { const has = r => P.findIndex(p => p[0] === (r === 1 ? 14 : r)); for (let h = 14; h >= 5; h--) { const ix = [0, 1, 2, 3, 4].map(k => has(h - k)); if (ix.every(i => i >= 0)) return ix; } return []; }
+  return P.map(([r], i) => rc[r] >= 2 ? i : -1).filter(i => i >= 0);
+}
+const rlCard = (x, i) => { const r = x.slice(0, -1), s = x.slice(-1), red = /[♥♦]/.test(s); return `<div class="rl-c" data-i="${i}"><div class="rl-f ${red ? 'red' : ''}"><b>${r}<i>${s}</i></b><em>${s}</em><b class="br">${r}<i>${s}</i></b></div><div class="rl-b"></div></div>`; };
+function spinOpen() {
+  closeSheet(); $('#roul')?.remove();
+  const el = document.createElement('div'); el.id = 'roul'; el.className = 'rl';
+  el.innerHTML = `<div class="rl-bg" style="background-image:url(${RL_IMG}felt.webp)"></div>
+  <header class="rl-top"><button class="rl-x" data-act="spin-close" aria-label="닫기">✕</button><b>족보 룰렛</b><span class="rl-left"><img src="${RL_IMG}chip.webp" alt=""><span id="rl-n">${S.spinN || 0}</span>회</span></header>
+  <ol class="rl-pay">${RL_PAY.map(([h, p]) => `<li data-h="${h}"><span>${h}</span><b>${E.won(p)}P</b></li>`).join('')}</ol>
+  <div class="rl-deck" style="--back:url(${RL_IMG}back.webp)"><i></i><i></i><i></i></div>
+  <div class="rl-street" id="rl-st">카드 7장 중 가장 좋은 5장</div>
+  <div class="rl-row rl-board" id="rl-bd">${'<span class="rl-slot"></span>'.repeat(5)}</div>
+  <div class="rl-res" id="rl-res"><img class="rl-burst" src="${RL_IMG}burst.webp" alt=""><b id="rl-hand"></b><span id="rl-pt"></span></div>
+  <div class="rl-row rl-me" id="rl-me">${'<span class="rl-slot"></span>'.repeat(2)}<small>내 카드</small></div>
+  <div class="rl-foot"><button class="rl-go" data-act="spin-go" ${S.spinN > 0 ? '' : 'disabled'}>${S.spinN > 0 ? '카드 받기' : '남은 룰렛이 없어요'}</button><small>포인트는 첫 근무 정산 뒤 출금돼요 · 친구가 첫 근무하면 +1회</small></div>`;
+  el.style.setProperty('--back', `url(${RL_IMG}back.webp)`); document.body.appendChild(el); document.body.classList.add('rl-open');
+}
+async function spinPlay() {
+  const go = $('.rl-go'); if (!go || go.disabled) return; go.disabled = true; go.textContent = '딜링 중…';
+  const R = $('#roul'); R.classList.remove('done'); R.querySelectorAll('.rl-pay li').forEach(l => l.classList.remove('hit')); $('#rl-hand').textContent = ''; $('#rl-pt').textContent = '';
+  const w = ms => new Promise(f => setTimeout(f, matchMedia('(prefers-reduced-motion: reduce)').matches ? ms / 4 : ms)), bz = n => { try { navigator.vibrate?.(n); } catch { } };
+  const req = sb.rpc('spin_hand');
+  const bd = $('#rl-bd'), me = $('#rl-me'); bd.innerHTML = '<span class="rl-slot"></span>'.repeat(5); me.innerHTML = '<span class="rl-slot"></span>'.repeat(2) + '<small>내 카드</small>';
+  const { data, error } = await req; if (error) { toast(error.message); go.textContent = '닫기'; go.dataset.act = 'spin-close'; go.disabled = false; return; }
+  const r = data[0], c = dealHand(r.hand), cat = P_CAT[r.hand] ?? 1, win = new Set(rlWin(c, cat));
+  const put = (box, k, i) => { const s = box.querySelectorAll('.rl-slot')[k]; s.outerHTML = rlCard(c[i], i); const e = box.querySelector(`[data-i="${i}"]`); requestAnimationFrame(() => e.classList.add('in')); return e; };
+  const flip = e => { e.classList.add('up'); bz(12); };
+  const st = t => { const x = $('#rl-st'); x.textContent = t; x.classList.remove('pop'); void x.offsetWidth; x.classList.add('pop'); };
+  st('내 카드'); const h0 = put(me, 0, 0); await w(220); const h1 = put(me, 0, 1); await w(500); flip(h0); await w(260); flip(h1); await w(900);
+  st('플랍'); const f = [put(bd, 0, 2), put(bd, 0, 3), put(bd, 0, 4)]; await w(450); for (const e of f) { flip(e); await w(230); } await w(800);
+  st('턴'); const t = put(bd, 0, 5); await w(450); flip(t); await w(900);
+  st('리버'); const rv = put(bd, 0, 6); await w(350); rv.classList.add('tease'); await w(1100); rv.classList.remove('tease'); flip(rv); await w(550);
+  R.querySelectorAll('.rl-c').forEach(e => e.classList.add(win.has(+e.dataset.i) ? 'win' : 'dim'));
+  R.querySelector(`.rl-pay li[data-h="${r.hand}"]`)?.classList.add('hit');
+  R.classList.add('done', cat >= 3 ? 'big' : 'small'); $('#rl-hand').textContent = r.hand; st(cat >= 4 ? '🎉 대박!' : '나온 족보'); bz(cat >= 4 ? [60, 40, 120] : 40);
+  const pt = $('#rl-pt'), t0 = performance.now(); const tick = n => { const k = Math.min(1, (n - t0) / 900); pt.textContent = `+${E.won(Math.round(r.points * k))}P`; if (k < 1) requestAnimationFrame(tick); }; requestAnimationFrame(tick);
+  S.spinN = r.left_n; $('#rl-n').textContent = r.left_n;
+  go.disabled = false; if (r.left_n > 0) { go.textContent = `한 번 더 (${r.left_n}회)`; go.dataset.act = 'spin-go'; } else { go.textContent = '지갑에서 보기'; go.dataset.act = 'spin-wallet'; }
+  loadDealer().then(render).catch(() => { });
 }
 async function loungeLoad(force) {
   if (S.lgBusy || (!force && S.lgAt && Date.now() - S.lgAt < 60000)) return; S.lgBusy = 1;
@@ -1818,8 +1861,9 @@ document.addEventListener('click', e => {
   if (a === 'rd-start') return busy(async () => { await q(sb.rpc('sched_step', { p_store: S.store.id, p_month: S.nmKey, p_status: 'collect', p_deadline: addDay(TODAY, 5) })); toast('직원들에게 가능일 요청을 보냈어요'); await reload(); });
   if (a === 'rd-draft') return busy(async () => { const [y, m] = S.nmKey.split('-').map(Number), need = {}; for (let i = 1; i <= E.daysIn(y, m); i++) { const k = E.ymd(y, m, i); if (k < TODAY) continue; need[k] = needOn(k, S.store.need_by_wd || [3, 4, 3, 4, 6, 7, 2]); } toast('배정 중… 10초쯤 걸려요'); const { data, error } = await sb.functions.invoke('sched-auto', { body: { store_id: S.store.id, month: S.nmKey, need } }); if (error || !data?.ok) return toast(data?.msg || '초안을 못 만들었어요'); toast(data.short.length ? `초안 완료 · 빈자리 ${data.short.length}일` : '초안 완료 · 빈자리 없음'); await reload(); });
   if (a === 'rd-send' || a === 'rd-done') return busy(async () => { await q(sb.rpc('sched_step', { p_store: S.store.id, p_month: S.nmKey, p_status: a === 'rd-send' ? 'sent' : 'done' })); toast(a === 'rd-send' ? '직원들에게 확인 요청을 보냈어요' : '확정했어요. 직원들에게 알렸어요'); await reload(); });
-  if (a === 'spin-open') return spinSheet();
-  if (a === 'spin-go') return busy(async () => { const btn = $('[data-act="spin-go"]'); if (btn) btn.disabled = true; const r = (await q(sb.rpc('spin_hand')))[0], c = dealHand(r.hand), cd = x => `<span class="pc ${/[♥♦]/.test(x) ? 'r' : ''}">${x}</span>`, back = '<span class="pc b">?</span>', w = ms => new Promise(f => setTimeout(f, ms)); $('#pme').innerHTML = cd(c[0]) + cd(c[1]); await w(800); $('#pbd').innerHTML = c.slice(2, 5).map(cd).join('') + back + back; await w(1000); $('#pbd').innerHTML = c.slice(2, 6).map(cd).join('') + back; await w(1000); $('#pbd').innerHTML = c.slice(2, 7).map(cd).join(''); await w(400); $('#phd').textContent = `${r.hand}! +${E.won(r.points)}P`; S.spinN = r.left_n; if ($('#pleft')) $('#pleft').textContent = `${r.left_n}회 남음`; if (btn) { btn.dataset.act = r.left_n > 0 ? 'spin-open' : 'close'; btn.textContent = r.left_n > 0 ? `한 번 더 (${r.left_n}회)` : '확인'; btn.disabled = false; } await loadDealer(); render(); });
+  if (a === 'spin-open') return spinOpen();
+  if (a === 'spin-go') return spinPlay();
+  if (a === 'spin-close' || a === 'spin-wallet') { $('#roul')?.remove(); document.body.classList.remove('rl-open'); if (a === 'spin-wallet') { S.tab = 'wallet'; render(); } return; }
   if (a === 'ref-share') { const u = `${location.origin}/?ref=${myRef()}`, t = `+EV 딜러 앱 · 가입하면 족보 룰렛! 초대 코드 ${myRef()}`; if (navigator.share) { navigator.share({ title: '+EV', text: t, url: u }).catch(() => { }); return; } navigator.clipboard?.writeText(`${t} ${u}`).then(() => toast('초대 링크를 복사했어요'), () => toast(u)); return; }
   if (a === 'ref-set') return busy(async () => { const v = ($('#ref-in')?.value || '').trim(); if (v.length !== 6) return toast('코드 6자리를 넣어주세요'); const nm = await q(sb.rpc('set_ref', { p_code: v })); toast(`${nm}님을 추천인으로 등록했어요`); await reload(); });
   if (a === 'lg-tab') { S.lgTab = d.v; return render(); }
