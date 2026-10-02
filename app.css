@@ -394,7 +394,7 @@ label.fl{line-height:1.4}
 .startbar{height:6px;border-radius:999px;background:var(--line);overflow:hidden;margin:10px 0 4px}.startbar i{display:block;height:100%;background:var(--green)}
 /* ===== 족보 룰렛 v2 ===== */
 body.rl-open{overflow:hidden}
-.rl{position:fixed;inset:0;z-index:60;display:flex;flex-direction:column;align-items:center;gap:10px;padding:calc(env(safe-area-inset-top,0px) + 10px) 16px calc(env(safe-area-inset-bottom,0px) + 14px);color:#fff;background:#06281d;overflow:hidden;animation:rlIn .35s ease}
+#roul{position:fixed;inset:0;z-index:60;display:flex;flex-direction:column;align-items:center;gap:10px;padding:calc(env(safe-area-inset-top,0px) + 10px) 16px calc(env(safe-area-inset-bottom,0px) + 14px);color:#fff;background:#06281d;overflow:hidden;animation:rlIn .35s ease}
 @keyframes rlIn{from{opacity:0;transform:scale(1.04)}}
 .rl-bg{position:absolute;inset:0;background:#0b3d2c center/cover no-repeat;z-index:-1}
 .rl-bg::after{content:'';position:absolute;inset:0;background:radial-gradient(ellipse at 50% 45%,transparent 30%,rgba(0,0,0,.55) 100%)}
@@ -446,7 +446,7 @@ body.rl-open{overflow:hidden}
 @media (max-height:700px){.rl{gap:4px}.rl-pay{font-size:11px;padding:6px 8px}.rl-deck{display:none}}
 @media (prefers-reduced-motion:reduce){.rl-c,.rl-c.in{transition-duration:.15s}.rl-c.tease{animation:none}}
 /* ===== 디자인 리뉴얼: 룰렛 테이블 · 입금 축하 ===== */
-.rl{background:radial-gradient(120% 60% at 50% 0%,#1B2430 0%,#0C1014 60%)}
+#roul{background:radial-gradient(120% 60% at 50% 0%,#1B2430 0%,#0C1014 60%)}
 .rl-bg{display:none}
 .rl-left{gap:6px;padding:4px 12px 4px 4px;border-color:rgba(var(--gold-rgb),.35)}.rl-chip{width:22px;height:22px;border-radius:50%;background:#1F5E48;border:3px dashed var(--gold);box-sizing:border-box}
 .rl-title{display:flex;align-items:center;gap:10px;color:var(--gold);font:800 12px/1 'Gothic A1',sans-serif;letter-spacing:.24em}.rl-title::before,.rl-title::after{content:'';width:26px;height:1px;background:linear-gradient(90deg,transparent,var(--gold))}.rl-title::after{transform:scaleX(-1)}
@@ -699,3 +699,11 @@ html.light .topbar-msg.warn{background:#FFF4DC;color:#5A3D00}
   *{color:#000!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
   .cal{gap:2px}.cell{min-height:60px;break-inside:avoid}.emp{break-inside:avoid}
 }
+
+/* ===== v0.62 ===== */
+.warnc{border-color:rgba(var(--gold-rgb),.45)!important;background:linear-gradient(100deg,rgba(var(--gold-rgb),.08),transparent 60%),var(--surface-2)!important}
+.warnc .sktags i{background:rgba(var(--gold-rgb),.15);color:var(--gold)}
+.memo{margin-top:16px;padding:14px;border-radius:14px;background:var(--surface-1);border:1px dashed var(--border);display:grid;gap:8px}.memo h3{margin:0;font-size:14px}.memo h3 small{color:var(--text-muted);font-weight:500}.memo .btn{justify-self:start}
+.cmpck{display:inline-flex;align-items:center;gap:4px;font-size:12px;color:var(--text-secondary);cursor:pointer}.cmpck input{width:16px;height:16px;accent-color:var(--brand)}
+.cmpt{width:100%;border-collapse:collapse;font-size:13px}.cmpt th,.cmpt td{padding:8px 6px;border-bottom:1px solid var(--border-subtle);text-align:left;vertical-align:top}.cmpt thead th{font-size:14px}.cmpt tbody th{color:var(--text-muted);font-weight:600;white-space:nowrap}
+details.err{border-top:1px solid var(--border-subtle);padding:8px 0}details.err summary{cursor:pointer;font-size:13px}details.err pre{white-space:pre-wrap;word-break:break-all;font-size:11px;color:var(--text-muted);background:var(--surface-1);padding:8px;border-radius:8px;margin:6px 0}
