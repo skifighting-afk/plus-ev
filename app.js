@@ -348,7 +348,7 @@ function vOnboard() {
   if (!k) return `<h1>반가워요${S.prof.name ? `, ${esc(S.prof.name)}님` : ''}!</h1><p class="sub">어떤 분이세요?</p>
     <div class="choice"><button data-act="onb" data-v="owner"><b>대표·점장 및 매장이에요</b><small>매장 PC에 켜 두고 매출·스케줄·급여·구인을 관리해요. 처음 등록은 사업자등록번호가 필요해요.</small></button>
     <button data-act="onb" data-v="dealer"><b>딜러·스태프예요</b><small>공고를 보고 지원하거나, 매장 가입코드로 소속될 수 있어요. 공고 지원은 무료예요.</small></button></div>
-    <p class="note">점장은 대표님이 직원으로 등록한 뒤 점장 권한을 주면 돼요. 먼저 딜러·스태프로 가입해 매장 가입코드로 소속 신청하세요.</p>`;
+    <p class="note">점장도 먼저 딜러·스태프로 가입해 매장 초대 링크(가입코드)로 소속 신청하세요. 대표님이 승인한 뒤 점장 권한을 주면 돼요.</p>`;
   if (k === 'owner') return `<h1>매장 등록</h1><p class="sub">사업자등록번호가 없으면 가입할 수 없어요. 첫 달 무료로 시작해요.</p>
     <form class="f card" id="owner-form"><label class="fl">회사(상호)<input name="name" required placeholder="예: 로얄플러시"></label>
     <label class="fl">브랜드 (프랜차이즈면)<input name="brand" placeholder="없으면 비워두세요"></label>
