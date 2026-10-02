@@ -263,6 +263,7 @@ async function loadHQ() {
   S.notices = await q(sb.from('notices').select('*').order('created_at', { ascending: false }).limit(30));
   S.hqFr = await q(sb.from('franchise_postings').select('*').order('created_at', { ascending: false })); S.hqLeads = await q(sb.from('franchise_leads').select('*').order('connected_at', { ascending: false }).limit(200));
   S.hqPays = await q(sb.from('payments').select('*').order('created_at', { ascending: false }).limit(100));
+  S.traffic = (await sb.rpc('hq_traffic', { p_days: 30 })).data || null;
 }
 const payOf = p => E.payroll(p, S.y, S.m, S.tpl, S.ov, S.inc.filter(i => i.member_id === p.id).reduce((a, i) => a + i.amount, 0), TODAY, night());
 const laborOf = (y, m) => S.members.filter(p => p.role !== 'owner').reduce((a, p) => { const r = E.payroll(p, y, m, S.tpl, S.ov, 0, TODAY, night()); return a + r.fullGross * (p.contract === '4대' ? 1.105 : 1); }, 0);
@@ -284,6 +285,7 @@ const ICON = { home: '<path d="M3 11l9-8 9 8v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0
 const svg = k => `<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICON[k]}</svg>`;
 function render() {
   clearInterval(S.qrTimer);
+  { const vk = TODAY + (S.mode || 'guest'); if (S.vk !== vk && !location.pathname.includes('/demo')) { S.vk = vk; let vid = lsGet('ev_vid'); if (!vid) { vid = Math.random().toString(36).slice(2) + Date.now().toString(36); lsSet('ev_vid', vid); } let rf = ''; try { rf = document.referrer && !document.referrer.includes(location.host) ? new URL(document.referrer).host : ''; } catch { } sb.rpc('log_visit', { p_vid: vid, p_mode: S.mode || 'guest', p_path: location.pathname, p_ref: rf, p_ua: /Mobi|Android|iPhone/i.test(navigator.userAgent) ? (matchMedia('(display-mode: standalone)').matches ? 'app' : 'mobile') : 'pc' }).then(() => { }, () => { }); } }
   const tabs = TABS[S.mode]?.filter(([k]) => !hideTab(k)), nav = $('#tabs'); if (tabs && hideTab(S.tab)) S.tab = 'sched'; nav.hidden = !tabs;
   const g = S.mode === 'store' ? groupOf() : S.tab;
   if (tabs) nav.innerHTML = tabs.map(([k, i, l]) => `<button ${k === 'market' ? 'data-act="sub" data-v="used"' : `data-tab="${k}"`} ${g === k ? 'aria-current="page"' : ''}><span>${ICON[k] ? svg(k) : i}</span>${l}</button>`).join('');
@@ -1444,6 +1446,12 @@ function vMe() {
 }
 
 // ===== 운영사 =====
+function trafficCard() {
+  const T = S.traffic; if (!T) return ''; const D = T.daily || [], mx = Math.max(1, ...D.map(x => x.visitors)), MN = { guest: '비로그인', store: '대표·점장', staff: '직원', dealer: '딜러', hq: '운영사', onboard: '가입 중' }, UA = { pc: 'PC', mobile: '모바일 웹', app: '설치 앱' };
+  return `<div class="card"><h3>방문자 <small>최근 30일 · 같은 기기는 하루 1번만 셈</small></h3><div class="grid2" style="gap:8px"><div class="kpi"><div class="l">오늘</div><div class="v num">${T.today}</div></div><div class="kpi"><div class="l">최근 7일</div><div class="v num">${T.w7}</div></div><div class="kpi"><div class="l">최근 30일</div><div class="v num">${T.m30}</div></div><div class="kpi"><div class="l">로그인 사용자 DAU · MAU</div><div class="v num">${T.dau} · ${T.mau}</div></div></div>
+  <div class="tbars">${D.map(x => `<i title="${x.d} 방문 ${x.visitors} · 로그인 ${x.users} · 가입 ${x.signups}" style="height:${Math.max(2, x.visitors / mx * 100)}%">${x.signups ? '<b></b>' : ''}</i>`).join('')}</div><div class="row between mut" style="font-size:11px"><span>${(D[0]?.d || '').slice(5)}</span><span>● 표시 = 그날 가입자 있음</span><span>오늘</span></div>
+  <div class="li"><span>누가 왔나</span><small>${Object.entries(T.by_mode || {}).sort((a, b) => b[1] - a[1]).map(([k, n]) => `${MN[k] || k} ${n}`).join(' · ') || '-'}</small></div><div class="li"><span>어디서 왔나</span><small>${(T.by_ref || []).map(r => `${esc(r.ref)} ${r.n}`).join(' · ') || '-'}</small></div><div class="li"><span>기기</span><small>${Object.entries(T.by_ua || {}).map(([k, n]) => `${UA[k] || k} ${n}`).join(' · ') || '-'}</small></div><div class="li"><span>전체 가입자</span><b class="num">${T.users}명</b></div></div>`;
+}
 function vHqDash() {
   const st = S.stats || [], sales = st.reduce((a, x) => a + +x.sales, 0), open = (S.inq || []).filter(x => !x.reply).length;
   const T = S.hqToday || {}, R = S.hqRev || {}, KN = { subscription: '구독', jobs: '구인', boost: '중고 부스팅', franchise_post: '가맹 게시', franchise_lead: '가맹 리드', academy: '교육', dealer: '딜러', post: '구인', post_extra: '구인', store: '구독', plan: '구독', used_boost: '중고 부스팅', franchise: '가맹 게시', franchise_leads: '가맹 리드', fr_bill: '가맹 리드', tickets: '딜러', pro: '딜러' };
@@ -1453,7 +1461,7 @@ function vHqDash() {
   return `<h1>운영사</h1><p class="sub">${S.y}년 ${S.m}월</p>
   <div class="card"><h3>오늘 처리할 것 <small>${todo.length ? `${todo.reduce((a, [k]) => a + +T[k], 0)}건` : '없어요'}</small></h3>${todo.map(([k, l, t]) => `<div class="li"><span>${l}</span><span class="row"><b class="num ${['pay_fail', 'disputes', 'fr_disputes'].includes(k) ? 'down' : ''}">${T[k]}</b><button class="btn sm" data-tab="${t}">보기</button></span></div>`).join('') || '<div class="empty">처리할 일이 없어요</div>'}</div>
   <div class="grid2"><div class="card kpi"><div class="l">입점 매장</div><div class="v num">${st.length}곳</div><small class="mut">체험 ${R.plans?.trial ?? 0} · 베이직 ${R.plans?.basic ?? 0} · 프로 ${R.plans?.pro ?? 0} · 종료 ${R.plans?.expired ?? 0}</small></div><div class="card kpi"><div class="l">MRR (구독)</div><div class="v num up">₩${man(R.mrr || 0)}</div><small class="mut">이번 달 매장 매출 합계 ₩${man(sales)}</small></div></div>
-  <div class="card"><h3>매출 (결제 완료 기준) <small>최근 6개월</small></h3>${months.length ? `<div class="tbl"><table style="min-width:0"><thead><tr><th></th>${months.map(m => `<th class="r">${+m.slice(5)}월</th>`).join('')}</tr></thead><tbody>${kinds.map(k => `<tr><td>${KN[k] || k}</td>${months.map(m => `<td class="r num">${amt(m, k) ? '₩' + E.won(amt(m, k)) : '-'}</td>`).join('')}</tr>`).join('')}<tr><td><b>합계</b></td>${months.map(m => `<td class="r num"><b>₩${E.won(kinds.reduce((a, k) => a + amt(m, k), 0))}</b></td>`).join('')}</tr></tbody></table></div>` : '<div class="empty">아직 결제가 없어요</div>'}</div>
+  ${trafficCard()}<div class="card"><h3>매출 (결제 완료 기준) <small>최근 6개월</small></h3>${months.length ? `<div class="tbl"><table style="min-width:0"><thead><tr><th></th>${months.map(m => `<th class="r">${+m.slice(5)}월</th>`).join('')}</tr></thead><tbody>${kinds.map(k => `<tr><td>${KN[k] || k}</td>${months.map(m => `<td class="r num">${amt(m, k) ? '₩' + E.won(amt(m, k)) : '-'}</td>`).join('')}</tr>`).join('')}<tr><td><b>합계</b></td>${months.map(m => `<td class="r num"><b>₩${E.won(kinds.reduce((a, k) => a + amt(m, k), 0))}</b></td>`).join('')}</tr></tbody></table></div>` : '<div class="empty">아직 결제가 없어요</div>'}</div>
   <div class="card"><h3>Activation · 리텐션 <small>최근 90일 가입 기준</small></h3>
     <div class="li"><span>점주 Activation <small>7일 내 직원 1 + 마감 1 + 스케줄 1</small></span><b class="num">${A.activated ?? 0} / ${A.signups ?? 0}${A.signups ? ` (${Math.round(A.activated / A.signups * 100)}%)` : ''}</b></div>
     <div class="li"><span>딜러 Activation <small>프로필 + 지원 1회</small></span><b class="num">${DA.activated ?? 0} / ${DA.signups ?? 0}${DA.signups ? ` (${Math.round(DA.activated / DA.signups * 100)}%)` : ''}</b></div>

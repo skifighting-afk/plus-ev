@@ -386,3 +386,6 @@ label.fl{line-height:1.4}
 /* 카카오 로그인 */
 .btn.kakao{background:#FEE500;color:#191919;border-color:#FEE500;font-weight:700}
 .or{display:flex;align-items:center;gap:10px;color:var(--mut,#8a8f8c);font-size:12px;margin:14px 0 10px}.or::before,.or::after{content:"";flex:1;height:1px;background:currentColor;opacity:.3}
+
+/* 방문자 */
+.tbars{display:flex;align-items:flex-end;gap:2px;height:90px;margin:14px 0 4px}.tbars i{flex:1;min-width:0;background:var(--green);opacity:.8;border-radius:3px 3px 0 0;position:relative}.tbars i b{position:absolute;top:-9px;left:50%;width:6px;height:6px;margin-left:-3px;border-radius:50%;background:var(--gold)}
