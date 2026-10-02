@@ -389,3 +389,6 @@ label.fl{line-height:1.4}
 
 /* 방문자 */
 .tbars{display:flex;align-items:flex-end;gap:2px;height:90px;margin:14px 0 4px}.tbars i{flex:1;min-width:0;background:var(--green);opacity:.8;border-radius:3px 3px 0 0;position:relative}.tbars i b{position:absolute;top:-9px;left:50%;width:6px;height:6px;margin-left:-3px;border-radius:50%;background:var(--gold)}
+
+/* v0.42 */
+.startbar{height:6px;border-radius:999px;background:var(--line);overflow:hidden;margin:10px 0 4px}.startbar i{display:block;height:100%;background:var(--green)}
