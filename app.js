@@ -1509,11 +1509,11 @@ async function loungeLoad(force) {
 }
 function vLounge() {
   const t = S.lgTab || 'board', P = S.bposts || [];
-  const seg = `<div class="seg" style="margin-bottom:12px">${[['board', '익명 게시판'], ['transfer', '점포 양도양수'], ['fr', '가맹 모집']].map(([k, l]) => `<button data-act="lg-tab" data-v="${k}" aria-pressed="${t === k}">${l}</button>`).join('')}</div>`;
-  if (t === 'transfer') return `<h1>라운지</h1>${seg}${transferBlock()}`;
-  if (t === 'fr') return `<h1>라운지</h1>${seg}${frBlock()}`;
-  return `<h1>라운지</h1>${seg}<div class="card"><textarea id="bd-new" rows="3" maxlength="1000" placeholder="닉네임 없이 익명으로 올라가요. 욕설·성희롱·구인 홍보는 AI가 걸러요" style="width:100%"></textarea><button class="btn pri full" data-act="bd-post" style="margin-top:8px">익명으로 올리기</button></div>
-  ${P.map(p => `<button class="card" data-act="bd-open" data-v="${p.id}" style="display:block;width:100%;text-align:left"><div class="row between"><b>${esc(p.alias)}</b><small class="mut">${fmtDT(p.created_at)}</small></div><p style="margin:6px 0;white-space:pre-wrap">${esc(p.body)}</p><small class="mut">댓글 ${p.replies}</small></button>`).join('') || '<div class="card empty">첫 글을 남겨 보세요</div>'}`;
+  const seg = `<div class="lg-tabs">${[['board', '익명 게시판'], ['transfer', '점포 양도양수'], ['fr', '가맹 모집']].map(([k, l]) => `<button data-act="lg-tab" data-v="${k}" aria-pressed="${t === k}">${l}</button>`).join('')}</div>`, H = `<header class="dv-h"><h1>라운지</h1></header>${seg}`;
+  if (t === 'transfer') return `${H}${transferBlock()}`;
+  if (t === 'fr') return `${H}${frBlock()}`;
+  return `${H}<div class="lg-new"><textarea id="bd-new" rows="3" maxlength="1000" placeholder="이름 없이 익명으로 올라가요. 오늘 근무 어땠어요?"></textarea><div class="row between"><small>욕설·성희롱·구인 홍보는 AI가 걸러요</small><button class="btn pri sm" data-act="bd-post">익명으로 올리기</button></div></div>
+  <div class="lg-feed">${P.map(p => `<button class="lg-post" data-act="bd-open" data-v="${p.id}"><div class="row between"><b class="num">${esc(p.alias)}</b><small>${fmtDT(p.created_at)}</small></div><p>${esc(p.body)}</p><small>💬 댓글 ${p.replies}</small></button>`).join('') || '<div class="dv-empty"><i aria-hidden="true">💬</i><b>첫 글을 남겨 보세요</b><small>이름 없이 올라가요</small></div>'}</div>`;
 }
 async function bdSheet(id) {
   const p = (S.bposts || []).find(x => x.id == id), r = await q(sb.rpc('board_list', { p_parent: +id }));
@@ -1522,7 +1522,7 @@ async function bdSheet(id) {
   <textarea id="bd-re" rows="2" maxlength="1000" placeholder="익명 댓글" style="width:100%;margin-top:8px"></textarea><div class="row" style="gap:6px;margin-top:8px"><button class="btn full" data-act="close">닫기</button><button class="btn pri full" data-act="bd-reply" data-v="${id}">댓글 달기</button></div>`);
 }
 const bdWrite = async (body, parent) => { const { data, error } = await sb.functions.invoke('board-write', { body: { body, parent } }); if (error || !data?.ok) { toast(data?.msg || '못 올렸어요. 잠시 후 다시 해주세요'); return false; } return true; };
-function vBoard() { return `${spinBanner()}<div class="row between"><h1>구인</h1><span class="pill g">지원 무료</span></div><p class="sub">원하는 공고에 바로 지원하세요. 채용되면 매장 연락처가 열려요.</p>${boardList(false)}`; }
+function vBoard() { return `${spinBanner()}<header class="dv-h"><div><h1>구인</h1><p class="sub">원하는 공고에 바로 지원하세요. 채용되면 매장 연락처가 열려요.</p></div><span class="pill g">지원 무료</span></header>${boardList(false)}`; }
 function boardList(view) {
   const F = S.jf || { k: '전체', r: '전체', a: '전체' }; S.board = S.board || [];
   const areas = [...new Set(S.board.map(j => (j.area || '').split(' ').slice(0, 2).join(' ')).filter(Boolean))];
@@ -1534,32 +1534,41 @@ function boardList(view) {
 }
 function vMyWork() {
   const L = { applied: ['', '매장 확인 중'], hired: ['g', '채용됐어요'], rejected: ['', '아쉽게 안 됐어요'], cancelled: ['y', '매장 취소'], expired: ['', '마감'] };
-  return `<h1>내 근무</h1><div class="card"><h3>긴급 근무</h3>${S.slots.map(s => `<div class="slot"><span><b>${esc(s.title)}</b><br><small class="mut">${esc(s.store_name)} · ${t5(s.start_t)}–${t5(s.end_t)} · ₩${E.won(s.pay + s.extra)}</small>${s.result ? `<br><small class="up">받는 돈 ₩${E.won(s.result.net)} (3.3% 원천세 −${E.won(s.result.tax)})</small>` : ''}</span>
-    <span class="row"><span class="pill ${SLOT[s.status][0]}">${SLOT[s.status][1]}</span>${s.status === 'WORKING' ? `<button class="btn sm pri" data-act="dslot" data-s="${s.slot_id}">퇴근했어요 · 근무 완료</button>` : ''}</span></div>`).join('') || '<div class="empty">채용된 긴급 근무가 없어요</div>'}
-    <p class="note">근무 완료를 누르면 매장이 확인하거나 3시간이 지나면 자동으로 지갑에 들어와요.</p></div>
-  <div class="card"><h3>내 지원</h3>${S.apps.map(a => `<div class="li"><div><b>${esc(a.title)}</b><small>${esc(a.store_name)} · ${new Date(a.created_at).toLocaleDateString('ko-KR')}</small></div><span class="pill ${L[a.status][0]}">${L[a.status][1]}</span></div>`).join('') || '<div class="empty">아직 지원한 공고가 없어요</div>'}</div>`;
+  const empty = (ic, t, s) => `<div class="dv-empty"><i aria-hidden="true">${ic}</i><b>${t}</b><small>${s}</small><button class="btn sm pri" data-tab="jobs">공고 보러 가기</button></div>`;
+  return `<header class="dv-h"><h1>내 근무</h1></header>
+  <section class="dv-sec"><h2>긴급 근무</h2>${S.slots.map(s => `<div class="mw-slot ${s.status === 'WORKING' ? 'on' : ''}"><div class="row between"><span class="pill ${SLOT[s.status][0]}">${SLOT[s.status][1]}</span><b class="num mw-pay">₩${E.won(s.pay + s.extra)}</b></div>
+    <h4>${esc(s.title)}</h4><small class="mut">${esc(s.store_name)} · ${t5(s.start_t)}–${t5(s.end_t)}</small>
+    ${s.result ? `<div class="mw-net">받는 돈 <b class="num">₩${E.won(s.result.net)}</b><small>3.3% 원천세 −${E.won(s.result.tax)}</small></div>` : ''}
+    ${s.status === 'WORKING' ? `<button class="btn pri full mw-done" data-act="dslot" data-s="${s.slot_id}">퇴근했어요 · 근무 완료</button>` : ''}</div>`).join('') || empty('🃏', '채용된 긴급 근무가 없어요', '긴급 대타에 지원하고 채용되면 여기에 떠요')}</section>
+  <section class="mw-steps"><b>근무가 끝나면 이렇게 돼요</b><ol><li><i>1</i><div><b>퇴근할 때 '근무 완료' 누르기</b></div></li><li><i>2</i><div><b>매장이 확인</b><small>확인이 없어도 3시간 지나면 자동으로 넘어가요</small></div></li><li><i>3</i><div><b>지갑에 들어와요</b><small>3.3% 원천세를 뺀 금액</small></div></li></ol></section>
+  <section class="dv-sec"><h2>내 지원</h2>${S.apps.length ? `<div class="dv-list">${S.apps.map(a => `<div class="li"><div><b>${esc(a.title)}</b><small>${esc(a.store_name)} · ${new Date(a.created_at).toLocaleDateString('ko-KR')}</small></div><span class="pill ${L[a.status][0]}">${L[a.status][1]}</span></div>`).join('')}</div>` : empty('📝', '아직 지원한 공고가 없어요', '지원은 무료예요. 채용되면 매장 연락처가 열려요')}</section>`;
 }
 const TICKET_PACKS = [1, 5, 10].map(n => [n, PRICING.dealer.tickets[n]]), PRO_PRICE = PRICING.dealer.pro, INSTANT_FEE = PRICING.dealer.instantFee;
 const isPro = () => S.prof?.pro_until && new Date(S.prof.pro_until) > now;
 function vWallet() {
-  const w = S.wallet, pro = isPro(), hasBank = S.prof?.bank_acct && S.prof?.bank_holder;
-  return `<h1>지갑</h1><div class="card dsum" style="grid-template-columns:1fr 1fr"><div><small>지갑 잔액</small><b class="num up">₩${E.won(w.balance)}</b></div><div><small>지금 출금 가능</small><b class="num">₩${E.won(w.available)}</b></div></div>
-  <div class="card"><h3>출금 ${pro ? '<span class="pill y">PRO · 번개 출금 0원</span>' : ''}</h3>${hasBank ? `<p class="mut" style="margin:0 0 10px">${esc(S.prof.bank_name || '')} ${esc(S.prof.bank_acct)} · ${esc(S.prof.bank_holder)}</p>
-    <div class="grid2"><button class="btn gold" style="flex-direction:column" data-act="withdraw" data-v="1" ${w.available < 1000 + (pro ? 0 : INSTANT_FEE) ? 'disabled' : ''}>번개 출금<br><small>${pro ? '수수료 0원' : `수수료 ${E.won(INSTANT_FEE)}원`}</small></button><button class="btn" style="flex-direction:column" data-act="withdraw" data-v="0" ${w.available < 1000 ? 'disabled' : ''}>일반 출금<br><small>무료 · 다음 영업일</small></button></div>` : '<p class="mut" style="margin:0">받을 계좌를 넣으면 바로 출금할 수 있어요.</p><form class="f" id="bank-form" style="margin-top:8px"><div class="grid2"><label class="fl">은행<input name="bank" placeholder="예: 카카오뱅크"></label><label class="fl">예금주<input name="holder"></label></div><label class="fl">계좌번호<input name="acct" inputmode="numeric"></label><button class="btn pri full">계좌 저장</button></form><button class="btn sm" data-tab="me" style="margin-top:8px">계좌 넣기</button>'}
-    <p class="note">긴급 근무 급여는 매장 확인 후 5시간 뒤부터 출금할 수 있어요. 출금 가능한 돈 전부가 한 번에 나가요.</p>
-    ${S.wds?.length ? S.wds.map(x => `<div class="li"><div><b>₩${E.won(x.amount)}</b><small>${x.instant ? '번개' : '일반'} · ${fmtDT(x.created_at)}${x.fee ? ` · 수수료 ${E.won(x.fee)}` : ''}</small></div><span class="pill ${x.status === '송금 완료' ? 'g' : 'y'}">${esc(x.status)}</span></div>`).join('') : ''}</div>
+  const w = S.wallet, pro = isPro(), hasBank = S.prof?.bank_acct && S.prof?.bank_holder, soon = Math.max(0, (+w.balance || 0) - (+w.available || 0));
+  return `<header class="dv-h"><h1>지갑</h1>${pro ? '<span class="pill y">PRO · 번개 출금 0원</span>' : ''}</header>
+  <section class="wl-hero"><small>지금 출금할 수 있는 돈</small><div class="wl-big num">${E.won(w.available)}<span>원</span></div>
+    <div class="wl-sub"><span>지갑 잔액 <b class="num">₩${E.won(w.balance)}</b></span>${soon ? `<span>곧 출금 가능 <b class="num">₩${E.won(soon)}</b></span>` : ''}</div>
+    ${hasBank ? `<div class="wl-bank"><i aria-hidden="true">🏦</i>${esc(S.prof.bank_name || '')} ${esc(S.prof.bank_acct)} · ${esc(S.prof.bank_holder)}</div>` : ''}</section>
+  ${hasBank ? `<div class="wl-act"><button class="wl-btn go" data-act="withdraw" data-v="1" ${w.available < 1000 + (pro ? 0 : INSTANT_FEE) ? 'disabled' : ''}><b>⚡ 번개 출금</b><small>${pro ? '수수료 0원' : `수수료 ${E.won(INSTANT_FEE)}원`}</small></button><button class="wl-btn" data-act="withdraw" data-v="0" ${w.available < 1000 ? 'disabled' : ''}><b>일반 출금</b><small>무료 · 다음 영업일</small></button></div>`
+    : `<div class="card wl-nobank"><h3>받을 계좌 넣기 <small>한 번만 넣으면 바로 출금돼요</small></h3><form class="f" id="bank-form"><div class="grid2"><label class="fl">은행<input name="bank" placeholder="예: 카카오뱅크"></label><label class="fl">예금주<input name="holder"></label></div><label class="fl">계좌번호<input name="acct" inputmode="numeric"></label><button class="btn pri full">계좌 저장</button></form><button class="btn sm" data-tab="me" style="margin-top:8px">계좌 넣기</button></div>`}
+  <p class="wl-note">긴급 근무 급여는 매장 확인 후 5시간 뒤부터 출금할 수 있어요. 출금 가능한 돈 전부가 한 번에 나가요.</p>
+  ${S.wds?.length ? `<section class="dv-sec"><h2>출금 내역</h2><div class="dv-list">${S.wds.map(x => `<div class="li"><div><b class="num">₩${E.won(x.amount)}</b><small>${x.instant ? '번개' : '일반'} · ${fmtDT(x.created_at)}${x.fee ? ` · 수수료 ${E.won(x.fee)}` : ''}</small></div><span class="pill ${x.status === '송금 완료' ? 'g' : 'y'}">${esc(x.status)}</span></div>`).join('')}</div></section>` : ''}
   ${S.mode === 'dealer' ? spinCard() : ''}<div class="card" hidden><h3>지원권 <small>지금 ${S.tickets}장</small></h3><div class="plans">${TICKET_PACKS.map(([n, p], i) => `<div class="plan ${i === 1 ? 'cur' : ''}">${i === 1 ? '<span class="pill y">인기</span>' : ''}<b>${n}장</b><b class="num">₩${E.won(p)}</b><small>장당 ₩${E.won(p / n)}</small><button class="btn sm ${i === 1 ? 'pri' : ''}" data-act="tickets" data-v="${i + 1}">받기</button></div>`).join('')}</div>
     <p class="note">지원하면 1장이 잠기고, 채용돼야 쓰여요. 안 뽑히면 돌아와요.</p>${payNote()}</div>`;
 }
 function vMe() {
   const p = S.prof;
-  return `<h1>내 정보</h1>${S.mode === 'staff' ? myDocsCard(false) : ''}<form class="f card" id="dealer-form"><label class="fl">이름(닉네임)<input name="name" value="${esc(p.name)}"></label><label class="fl">휴대폰 ${p.phone_verified_at ? '<span class="pill g">✓ 인증됨</span>' : '<span class="pill y">미인증</span>'}<span style="display:flex;gap:6px"><input name="phone" value="${esc(p.phone || '')}" style="flex:1"><button type="button" class="btn sm" data-act="otp-send">문자 인증</button></span></label>
+  const R = S.rep, nm = (p.name || '?').trim();
+  return `<header class="me-h"><span class="me-av" aria-hidden="true">${esc(nm.slice(0, 1))}</span><div><b>${esc(nm)}</b><small>${S.mode === 'staff' ? '직원' : '딜러'}${p.career_months ? ` · 경력 ${p.career_months}개월` : ''}${p.area ? ` · ${esc(p.area)}${p.area2 ? ' ' + esc(p.area2) : ''}` : ''}</small></div>${p.phone_verified_at ? '<span class="pill g">✓ 인증</span>' : ''}</header>
+  ${R ? `<section class="me-rep"><div class="row between"><b>매장이 보는 내 평판</b><small>지원할 때 같이 보여요</small></div><div class="me-big">${[['완료 근무', R.done, ''], ['재호출률', R.recall_pct == null ? '-' : R.recall_pct, R.recall_pct == null ? '' : '%'], ['노쇼', R.noshow, '']].map(([l, v, u], i) => `<div><b class="num${i === 1 ? ' up' : ''}">${v}${u}</b><small>${l}</small></div>`).join('')}</div><div class="me-sm"><span>근무 매장 <b class="num">${R.stores}곳</b></span><span>교육 수료 <b class="num">${R.edu}개</b></span></div><p class="note">재호출률 = 두 번 이상 불러준 매장 비율. 이 숫자가 대타 매칭 순서를 정해요.</p></section>` : ''}
+  ${S.mode === 'staff' ? myDocsCard(false) : ''}<h2 class="me-lb">프로필</h2><form class="f card" id="dealer-form"><label class="fl">이름(닉네임)<input name="name" value="${esc(p.name)}"></label><label class="fl">휴대폰 ${p.phone_verified_at ? '<span class="pill g">✓ 인증됨</span>' : '<span class="pill y">미인증</span>'}<span style="display:flex;gap:6px"><input name="phone" value="${esc(p.phone || '')}" style="flex:1"><button type="button" class="btn sm" data-act="otp-send">문자 인증</button></span></label>
   ${S.mode === 'staff' ? '<details class="more"><summary>다른 매장 대타도 하려면 <small class="mut">경력·지역·게임</small></summary>' : ''}<label class="fl">경력 (개월)<input name="career" type="number" value="${p.career_months || 0}"></label><label class="fl">자기소개<textarea name="bio" rows="3">${esc(p.bio || '')}</textarea></label>
   <div class="grid2"><label class="fl">활동 지역 (시·도)<select name="area"><option value="">전국</option>${SIDO.map(a => `<option ${p.area === a ? 'selected' : ''}>${a}</option>`).join('')}</select></label><label class="fl">가능 게임<input name="games" value="${esc(p.games || '')}" placeholder="예: 홀덤, 오마하"></label></div><label class="fl">구·시 <small class="mut">(선택) 가까운 공고가 먼저 보여요</small><input name="area2" value="${esc(p.area2 || '')}" placeholder="예: 강남구, 수원시"></label>
   <label class="tog"><span><b>다른 매장 긴급 대타 받기</b><small>같은 지역 긴급 대타가 뜨면 알림을 드려요. 지원해서 근무하면 지갑으로 바로 지급</small></span><input type="checkbox" name="open_to_sub" ${p.open_to_sub ? 'checked' : ''}></label>${S.mode === 'staff' ? '</details>' : ''}
   <button class="btn pri full">저장</button></form>
   ${pushRow() ? `<div class="card">${pushRow()}</div>` : ''}
-  ${S.rep ? `<div class="card"><h3>내 평판 <small>점주가 지원자 목록에서 보는 숫자</small></h3><div class="fxg">${[['완료 근무', S.rep.done + '건'], ['근무 매장', S.rep.stores + '곳'], ['재호출률', S.rep.recall_pct == null ? '-' : S.rep.recall_pct + '%'], ['노쇼', S.rep.noshow + '회'], ['교육 수료', S.rep.edu + '개']].map(([l, v]) => `<div><small>${l}</small><b class="num">${v}</b></div>`).join('')}</div><p class="note">재호출률 = 두 번 이상 불러준 매장 비율. 이 숫자가 대타 매칭 순서를 정해요.</p></div>` : ''}
   <form class="f card" id="bank-form"><h3>받을 계좌 <small>출금할 때 이 계좌로 보내드려요</small></h3><div class="grid2"><label class="fl">은행<input name="bank" value="${esc(p.bank_name || '')}" placeholder="예: 카카오뱅크"></label><label class="fl">예금주<input name="holder" value="${esc(p.bank_holder || '')}"></label></div><label class="fl">계좌번호<input name="acct" inputmode="numeric" value="${esc(p.bank_acct || '')}"></label><button class="btn full">계좌 저장</button></form>
   <form class="f card" id="join-code-form"><h3>매장 소속 신청 <small>점장님께 받은 가입코드</small></h3><input name="code" required placeholder="D-XXXXXX" value="${esc(lsGet('ev_join'))}" style="text-transform:uppercase;letter-spacing:.15em"><button class="btn full">소속 신청</button></form>
   ${inqBlock()}
