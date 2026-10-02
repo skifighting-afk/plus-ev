@@ -14,7 +14,7 @@ const TODAY0 = () => new Date().toISOString().slice(0, 10);
 const compActive = co => !!co && ((co.plan === 'pro' && co.paid_until && new Date(co.paid_until) > new Date()) || (co.trial_ends && co.trial_ends >= TODAY0()) || (co.diag_until && new Date(co.diag_until) > new Date()));
 function builder(t) {
   let op = 'select', payload = null, filters = [], single = false, order = null, lim = 0;
-  const b = { select() { return b }, eq(k, v) { filters.push(r => r[k] === v); return b }, in(k, v) { filters.push(r => v.includes(r[k])); return b }, gte(k, v) { filters.push(r => r[k] >= v); return b }, lte(k, v) { filters.push(r => r[k] <= v); return b }, like(k, v) { const re = new RegExp('^' + v.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/%/g, '.*') + '$'); filters.push(r => re.test(r[k] || '')); return b },
+  const b = { select() { return b }, eq(k, v) { filters.push(r => r[k] === v); return b }, neq(k, v) { filters.push(r => r[k] !== v); return b }, in(k, v) { filters.push(r => v.includes(r[k])); return b }, gte(k, v) { filters.push(r => r[k] >= v); return b }, lte(k, v) { filters.push(r => r[k] <= v); return b }, like(k, v) { const re = new RegExp('^' + v.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/%/g, '.*') + '$'); filters.push(r => re.test(r[k] || '')); return b },
     order(k, o) { order = [k, o?.ascending !== false]; return b }, limit(n) { lim = n; return b }, maybeSingle() { single = true; return b },
     insert(p) { op = 'insert'; payload = p; return b }, update(p) { op = 'update'; payload = p; return b }, upsert(p) { op = 'upsert'; payload = p; return b }, delete() { op = 'delete'; return b },
     then(res, rej) { try { res(run()) } catch (e) { res({ data: null, error: e }) } } };
