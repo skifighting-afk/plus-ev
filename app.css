@@ -373,3 +373,6 @@ label.fl{line-height:1.4}
 
 /* v0.36 */
 .rsteps{display:flex;gap:4px;margin:10px 0}.rsteps span{flex:1;text-align:center;font-size:12px;padding:6px 2px;border-radius:8px;background:var(--card2);color:var(--muted)}.rsteps .on{background:var(--green);color:#fff;font-weight:700}.rsteps .done{color:var(--text)}button.dc{font:inherit;color:inherit;background:none;cursor:pointer;text-align:left}button.dc.on{background:rgba(16,185,129,.25);border-color:var(--green)}
+
+/* v0.38 */
+.job.hl{outline:2px solid var(--gold);outline-offset:2px}
