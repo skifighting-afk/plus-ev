@@ -1440,9 +1440,7 @@ function vWallet() {
     <p class="note">긴급 근무 급여는 매장 확인 후 5시간 뒤부터 출금할 수 있어요. 출금 가능한 돈 전부가 한 번에 나가요.</p>
     ${S.wds?.length ? S.wds.map(x => `<div class="li"><div><b>₩${E.won(x.amount)}</b><small>${x.instant ? '번개' : '일반'} · ${fmtDT(x.created_at)}${x.fee ? ` · 수수료 ${E.won(x.fee)}` : ''}</small></div><span class="pill ${x.status === '송금 완료' ? 'g' : 'y'}">${esc(x.status)}</span></div>`).join('') : ''}</div>
   <div class="card" hidden><h3>지원권 <small>지금 ${S.tickets}장</small></h3><div class="plans">${TICKET_PACKS.map(([n, p], i) => `<div class="plan ${i === 1 ? 'cur' : ''}">${i === 1 ? '<span class="pill y">인기</span>' : ''}<b>${n}장</b><b class="num">₩${E.won(p)}</b><small>장당 ₩${E.won(p / n)}</small><button class="btn sm ${i === 1 ? 'pri' : ''}" data-act="tickets" data-v="${i + 1}">받기</button></div>`).join('')}</div>
-    <p class="note">지원하면 1장이 잠기고, 채용돼야 쓰여요. 안 뽑히면 돌아와요.</p>${payNote()}</div>
-  <div class="card game"><h3>딜러 PRO 패스 <small>월 ₩${E.won(PRO_PRICE)}</small></h3>${(fee => fee ? `<p class="note" style="margin:0 0 6px">이번 달 번개 출금 수수료로 ₩${E.won(fee)} 냈어요${fee > PRO_PRICE ? ' · PRO가 더 이득이에요' : ''}</p>` : '')((S.wds || []).filter(x => (x.created_at || '').slice(0, 7) === TODAY.slice(0, 7)).reduce((a, x) => a + (x.fee || 0), 0))}<div class="li"><span>번개 출금 수수료</span><b>0원</b></div>
-    ${pro ? `<p class="up" style="margin:10px 0 0"><b>PRO 이용 중</b> · ${new Date(S.prof.pro_until).toLocaleDateString('ko-KR')}까지</p>` : `<button class="btn gold full" data-act="pro" style="margin-top:10px">PRO 시작하기</button><p class="note">번개 출금을 한 달에 7번 이상 쓰면 PRO가 이득이에요. 30일씩 결제해요.</p>${payNote()}`}</div>`;
+    <p class="note">지원하면 1장이 잠기고, 채용돼야 쓰여요. 안 뽑히면 돌아와요.</p>${payNote()}</div>`;
 }
 function vMe() {
   const p = S.prof;

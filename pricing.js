@@ -6,7 +6,7 @@ export const PRICING = {
   used: { top: 4900, urgent: 9900 },
   franchise: { postingMonthly: 300000, qualifiedLead: 50000 },
   academy: 159000,
-  dealer: { tickets: { 1: 5500, 5: 24900, 10: 44000 }, pro: 9900, instantFee: 1500 },
+  dealer: { tickets: { 1: 5500, 5: 24900, 10: 44000 }, pro: 9900, instantFee: 1000 },
   transfer: { basic: 1500000, fast: 3000000, successPct: 10 }
 };
 // 서버 키 → PRICING 위치
