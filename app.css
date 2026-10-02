@@ -379,3 +379,6 @@ label.fl{line-height:1.4}
 
 /* v0.39 */
 .wdbars{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;height:130px;align-items:end;margin-top:8px}.wdbars div{display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;gap:4px;font-size:11px}.wdbars i{display:block;width:70%;background:var(--line);border-radius:4px 4px 0 0}.wdbars i.best{background:var(--green)}.wdbars b{font-size:12px}
+
+/* v0.40 */
+.dc.oth{box-shadow:inset 0 -3px 0 var(--gold)}
