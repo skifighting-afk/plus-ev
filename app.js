@@ -328,6 +328,7 @@ function render() {
   if (S.mode === 'store' && S.tab === 'sales') closeCalc();
   if (S.mode === 'store' && S.tab === 'jobs') feeBox();
   if (S.mode === 'dealer' && S.tab === 'lounge') loungeLoad();
+  moneyPop();
   if (lock && !S.lockAsked) { S.lockAsked = 1; openSheet(`<h2>무료 체험 한 달이 끝났어요</h2><p class="sub">매출·직원·스케줄 등 입력하신 내용은 <b>모두 저장돼 있어요.</b> 지금은 보기만 돼요. 연장하시겠어요?</p>
     ${isOwner() ? `<div class="plans"><div class="plan"><b>베이직</b><b class="num">월 ₩${E.won(PRICE.basic)}</b><button class="btn sm" data-act="plan" data-v="basic">베이직으로 연장</button></div><div class="plan cur"><span class="pill y">추천</span><b>프로</b><b class="num">월 ₩${E.won(PRICE.pro)}</b><button class="btn sm gold" data-act="plan" data-v="pro">프로로 연장</button></div></div>` : '<p class="note">요금제는 대표님만 바꿀 수 있어요.</p><button class="btn full" data-act="ask-owner" data-v="요금제">대표님께 요청</button>'}
     <button class="btn full" data-act="sub" data-v="pricing" style="margin-top:8px">요금표 자세히 보기</button><button class="btn full" data-act="close" style="margin-top:8px">나중에 할게요</button>`); }
@@ -557,7 +558,7 @@ function radar(sc) {
   const poly = vals => vals.map((v, i) => pt(i, v).join(',')).join(' ');
   const mine = K.map(([k]) => sc?.[k] ?? 50);
   return `<div class="radar"><svg viewBox="-30 -8 280 222" role="img" aria-label="5가지 점수">${[25, 50, 75, 100].map(v => `<polygon points="${poly([v, v, v, v, v])}" fill="none" stroke="var(--line)"/>`).join('')}
-    <polygon points="${poly([50, 50, 50, 50, 50])}" fill="none" stroke="#F59E0B" stroke-dasharray="4 3"/><polygon points="${poly(mine)}" fill="rgba(16,185,129,.25)" stroke="#34D399" stroke-width="2"/>
+    <polygon points="${poly([50, 50, 50, 50, 50])}" fill="none" stroke="#F59E0B" stroke-dasharray="4 3"/><polygon points="${poly(mine)}" fill="rgba(143,227,196,.25)" stroke="#8FE3C4" stroke-width="2"/>
     ${K.map(([, l], i) => { const [x, y] = pt(i, 122); return `<text x="${x}" y="${y}" font-size="10.5" fill="var(--muted)" text-anchor="middle" dominant-baseline="middle">${l}</text>`; }).join('')}</svg>
     <div>${K.map(([k, l], i) => `<div class="sbar"><span>${l}</span><i><b style="width:${mine[i]}%"></b><em></em></i><span class="num">${mine[i]}</span></div>`).join('')}</div></div>`;
 }
@@ -590,7 +591,7 @@ function vImprove() {
       <div class="fb"><i class="b1" style="width:${Math.max(4, Math.abs(after[k]) / mx * 100)}%"></i></div><b class="num up">₩${man(after[k])}</b>
       <span class="fd num">+₩${man(after[k] - nowL[k])}</span></div>`).join('')}</div>
     <p class="note">최근 매출 흐름으로 계산했어요. 첫 달은 효과를 절반만 넣었어요.</p></div>`; })() : '<div class="card"><h3>지금은 고칠 곳이 거의 없어요</h3><p class="mut" style="margin:0">모든 항목이 비슷한 매장 평균보다 좋아요. 지금처럼만 유지하세요.</p></div>'}
-  <div class="card"><h3>5가지 점수 <small>100점 만점 · <b style="color:#34D399">초록</b> 내 매장 · <b style="color:#F59E0B">점선</b> 비슷한 매장 중간</small></h3>${radar(B.score)}</div>
+  <div class="card"><h3>5가지 점수 <small>100점 만점 · <b style="color:#8FE3C4">초록</b> 내 매장 · <b style="color:#F59E0B">점선</b> 비슷한 매장 중간</small></h3>${radar(B.score)}</div>
   ${lightsCard(true)}
   ${rx.rev.length ? `<h2 class="band">매출 늘리기 <small class="mut">월 +₩${man(revSum)}</small></h2>${rx.rev.map((r, i) => rxCard(r, i, 'r')).join('')}` : ''}
   <div class="card"><h3>비슷한 매장과 비교</h3><div class="tbl"><table style="min-width:0"><thead><tr><th>항목</th><th class="r">내 매장</th><th class="r">평균</th><th class="r">상위 25%</th></tr></thead><tbody>
@@ -1047,8 +1048,8 @@ function vStaff() {
     <p class="note">점장 권한은 앱에 가입해 소속된 직원에게만 줄 수 있어요. 점장은 자기 매장의 스케줄·매출·구인을 관리해요.</p></div>` : `
   <div class="row between" style="margin:12px 0 8px">${monthNav()}<span class="row"><button class="btn sm" data-act="pay-copy">이체 목록 복사</button><button class="btn sm" data-act="slip-bulk">명세서 한 번에</button><button class="btn sm" data-act="inc-rule">인센티브 규칙</button><button class="btn sm" data-act="paynote">급여 안내문</button><button class="btn sm" data-act="bulk-xfer">대량이체 파일</button><button class="btn sm" data-act="wht">원천세</button><button class="btn sm pri" data-act="csv">엑셀</button></span></div>
   ${rows.length ? `<div class="card paysum"><div><small>${S.m}월 실지급 합계 <span class="mut">(어제까지)</span></small><b class="num">₩${E.won(sum('net'))}</b></div><div class="ps3"><div><small>지급총액</small><b class="num">₩${man(sum('gross'))}</b></div><div><small>공제</small><b class="num down">−₩${man(sum('ded'))}</b></div><div><small>월말 예상</small><b class="num">₩${man(sum('fullGross'))}</b></div></div></div>
-  <p class="legend">${[['기본급', '#10B981'], ['야간', '#6366F1'], ['연장', '#F59E0B'], ['주휴', '#3B82C4'], ['인센티브', '#EC4899']].map(([n, c]) => `<span><i style="background:${c}"></i>${n}</span>`).join('')} <span class="mut">· 이름을 누르면 자세히</span></p>
-  ${rows.sort((a, b) => b.r.net - a.r.net).map(({ p, r }) => { const parts = [['기본급', r.base, '#10B981'], ['야간', r.np, '#6366F1'], ['연장', r.otp, '#F59E0B'], ['주휴', r.juhu, '#3B82C4'], ['인센티브', r.inc, '#EC4899']], tot = Math.max(1, r.gross);
+  <p class="legend">${[['기본급', '#8FE3C4'], ['야간', '#6366F1'], ['연장', '#F59E0B'], ['주휴', '#3B82C4'], ['인센티브', '#EC4899']].map(([n, c]) => `<span><i style="background:${c}"></i>${n}</span>`).join('')} <span class="mut">· 이름을 누르면 자세히</span></p>
+  ${rows.sort((a, b) => b.r.net - a.r.net).map(({ p, r }) => { const parts = [['기본급', r.base, '#8FE3C4'], ['야간', r.np, '#6366F1'], ['연장', r.otp, '#F59E0B'], ['주휴', r.juhu, '#3B82C4'], ['인센티브', r.inc, '#EC4899']], tot = Math.max(1, r.gross);
     return `<details class="card payrow"><summary><div><b>${esc(p.nick)}</b> <small class="mut">${esc(p.job_role || '')} · ${esc(p.emp_type || '파트타임')} · ${r.days}일 ${r.hours.toFixed(0)}시간</small><div class="pbar">${parts.map(([, v, c]) => v > 0 ? `<i style="width:${v / tot * 100}%;background:${c}"></i>` : '').join('')}</div></div><div class="pr-r"><small>실지급</small><b class="num up">₩${E.won(r.net)}</b></div></summary>
       <div class="pd">${parts.map(([n, v, c]) => `<div class="li"><span><i class="dot" style="background:${c}"></i>${n}</span>${n === '인센티브' ? `<input type="number" step="1000" value="${r.inc}" data-inc="${p.id}" style="width:120px;padding:6px;text-align:right">` : `<span class="num">₩${E.won(v)}</span>`}</div>`).join('')}
         <div class="li"><b>지급총액</b><b class="num">₩${E.won(r.gross)}</b></div><div class="li"><span class="mut">공제 (${p.contract === '4대' ? '4대보험 근로자분' : '3.3%'})</span><span class="num down">−₩${E.won(r.ded)}</span></div><div class="li"><b>실지급</b><b class="num up" style="font-size:18px">₩${E.won(r.net)}</b></div>
@@ -1167,7 +1168,7 @@ function vMore() {
       <p class="note">이번 달은 지금 속도로 계산한 월말 예상이에요.</p></div>`;
   }
   if (sub === 'qr') return `${storeHead('출퇴근 코드')}${back}<div class="card" style="text-align:center"><p class="sub">직원은 앱의 <b>출퇴근</b> 탭에서 이 번호를 넣으면 기록돼요. 30초마다 바뀌어서 캡처해 보내도 못 써요.</p>
-    <div id="qr-code" class="num" style="font-size:56px;font-weight:800;letter-spacing:.18em;color:#6EE7B7">······</div><div class="mut" id="qr-left">불러오는 중</div><div id="qr-img" style="display:flex;justify-content:center;margin:14px 0 6px;background:#fff;padding:10px;border-radius:12px;width:max-content;margin-inline:auto"></div><p class="note">직원은 폰 카메라로 QR을 찍어도 출퇴근돼요</p></div>${attLogCard()}`;
+    <div id="qr-code" class="num" style="font-size:56px;font-weight:800;letter-spacing:.18em;color:#A6EDD2">······</div><div class="mut" id="qr-left">불러오는 중</div><div id="qr-img" style="display:flex;justify-content:center;margin:14px 0 6px;background:#fff;padding:10px;border-radius:12px;width:max-content;margin-inline:auto"></div><p class="note">직원은 폰 카메라로 QR을 찍어도 출퇴근돼요</p></div>${attLogCard()}`;
   if (sub === 'pricing') {
     const c = S.company || {}, paid = (c.plan === 'pro' || c.plan === 'basic') && c.paid_until && new Date(c.paid_until) > now, own = isOwner();
     const st = paid ? `<b>${c.plan === 'pro' ? '프로' : '베이직'} 이용 중</b> · ${new Date(c.paid_until).toLocaleDateString('ko-KR')}까지` : S.active ? `<b>무료 체험 D-${trialLeft(c)}</b> · 끝나도 데이터는 그대로예요` : '<b class="warn">체험이 끝났어요</b> · 요금제를 고르면 바로 이어서 써요';
@@ -1464,14 +1465,16 @@ const rlCard = (x, i) => { const r = x.slice(0, -1), s = x.slice(-1), red = /[�
 function spinOpen() {
   closeSheet(); $('#roul')?.remove();
   const el = document.createElement('div'); el.id = 'roul'; el.className = 'rl';
-  el.innerHTML = `<div class="rl-bg" style="background-image:url(${RL_IMG}felt.webp)"></div>
-  <header class="rl-top"><button class="rl-x" data-act="spin-close" aria-label="닫기">✕</button><b>족보 룰렛</b><span class="rl-left"><img src="${RL_IMG}chip.webp" alt=""><span id="rl-n">${S.spinN || 0}</span>회</span></header>
-  <ol class="rl-pay">${RL_PAY.map(([h, p]) => `<li data-h="${h}"><span>${h}</span><b>${E.won(p)}P</b></li>`).join('')}</ol>
-  <div class="rl-deck" style="--back:url(${RL_IMG}back.webp)"><i></i><i></i><i></i></div>
-  <div class="rl-street" id="rl-st">카드 7장 중 가장 좋은 5장</div>
-  <div class="rl-row rl-board" id="rl-bd">${'<span class="rl-slot"></span>'.repeat(5)}</div>
-  <div class="rl-res" id="rl-res"><img class="rl-burst" src="${RL_IMG}burst.webp" alt=""><b id="rl-hand"></b><span id="rl-pt"></span></div>
-  <div class="rl-row rl-me" id="rl-me">${'<span class="rl-slot"></span>'.repeat(2)}<small>내 카드</small></div>
+  el.innerHTML = `<div class="rl-bg"></div>
+  <header class="rl-top"><button class="rl-x" data-act="spin-close" aria-label="닫기">✕</button><span class="rl-left"><i class="rl-chip"></i>남은 기회 <b id="rl-n">${S.spinN || 0}</b></span></header>
+  <div class="rl-title">족보 룰렛</div>
+  <div class="rl-res" id="rl-res"><img class="rl-burst" src="${RL_IMG}burst.webp" alt=""><span id="rl-pt" class="rl-pt">카드 7장 중 가장 좋은 5장</span><b id="rl-hand"></b></div>
+  <div class="rl-street" id="rl-st"></div>
+  <div class="rl-table"><div class="rl-felt"><i class="rl-chips l"></i><i class="rl-chips r"></i>
+    <div class="rl-row rl-board" id="rl-bd">${'<span class="rl-slot"></span>'.repeat(5)}</div>
+    <div class="rl-row rl-me" id="rl-me">${'<span class="rl-slot"></span>'.repeat(2)}</div>
+  </div></div>
+  <section class="rl-paybox"><small>족보표</small><ol class="rl-pay">${RL_PAY.map(([h, p]) => `<li data-h="${h}"><span>${h}</span><b>${E.won(p)}P</b></li>`).join('')}</ol></section>
   <div class="rl-foot"><button class="rl-go" data-act="spin-go" ${S.spinN > 0 ? '' : 'disabled'}>${S.spinN > 0 ? '카드 받기' : '남은 룰렛이 없어요'}</button><small>포인트는 첫 근무 정산 뒤 출금돼요 · 친구가 첫 근무하면 +1회</small></div>`;
   el.style.setProperty('--back', `url(${RL_IMG}back.webp)`); document.body.appendChild(el); document.body.classList.add('rl-open');
 }
@@ -1480,7 +1483,7 @@ async function spinPlay() {
   const R = $('#roul'); R.classList.remove('done'); R.querySelectorAll('.rl-pay li').forEach(l => l.classList.remove('hit')); $('#rl-hand').textContent = ''; $('#rl-pt').textContent = '';
   const w = ms => new Promise(f => setTimeout(f, matchMedia('(prefers-reduced-motion: reduce)').matches ? ms / 4 : ms)), bz = n => { try { navigator.vibrate?.(n); } catch { } };
   const req = sb.rpc('spin_hand');
-  const bd = $('#rl-bd'), me = $('#rl-me'); bd.innerHTML = '<span class="rl-slot"></span>'.repeat(5); me.innerHTML = '<span class="rl-slot"></span>'.repeat(2) + '<small>내 카드</small>';
+  const bd = $('#rl-bd'), me = $('#rl-me'); bd.innerHTML = '<span class="rl-slot"></span>'.repeat(5); me.innerHTML = '<span class="rl-slot"></span>'.repeat(2);
   const { data, error } = await req; if (error) { toast(error.message); go.textContent = '닫기'; go.dataset.act = 'spin-close'; go.disabled = false; return; }
   const r = data[0], c = dealHand(r.hand), cat = P_CAT[r.hand] ?? 1, win = new Set(rlWin(c, cat));
   const put = (box, k, i) => { const s = box.querySelectorAll('.rl-slot')[k]; s.outerHTML = rlCard(c[i], i); const e = box.querySelector(`[data-i="${i}"]`); requestAnimationFrame(() => e.classList.add('in')); return e; };
@@ -1496,7 +1499,7 @@ async function spinPlay() {
   const pt = $('#rl-pt'), t0 = performance.now(); const tick = n => { const k = Math.min(1, (n - t0) / 900); pt.textContent = `+${E.won(Math.round(r.points * k))}P`; if (k < 1) requestAnimationFrame(tick); }; requestAnimationFrame(tick);
   S.spinN = r.left_n; $('#rl-n').textContent = r.left_n;
   go.disabled = false; if (r.left_n > 0) { go.textContent = `한 번 더 (${r.left_n}회)`; go.dataset.act = 'spin-go'; } else { go.textContent = '지갑에서 보기'; go.dataset.act = 'spin-wallet'; }
-  loadDealer().then(render).catch(() => { });
+  S.noPop = 1; loadDealer().then(render).catch(() => { });
 }
 async function loungeLoad(force) {
   if (S.lgBusy || (!force && S.lgAt && Date.now() - S.lgAt < 60000)) return; S.lgBusy = 1;
@@ -1714,6 +1717,14 @@ document.addEventListener('keydown', e => {
 // ===== 동작 =====
 let working = false;
 const busy = async fn => { if (working) return; working = true; document.body.classList.add('busy'); try { await fn(); } catch (e) { console.error(e); } finally { working = false; document.body.classList.remove('busy'); } };
+// 입금 축하: 지갑 잔액이 늘면 한 번 터뜨림 (기능 변경 없음 · 화면만)
+function moneyPop() {
+  if (S.mode !== 'dealer' || !S.wallet || !S.user) return; const b = +S.wallet.balance || 0, k = 'ev_bal_' + S.user.id, prev = lsGet(k); lsSet(k, String(b || '0'));
+  if (S.noPop) { S.noPop = 0; return; } if (prev === '' || b - +prev < 1000 || $('#mpop')) return;
+  const d = b - +prev, el = document.createElement('div'); el.id = 'mpop'; el.className = 'mp';
+  el.innerHTML = `<div class="mp-card"><img class="mp-burst" src="${RL_IMG}burst.webp" alt=""><div class="mp-conf">${'<i></i>'.repeat(18)}</div><div class="mp-ic">₩</div><small>입금 완료</small><b class="mp-amt">+${E.won(d)}원</b><p>지갑에 저장됐어요</p><div class="mp-row"><button class="mp-go" data-act="mp-wallet">지갑 보기</button><button class="mp-x" data-act="mp-close">닫기</button></div></div>`;
+  document.body.appendChild(el); try { navigator.vibrate?.([40, 30, 80]); } catch { }
+}
 const reload = async () => { if (S.mode === 'store') await loadStore(); else if (S.mode === 'staff') await loadStaff(); else if (S.mode === 'dealer') await loadDealer(); else if (S.mode === 'hq') await loadHQ(); render(); };
 document.addEventListener('click', e => {
   const b = e.target.closest('[data-tab],[data-act]'); if (!b) return; const d = b.dataset;
@@ -1847,7 +1858,7 @@ document.addEventListener('click', e => {
     const staff = S.members.filter(p => p.role !== 'owner'), D = E.daysIn(S.y, S.m), rows = [];
     for (let i = 1; i <= D; i++) { const k = E.ymd(S.y, S.m, i); rows.push([k, staff.map(p => [p, E.shiftOn(p.id, S.y, S.m, i, S.tpl, S.ov)]).filter(x => x[1]).map(([p, t]) => `${p.nick} ${t5(t.s).slice(0, 2)}-${t5(t.e).slice(0, 2)}`).join('   ')]); }
     const W = 1080, lh = 44, top = 130, c = document.createElement('canvas'); c.width = W; c.height = top + rows.length * lh + 30; const g = c.getContext('2d');
-    g.fillStyle = '#0B0F19'; g.fillRect(0, 0, W, c.height); g.fillStyle = '#ffffff'; g.font = 'bold 44px sans-serif'; g.fillText(`${S.store.name} ${S.m}월 근무표`, 40, 70); g.fillStyle = '#8C9AB3'; g.font = '22px sans-serif'; g.fillText('+EV', 40, 104);
+    g.fillStyle = '#111417'; g.fillRect(0, 0, W, c.height); g.fillStyle = '#ffffff'; g.font = 'bold 44px sans-serif'; g.fillText(`${S.store.name} ${S.m}월 근무표`, 40, 70); g.fillStyle = '#8C9AB3'; g.font = '22px sans-serif'; g.fillText('+EV', 40, 104);
     rows.forEach(([k, txt], i) => { const yy = top + i * lh + 28, dd = +k.slice(8), wd = E.wdOf(S.y, S.m, dd); if (i % 2) { g.fillStyle = '#141B2B'; g.fillRect(0, yy - 30, W, lh); } g.fillStyle = wd === 6 || isHoliday(k) ? '#F87171' : wd === 5 ? '#93C5FD' : '#9CA3AF'; g.font = 'bold 24px sans-serif'; g.fillText(`${dd}(${E.WD[wd]})`, 40, yy); g.fillStyle = txt ? '#E5E7EB' : '#4B5563'; g.font = '24px sans-serif'; g.fillText(txt || '휴무', 160, yy, W - 190); });
     const blob = await new Promise(r => c.toBlob(r, 'image/png')), file = new File([blob], `근무표_${S.y}-${E.pad(S.m)}.png`, { type: 'image/png' });
     if (navigator.canShare?.({ files: [file] })) return navigator.share({ files: [file], title: `${S.m}월 근무표` }).catch(() => { });
@@ -1861,6 +1872,7 @@ document.addEventListener('click', e => {
   if (a === 'rd-start') return busy(async () => { await q(sb.rpc('sched_step', { p_store: S.store.id, p_month: S.nmKey, p_status: 'collect', p_deadline: addDay(TODAY, 5) })); toast('직원들에게 가능일 요청을 보냈어요'); await reload(); });
   if (a === 'rd-draft') return busy(async () => { const [y, m] = S.nmKey.split('-').map(Number), need = {}; for (let i = 1; i <= E.daysIn(y, m); i++) { const k = E.ymd(y, m, i); if (k < TODAY) continue; need[k] = needOn(k, S.store.need_by_wd || [3, 4, 3, 4, 6, 7, 2]); } toast('배정 중… 10초쯤 걸려요'); const { data, error } = await sb.functions.invoke('sched-auto', { body: { store_id: S.store.id, month: S.nmKey, need } }); if (error || !data?.ok) return toast(data?.msg || '초안을 못 만들었어요'); toast(data.short.length ? `초안 완료 · 빈자리 ${data.short.length}일` : '초안 완료 · 빈자리 없음'); await reload(); });
   if (a === 'rd-send' || a === 'rd-done') return busy(async () => { await q(sb.rpc('sched_step', { p_store: S.store.id, p_month: S.nmKey, p_status: a === 'rd-send' ? 'sent' : 'done' })); toast(a === 'rd-send' ? '직원들에게 확인 요청을 보냈어요' : '확정했어요. 직원들에게 알렸어요'); await reload(); });
+  if (a === 'mp-close' || a === 'mp-wallet') { $('#mpop')?.remove(); if (a === 'mp-wallet') { S.tab = 'wallet'; render(); } return; }
   if (a === 'spin-open') return spinOpen();
   if (a === 'spin-go') return spinPlay();
   if (a === 'spin-close' || a === 'spin-wallet') { $('#roul')?.remove(); document.body.classList.remove('rl-open'); if (a === 'spin-wallet') { S.tab = 'wallet'; render(); } return; }
