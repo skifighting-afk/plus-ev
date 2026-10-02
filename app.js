@@ -1998,7 +1998,11 @@ document.addEventListener('submit', e => {
     if (f.dataset.inq) { await q(sb.from('inquiries').update({ reply: v.reply, replied_at: new Date().toISOString() }).eq('id', f.dataset.inq)); await reload(); toast('답변을 보냈어요'); }
   });
 });
-if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {})
+;(() => { let dp = null; const solo = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone;
+  const show = () => { if (solo() || !dp || document.getElementById('inst-btn')) return; const b = document.createElement('button'); b.id = 'inst-btn'; b.className = 'btn pri'; b.textContent = /Android|iPhone|iPad/.test(navigator.userAgent) ? '📲 앱 설치' : '💻 바탕화면에 앱 설치'; b.style.cssText = 'position:fixed;right:16px;bottom:calc(84px + env(safe-area-inset-bottom, 0px));z-index:50;box-shadow:0 4px 14px rgba(0,0,0,.25)'; b.onclick = async () => { b.remove(); dp.prompt(); const r = await dp.userChoice.catch(() => null); dp = null; if (r?.outcome === 'accepted') toast('설치했어요. 바탕화면·시작 메뉴의 +EV 아이콘으로 여세요'); }; document.body.appendChild(b); };
+  addEventListener('beforeinstallprompt', e => { e.preventDefault(); dp = e; show(); });
+  addEventListener('appinstalled', () => document.getElementById('inst-btn')?.remove()); })();;
 // ===== 푸시 알림 (오후 4시 오늘 인원·목표 / 다음날 오전 마감 리마인드 / 긴급 대타·알림) =====
 const VAPID_PUBLIC = 'BJVzBvAx7NhcMd-vrqnjA1a9wGGEsz9pvPeUfDUp5P8pA2gvnrTx6qpfz7KsXFDweijHDfsIF67u9w-AFhuyyEU';
 const pushOk = () => 'serviceWorker' in navigator && 'PushManager' in window && Notification.permission !== 'denied';
