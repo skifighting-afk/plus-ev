@@ -134,6 +134,7 @@ const S = { user: null, prof: null, mode: null, tab: null, sub: null, company: n
   y: now.getFullYear(), m: now.getMonth() + 1, schedView: 'month', posts: [], board: [], tickets: 0, apps: [], slots: [], wallet: { balance: 0, available: 0 }, notis: [], inq: [], used: [], authMode: 'login', my: [] };
 const night = () => [t5(S.store?.night_start || '22:00'), t5(S.store?.night_end || '06:00')];
 const isOwner = () => S.myRole === 'owner';
+const nmKey = () => { const [y, m] = TODAY.split('-').map(Number); return m === 12 ? E.ymd(y + 1, 1, 1) : E.ymd(y, m + 1, 1); };
 const monthRange = (y = S.y, m = S.m) => [E.ymd(y, m, 1), E.ymd(y, m, E.daysIn(y, m))];
 
 // ===== 시작 =====
@@ -170,6 +171,7 @@ async function loadStore() {
   const ids = S.members.map(m => m.id);
   S.tpl = ids.length ? await q(sb.from('shift_templates').select('*').in('member_id', ids)) : [];
   S.ov = ids.length ? await q(sb.from('shift_overrides').select('*').in('member_id', ids).gte('work_date', hFirst).lte('work_date', last)) : [];
+  S.nmKey = nmKey(); S.round = (await q(sb.from('sched_rounds').select('*').eq('store_id', st).eq('month', S.nmKey)))[0] || null; S.avails = S.round && ids.length ? await q(sb.from('sched_avail').select('*').in('member_id', ids).eq('month', S.nmKey)) : [];
   S.hist = await q(sb.from('daily_reports').select('*').eq('store_id', st).gte('report_date', hFirst).lte('report_date', last).order('report_date', { ascending: false }));
   S.reports = S.hist.filter(r => r.report_date >= first);
   S.expAll = await q(sb.from('expenses').select('*').eq('store_id', st).gte('spent_on', hFirst).lte('spent_on', last));
@@ -212,6 +214,7 @@ async function loadStaff() {
   const [first, last] = monthRange();
   S.members = S.my; S.tpl = await q(sb.from('shift_templates').select('*').in('member_id', S.my.map(m => m.id)));
   S.ov = await q(sb.from('shift_overrides').select('*').in('member_id', S.my.map(m => m.id)).gte('work_date', first).lte('work_date', last));
+  S.nmKey = nmKey(); { const [ny, nm] = S.nmKey.split('-').map(Number); S.round = (await q(sb.from('sched_rounds').select('*').eq('store_id', S.my[0].store_id).eq('month', S.nmKey)))[0] || null; S.myAvail = S.round ? (await q(sb.from('sched_avail').select('*').eq('member_id', S.my[0].id).eq('month', S.nmKey)))[0] || null : null; S.nextOv = S.round && ['sent', 'done'].includes(S.round.status) ? await q(sb.from('shift_overrides').select('*').in('member_id', S.my.map(m => m.id)).gte('work_date', S.nmKey).lte('work_date', E.ymd(ny, nm, E.daysIn(ny, nm)))) : []; }
   S.inc = await q(sb.from('incentives').select('*').in('member_id', S.my.map(m => m.id)).eq('month', first));
   S.att = await q(sb.from('attendance').select('*').order('at', { ascending: false }).limit(10));
   S.academy = await q(sb.rpc('my_academy')); S.lessons = await q(sb.from('lesson_progress').select('lesson'));
@@ -779,12 +782,41 @@ function dayTimeline(k, compact) {
     <div class="tlr cov"><span class="nm"><small>시간별 인원</small></span><div class="tlt">${cov.map((c, i) => `<span class="${c < need ? 'lo' : ''}" style="left:${pct(hours[i] * 60)}%;width:${100 / span}%">${c}</span>`).join('')}</div></div></div>
     ${compact ? '' : `<p class="note">막대를 누르면 고쳐요. 빨간 숫자는 적정 인원(${need}명)보다 적은 시간이에요.</p>`}`;
 }
+// ===== 다음 달 스케줄 자동 (가능일 수집 → 자동 배정 → 직원 확인 → 확정) =====
+const shortList = s => (s || []).length ? `<div class="note"><b class="down">빈자리 ${s.length}일</b> ${s.slice(0, 6).map(x => `${+x.d.slice(5, 7)}/${+x.d.slice(8)} ${x.need - x.have}명`).join(' · ')}${s.length > 6 ? ' …' : ''} <button class="btn sm" data-tab="jobs">긴급 대타 올리기</button></div>` : '<p class="note">빈자리 없음 ✓</p>';
+function roundCard() {
+  const R = S.round, nm = +(S.nmKey || nmKey()).slice(5, 7), staff = S.members.filter(p => p.role !== 'owner'), av = id => (S.avails || []).find(a => a.member_id === id);
+  if (!R) return `<div class="card" style="margin-top:10px"><div class="row between"><div><b>${nm}월 스케줄 자동</b><small class="mut" style="display:block">직원 가능일 받기 → 자동 배정 → 직원 확인까지 알아서 해요</small></div><button class="btn sm pri" data-act="rd-start">시작</button></div></div>`;
+  const sub = staff.filter(p => av(p.id)?.submitted_at).length, okN = staff.filter(p => av(p.id)?.confirm === 'ok').length, ch = staff.filter(p => av(p.id)?.confirm === 'change');
+  const steps = [['collect', '가능일 받기'], ['draft', '초안'], ['sent', '직원 확인'], ['done', '확정']], si = steps.findIndex(s => s[0] === R.status);
+  const bar = `<div class="rsteps">${steps.map(([, l], i) => `<span class="${i < si ? 'done' : i === si ? 'on' : ''}">${i < si ? '✓ ' : ''}${l}</span>`).join('')}</div>`;
+  const view = `<button class="btn sm" data-act="rd-view">${nm}월 근무표 보기</button>`;
+  let body = '';
+  if (R.status === 'collect') body = `<p class="note" style="margin-top:0">제출 ${sub}/${staff.length}명${R.deadline ? ` · 마감 ${+R.deadline.slice(5, 7)}/${+R.deadline.slice(8)}` : ''} · 안 낸 직원은 매주 기본 근무로 계산해요</p><div class="chips">${staff.map(p => `<span class="pill ${av(p.id)?.submitted_at ? 'g' : ''}">${av(p.id)?.submitted_at ? '✓ ' : ''}${esc(p.nick)}${av(p.id)?.note ? ' 💬' : ''}</span>`).join('')}</div><button class="btn pri full" data-act="rd-draft" style="margin-top:10px">초안 만들기</button>`;
+  else if (R.status === 'draft') body = `${shortList(R.short)}<div class="row" style="gap:6px;margin-top:10px;flex-wrap:wrap">${view}<button class="btn sm" data-act="rd-draft">다시 만들기</button><button class="btn sm pri" data-act="rd-send">직원에게 확인 요청</button></div>`;
+  else if (R.status === 'sent') body = `<p class="note" style="margin-top:0">확인 ${okN}/${staff.length}명${ch.length ? ` · <b class="down">변경 요청 ${ch.length}</b>` : ''}</p>${ch.map(p => `<div class="li"><b>${esc(p.nick)}</b><span class="mut">${esc(av(p.id).confirm_note || '변경 요청')}</span></div>`).join('')}${shortList(R.short)}<div class="row" style="gap:6px;margin-top:10px;flex-wrap:wrap">${view}<button class="btn sm" data-act="rd-send">다시 확인 요청</button><button class="btn sm pri" data-act="rd-done">확정</button></div>`;
+  else body = `<p class="note" style="margin-top:0">확정 완료 ✓ 직원들에게 알렸어요</p>${shortList(R.short)}${view}`;
+  return `<div class="card" style="margin-top:10px"><b>${nm}월 스케줄 자동</b>${bar}${body}</div>`;
+}
+function availCard() {
+  const R = S.round; if (!R) return '';
+  const me = S.my[0], [y, m] = S.nmKey.split('-').map(Number), D = E.daysIn(y, m), A = S.myAvail;
+  if (R.status === 'collect') {
+    if (A?.submitted_at && !S.avEdit) return `<div class="card"><div class="row between"><div><b>${m}월 가능일 제출 완료 ✓</b><small class="mut" style="display:block">${A.days.length}일${A.note ? ' · ' + esc(A.note) : ''}</small></div><button class="btn sm" data-act="av-edit">고치기</button></div></div>`;
+    if (!S.avSel) S.avSel = new Set(A?.days || Array.from({ length: D }, (_, i) => E.ymd(y, m, i + 1)).filter(k => S.tpl.some(t => t.member_id === me.id && t.weekday === E.wdOf(y, m, +k.slice(8)))));
+    let cal = ''; for (let d = 1; d <= D; d++) { const k = E.ymd(y, m, d); cal += `<button type="button" class="dc ${S.avSel.has(k) ? 'on' : ''}" data-act="av-d" data-d="${k}"><b>${d}</b><small>${S.avSel.has(k) ? '가능' : ''}</small></button>`; }
+    return `<div class="card"><h3>${m}월 근무 가능일 <small>${R.deadline ? `${+R.deadline.slice(5, 7)}/${+R.deadline.slice(8)}까지` : ''}</small></h3><p class="note" style="margin-top:0">일할 수 있는 날을 눌러 초록색으로 (${S.avSel.size}일)</p><div class="cal">${E.WD.map(w => `<div class="h">${w}</div>`).join('')}${'<div></div>'.repeat(E.wdOf(y, m, 1))}${cal}</div><label class="fl" style="margin-top:10px">조건 메모 <small class="mut">(선택) 예: 금요일은 9시 이후, 둘째 주 토요일 안 돼요</small><textarea id="av-note" rows="2">${esc(A?.note || '')}</textarea></label><button class="btn pri full" data-act="av-submit">제출</button></div>`;
+  }
+  if (R.status === 'draft') return `<div class="card"><b>${m}월 근무표 준비 중이에요</b><small class="mut" style="display:block">나오면 알림으로 알려드릴게요</small></div>`;
+  const L = []; for (let d = 1; d <= D; d++) { const t = E.shiftOn(me.id, y, m, d, S.tpl, S.nextOv); if (t) L.push(`<span class="pill">${m}/${d}(${E.WD[E.wdOf(y, m, d)]}) ${t5(t.s)}–${t5(t.e)}</span>`); }
+  return `<div class="card"><h3>${m}월 근무표 ${R.status === 'done' ? '<span class="pill g">확정</span>' : ''} <small>${L.length}일</small></h3><div class="chips">${L.join('') || '<span class="mut">배정된 근무가 없어요</span>'}</div>${R.status === 'sent' ? (A?.confirm ? `<p class="note">${A.confirm === 'ok' ? '확인 완료 ✓' : '변경 요청 보냄: ' + esc(A.confirm_note || '')}</p>` : `<div class="row" style="gap:6px;margin-top:10px"><button class="btn pri" data-act="cf-ok">확인했어요</button><button class="btn" data-act="cf-change">변경 요청</button></div>`) : ''}</div>`;
+}
 function vSched() {
   const need = S.store.need_by_wd || [3, 4, 3, 4, 6, 7, 2], D = E.daysIn(S.y, S.m), lead = E.wdOf(S.y, S.m, 1), staff = S.members.filter(p => p.role !== 'owner');
   if (!staff.length) return `${storeHead('스케줄')}<div class="card empty">먼저 직원을 등록해 주세요 <button class="btn sm pri" data-tab="staff">직원 등록</button></div>`;
   const view = S.schedView || 'month';
   const head = `${storeHead('스케줄')}<div class="row between" style="margin-top:10px">${view === 'day' ? '<span></span>' : monthNav()}<div class="seg">${[['month', '월간'], ['day', '일간'], ['week', '매주 기본']].map(([k, l]) => `<button data-act="sview" data-v="${k}" aria-pressed="${view === k}">${l}</button>`).join('')}</div></div>
-  ${isOwner() ? `<div class="row" style="margin-top:8px;justify-content:flex-end"><button class="btn sm" data-act="ai-draft">다음 주 스케줄 AI 초안 만들기</button></div>` : ''}`;
+  ${roundCard()}`;
   if (view === 'week') return `${head}<div class="card"><p class="note" style="margin-top:0">매주 반복되는 기본 근무예요. 칸을 눌러 고치세요. 날짜마다 다르면 '월간'에서 그날만 바꾸세요.</p><div class="tbl"><table><thead><tr><th>이름</th>${E.WD.map(w => `<th>${w}</th>`).join('')}</tr></thead><tbody>
     ${staff.map(p => `<tr><td><b>${esc(p.nick)}</b></td>${E.WD.map((_, i) => { const t = S.tpl.find(x => x.member_id === p.id && x.weekday === i); return `<td><button class="chip ${t ? '' : 'add'}" data-act="edit-w" data-m="${p.id}" data-w="${i}">${t ? `${t5(t.start_t)}–${t5(t.end_t)}` : '+'}</button></td>`; }).join('')}</tr>`).join('')}</tbody></table></div></div>`;
   if (view === 'day') { const k = S.schedDay || TODAY, [y, m, d] = k.split('-').map(Number), hol = isHoliday(k), n = staff.filter(p => E.shiftOn(p.id, y, m, d, S.tpl, S.ov)).length, nd = needOn(k, need);
@@ -1231,7 +1263,8 @@ async function frLeadSheet(id) {
 function vWork() {
   const me = S.my[0], r = payOf(me), [y, m, d] = TODAY.split('-').map(Number), wk0 = d - E.wdOf(y, m, d), D = E.daysIn(S.y, S.m);
   let cal = ''; for (let i = 1; i <= D; i++) { const t = E.shiftOn(me.id, S.y, S.m, i, S.tpl, S.ov), k = E.ymd(S.y, S.m, i); cal += `<div class="dc ${t ? 'on' : ''} ${k === TODAY ? 'today' : ''}"><b>${i}</b><small>${t ? `${t5(t.s).slice(0, 2)}–${t5(t.e).slice(0, 2)}` : ''}</small></div>`; }
-  return `<h1>내 근무</h1><p class="sub">${esc(S.store.name || '')} · ${esc(me.nick)}</p>${myDocsCard(true)}
+  return `<h1>내 근무</h1><p class="sub">${esc(S.store.name || '')} · ${esc(me.nick)}</p>
+  ${availCard()}${myDocsCard(true)}
   ${S.academy ? `<button class="card rankbar" data-tab="learn" style="width:100%;text-align:left;cursor:pointer;color:var(--text)"><div><b>딜러 교육이 열렸어요</b><small class="mut" style="display:block">${(S.lessons || []).length}/5 강의 완료${S.quizRes ? ` · 시험 ${S.quizRes.score}/5` : ''}</small></div><span class="btn sm pri">들으러 가기 →</span></button>` : ''}
   <div class="card dsum"><div><small>${S.m}월 예상 실수령</small><b class="num up">₩${E.won(r.fullNet)}</b></div><div><small>근무</small><b class="num">${r.shifts.length}일</b></div><div><small>휴게 뺀 시간</small><b class="num">${r.shifts.reduce((a, x) => a + x.hours, 0).toFixed(0)}h</b></div><div><small>지금까지 번 돈</small><b class="num">₩${E.won(r.gross)}</b></div></div>
   ${S.slots.length ? `<div class="card"><h3>긴급 근무</h3>${S.slots.map(s => `<div class="slot"><span><b>${esc(s.title)}</b><br><small class="mut">${esc(s.store_name)} · ${t5(s.start_t)}–${t5(s.end_t)}</small></span><span class="row"><span class="pill ${SLOT[s.status][0]}">${SLOT[s.status][1]}</span>${s.status === 'WORKING' ? `<button class="btn sm pri" data-act="dslot" data-s="${s.slot_id}">근무 완료</button>` : ''}</span></div>`).join('')}</div>` : ''}
@@ -1527,6 +1560,15 @@ document.addEventListener('click', e => {
     const [o] = await q(sb.rpc('contract_create', { p_member: p.id, p_terms: t, p_body: payslipBody(t), p_owner_sig: sig, p_kind: 'payslip', p_title: slipTitle() }));
     await afterSend(o.token, t.employee_name);
   });
+  if (a === 'rd-start') return busy(async () => { await q(sb.rpc('sched_step', { p_store: S.store.id, p_month: S.nmKey, p_status: 'collect', p_deadline: addDay(TODAY, 5) })); toast('직원들에게 가능일 요청을 보냈어요'); await reload(); });
+  if (a === 'rd-draft') return busy(async () => { const [y, m] = S.nmKey.split('-').map(Number), need = {}; for (let i = 1; i <= E.daysIn(y, m); i++) { const k = E.ymd(y, m, i); need[k] = needOn(k, S.store.need_by_wd || [3, 4, 3, 4, 6, 7, 2]); } toast('배정 중… 10초쯤 걸려요'); const { data, error } = await sb.functions.invoke('sched-auto', { body: { store_id: S.store.id, month: S.nmKey, need } }); if (error || !data?.ok) return toast(data?.msg || '초안을 못 만들었어요'); toast(data.short.length ? `초안 완료 · 빈자리 ${data.short.length}일` : '초안 완료 · 빈자리 없음'); await reload(); });
+  if (a === 'rd-send' || a === 'rd-done') return busy(async () => { await q(sb.rpc('sched_step', { p_store: S.store.id, p_month: S.nmKey, p_status: a === 'rd-send' ? 'sent' : 'done' })); toast(a === 'rd-send' ? '직원들에게 확인 요청을 보냈어요' : '확정했어요. 직원들에게 알렸어요'); await reload(); });
+  if (a === 'rd-view') { const [y, m] = S.nmKey.split('-').map(Number); S.y = y; S.m = m; S.schedView = 'month'; S.tab = 'sched'; return busy(reload); }
+  if (a === 'av-d') { S.avSel.has(d.d) ? S.avSel.delete(d.d) : S.avSel.add(d.d); const n = $('#av-note')?.value; render(); if (n != null && $('#av-note')) $('#av-note').value = n; return; }
+  if (a === 'av-edit') { S.avEdit = true; S.avSel = null; render(); return; }
+  if (a === 'av-submit') return busy(async () => { const note = ($('#av-note')?.value || '').trim(); await q(sb.from('sched_avail').upsert({ member_id: S.my[0].id, month: S.nmKey, days: [...S.avSel].sort(), note: note || null, submitted_at: new Date().toISOString() })); S.avEdit = false; S.avSel = null; toast('제출했어요. 근무표가 나오면 알려드릴게요'); await reload(); });
+  if (a === 'cf-ok') return busy(async () => { await q(sb.from('sched_avail').upsert({ member_id: S.my[0].id, month: S.nmKey, confirm: 'ok', confirmed_at: new Date().toISOString() })); toast('확인했어요'); await reload(); });
+  if (a === 'cf-change') { openSheet(`<h2>변경 요청</h2><p class="sub">바꾸고 싶은 날짜와 이유를 적어주세요. 대표님께 바로 알림이 가요.</p><form class="f" id="cf-form"><textarea name="note" rows="3" required placeholder="예: 14일 금요일 대신 15일 가능해요"></textarea><button class="btn pri full">보내기</button></form>`); return; }
   if (a === 'rcpt') { $('#rcpt-file').click(); return; }
   if (a === 'phone-ok') return busy(async () => { const { error } = await sb.rpc('confirm_phone', { p_member: d.m }); if (error) return toast('확인에 실패했어요'); toast('연락처 확인 완료'); await reload(); });
   if (a === 'staff-edit') staffSheet(d.m);
@@ -1668,6 +1710,7 @@ document.addEventListener('change', e => { if (e.target.name === 'category' && e
 document.addEventListener('submit', e => {
   e.preventDefault(); const f = e.target, v = formVals(f), id = f.id;
   busy(async () => {
+    if (id === 'cf-form') { await q(sb.from('sched_avail').upsert({ member_id: S.my[0].id, month: S.nmKey, confirm: 'change', confirm_note: v.note, confirmed_at: new Date().toISOString() })); closeSheet(); toast('대표님께 보냈어요'); return reload(); }
     if (id === 'otp-form') { const { data, error } = await sb.functions.invoke('phone-otp', { body: { action: 'verify', code: v.code } }); if (error || !data?.ok) return toast(data?.msg || '인증에 실패했어요'); closeSheet(); S.prof = await q(sb.from('profiles').select('*').eq('id', S.user.id).maybeSingle()); render(); return toast('휴대폰 인증 완료'); }
     if (id === 'newpw-form') { if (v.pw !== v.pw2) return toast('비밀번호가 서로 달라요'); const { error } = await sb.auth.updateUser({ password: v.pw }); if (error) return toast(error.message); closeSheet(); return toast('새 비밀번호로 바꿨어요'); }
     if (id === 'auth-form') {
