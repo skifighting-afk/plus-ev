@@ -138,6 +138,11 @@ const monthRange = (y = S.y, m = S.m) => [E.ymd(y, m, 1), E.ymd(y, m, E.daysIn(y
 
 // ===== 시작 =====
 let booted = false;
+document.addEventListener('change', e => { if (e.target.id !== 'rcpt-file' || !e.target.files[0]) return; const file = e.target.files[0]; e.target.value = ''; busy(async () => {
+  const img = await createImageBitmap(file); const k = Math.min(1, 1280 / Math.max(img.width, img.height)); const c = document.createElement('canvas'); c.width = img.width * k; c.height = img.height * k; c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+  const { data, error } = await sb.functions.invoke('receipt-read', { body: { image: c.toDataURL('image/jpeg', .85) } }); if (error || !data?.ok) return toast(data?.msg || '사진을 못 읽었어요');
+  const f = $('#report-form'); if (!f) return; const set = (n, v) => { if (v != null && f.elements[n]) f.elements[n].value = v; };
+  set('sales', data.sales); set('card', data.card); set('transfer', data.transfer); set('entries', data.count); if (data.date && data.date <= TODAY) set('date', data.date); if (data.card || data.transfer) f.querySelector('details.more')?.setAttribute('open', ''); closeCalc(); toast('사진에서 읽었어요. 숫자 확인하고 마감하세요'); }); });
 sb.auth.onAuthStateChange((_e, session) => { if (_e === 'PASSWORD_RECOVERY') setTimeout(() => openSheet(`<h2>새 비밀번호</h2><p class="sub">6자 이상으로 정해 주세요.</p><form class="f" id="newpw-form"><label class="fl">새 비밀번호<input name="pw" type="password" minlength="6" required autocomplete="new-password"></label><label class="fl">한 번 더<input name="pw2" type="password" minlength="6" required autocomplete="new-password"></label><button class="btn pri full">바꾸기</button></form>`), 400); const u = session?.user || null; if (!booted || u?.id !== S.user?.id) { booted = true; S.user = u; setTimeout(boot); } });
 async function boot() {
   try {
@@ -838,7 +843,7 @@ function vSales() {
   <div class="card pos"><div><b>포스기 연동</b><small>${ask ? `<span class="warn">${esc(ask)}</span> 연동 신청됨 · 준비되면 알림으로 알려드려요` : '연동하면 매출·카드·현금이 마감 때 자동으로 채워져요. 숫자는 그대로 고칠 수 있어요.'}</small></div>${ask ? '<span class="pill y">준비 중</span>' : '<button class="btn sm pri" data-act="pos">포스기 연동하기</button>'}</div>
   ${S.open ? `<div class="card openbar"><span><b>${fmtDT(S.open.opened_at).split(' ').slice(-2).join(' ')} 오픈</b> · 시작 시재 ₩${E.won(S.open.start_cash)}</span><button class="btn sm" data-act="open-edit">수정</button></div>`
     : `<form class="f card openbar" id="open-form"><div><b>오늘 오픈</b><small class="mut" style="display:block">영업 전 금고에 있는 돈을 넣고 오픈하세요</small></div><div class="row" style="flex-wrap:nowrap"><input name="start_cash" aria-label="시작 현금" type="number" inputmode="numeric" value="${S.lastStart ?? 300000}" style="width:140px"><button class="btn pri">오픈</button></div></form>`}
-  <form class="f card" id="report-form"><div class="row between"><h3 style="margin:0">마감</h3><label class="fl" style="margin:0"><input type="date" name="date" value="${TODAY}" max="${TODAY}" style="width:auto"></label></div>
+  <form class="f card" id="report-form"><div class="row between"><h3 style="margin:0">마감 <button type="button" class="btn sm" data-act="rcpt" title="포스 마감영수증 사진으로 자동 입력">📷 사진으로 입력</button><input type="file" accept="image/*" capture="environment" id="rcpt-file" hidden></h3><label class="fl" style="margin:0"><input type="date" name="date" value="${TODAY}" max="${TODAY}" style="width:auto"></label></div>
     <div class="grid2 big"><label class="fl">총매출 (원)<input name="sales" type="number" inputmode="numeric" required value="${r0.sales ?? ''}" placeholder="0"></label><label class="fl">엔트리 수<input name="entries" type="number" inputmode="numeric" value="${r0.entries ?? ''}" placeholder="0"></label></div>
     <details class="more" ${r0.card ? 'open' : ''}><summary>결제수단 · 금고 정산 <small class="mut">금고 차액을 잡아줘요</small></summary>
       <div class="grid2"><label class="fl">카드<input name="card" type="number" inputmode="numeric" value="${r0.card ?? ''}"></label><label class="fl">계좌이체<input name="transfer" type="number" inputmode="numeric" value="${r0.transfer ?? ''}"></label>
@@ -1522,6 +1527,7 @@ document.addEventListener('click', e => {
     const [o] = await q(sb.rpc('contract_create', { p_member: p.id, p_terms: t, p_body: payslipBody(t), p_owner_sig: sig, p_kind: 'payslip', p_title: slipTitle() }));
     await afterSend(o.token, t.employee_name);
   });
+  if (a === 'rcpt') { $('#rcpt-file').click(); return; }
   if (a === 'phone-ok') return busy(async () => { const { error } = await sb.rpc('confirm_phone', { p_member: d.m }); if (error) return toast('확인에 실패했어요'); toast('연락처 확인 완료'); await reload(); });
   if (a === 'staff-edit') staffSheet(d.m);
   if (a === 'staff-del') busy(async () => { if (!confirm('퇴사 처리할까요? 급여 기록은 남아요.')) return; await q(sb.from('members').update({ active: false }).eq('id', $('#staff-form').dataset.m)); closeSheet(); await reload(); toast('퇴사 처리했어요'); });
