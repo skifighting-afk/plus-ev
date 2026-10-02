@@ -1732,9 +1732,16 @@ function applyTheme(k) {
 }
 applyTheme(lsGet('ev_theme'));
 function menuSheet() {
-  const cur = lsGet('ev_theme') || 'mint';
-  openSheet(`<h3 style="margin:0">화면 색</h3><p class="mut" style="margin:4px 0 0;font-size:13px">이 폰에서만 바뀌어요</p><div class="thm">${Object.entries(THEMES).map(([k, t]) => `<button data-act="theme" data-v="${k}" aria-pressed="${k === cur}"><span class="sw">${[t.v.bg, t.v.s2, t.v.br, t.v.go, t.v.dn].map(c => `<i style="background:${c}"></i>`).join('')}</span><b>${t.name}</b><small>${t.sub}</small></button>`).join('')}</div>
-  <div class="menu-list"><a class="btn full" href="guide.html#${S.mode === 'store' ? 'owner' : S.mode}" target="_blank" rel="noopener">사용법 보기</a><button class="btn full" data-act="logout">로그아웃</button><button class="btn full" data-act="close">닫기</button></div>`);
+  const cur = lsGet('ev_theme') || 'mint', ck = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
+  const tile = (k, t) => { const v = t.v; return `<button class="thm-t${k === cur ? ' on' : ''}" data-act="theme" data-v="${k}" aria-pressed="${k === cur}" style="--tb:${v.bg};--ts:${v.s2};--tx:${v.tx};--tm:${v.mu};--tr:${v.br};--tg:${v.go};--to:${v.on}">
+    <span class="thm-p" aria-hidden="true"><span class="thm-h"><i></i><i></i></span><span class="thm-c"><em></em><em></em><u></u></span><span class="thm-r"><i></i><i></i><i></i></span><span class="thm-ck">${ck}</span></span>
+    <b>${t.name}</b><small>${t.sub}</small></button>`; };
+  openSheet(`<div class="mn"><div class="mn-hd"><b>설정</b><button class="mn-x" data-act="close" aria-label="닫기"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+  <div class="mn-lb">화면 색 <span>이 폰에만 저장돼요</span></div>
+  <div class="thm2">${Object.entries(THEMES).map(([k, t]) => tile(k, t)).join('')}</div>
+  <div class="mn-lb">기타</div>
+  <div class="mn-list"><a href="guide.html#${S.mode === 'store' ? 'owner' : S.mode}" target="_blank" rel="noopener"><span class="mn-ic"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2zM4 21V5M8 7h7"/></svg></span>사용법 보기<i>›</i></a>
+  <button class="danger" data-act="logout"><span class="mn-ic"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 4h4v16h-4M10 8l-4 4 4 4M6 12h10"/></svg></span>로그아웃<i>›</i></button></div></div>`);
 }
 async function refreshNow(btn) { if (working) return; btn?.classList.add('spin'); working = true; try { await reload(); toast('새로 고쳤어요'); } catch { toast('새로 고치지 못했어요. 잠시 후 다시 해주세요'); } finally { working = false; document.querySelector('[data-act=refresh]')?.classList.remove('spin'); } }
 // 당겨서 새로고침 (화면 맨 위에서 아래로 끌기)
