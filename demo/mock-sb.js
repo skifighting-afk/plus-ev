@@ -90,6 +90,10 @@ const RPC = window.__RPC = {
   board_list(a) { return DB.board_posts.filter(b => (b.parent || null) === (a?.p_parent || null) && !b.hidden).map(b => ({ id: b.id, alias: '딜러 ' + String(b.id).padStart(4, '0'), body: b.body, created_at: b.created_at, mine: b.user_id === me(), replies: DB.board_posts.filter(r => r.parent === b.id && !r.hidden).length })) },
   board_hide(a) { const b = DB.board_posts.find(x => x.id === a.p_id); if (b) b.hidden = true; return null },
   set_company_ref() { return null },
+  cancel_apply(a) { const x = DB.applications.find(x => x.id === a.p_app && x.user_id === me() && x.status === 'applied'); if (!x) throw { message: '이미 처리된 지원이에요' }; x.status = 'cancelled'; return null },
+  board_report(a) { const b = DB.board_posts.find(x => x.id === a.p_id); b._rep = (b._rep || 0) + 1; if (b._rep >= 3) b.hidden = true; return b._rep },
+  delete_account() { const p = DB.profiles.find(x => x.id === me()); Object.assign(p, { name: '탈퇴한 사용자', phone: null, bank_acct: null, bank_name: null, bank_holder: null, deleted_at: now() }); return null },
+  my_slot_days() { return DB.job_slots.filter(s => s.dealer_id === me()).map(s => ({ slot_id: s.id, day: String(s.done_at || DB.job_posts.find(p => p.id === s.post_id)?.created_at || now()).slice(0, 10) })) },
   hq_ref_report() { return [] },
   sched_reset(a) { const r = DB.sched_rounds.find(x => x.store_id === a.p_store && x.month === a.p_month); if (r) r.status = 'reset'; return null },
   restore_bin(a) { const x = DB.bin_rows.find(r => r.id === a.p_id); if (!x || x.tbl.startsWith('restored:')) throw { message: '이미 되살렸어요' }; DB[x.tbl].push(x.row); x.tbl = 'restored:' + x.tbl; return null },
@@ -172,6 +176,7 @@ export function createClient() {
     auth: {
       onAuthStateChange(cb) { cbs.push(cb); setTimeout(() => cb('INIT', user ? { user } : null), 0) },
       async signUp({ email, options }) { if (window.__USERS[email]) return { data: {}, error: { message: 'User already registered' } }; user = { id: uid(), email }; window.__USERS[email] = user; DB.profiles.push({ id: user.id, name: options.data.name, is_hq: email.startsWith('hq@') }); cbs.forEach(c => c('SIGNED_IN', { user })); return { data: { session: {} }, error: null } },
+      async updateUser() { return { data: { user }, error: null } },
       async signInWithPassword({ email }) { const u = window.__USERS[email]; if (!u) return { error: { message: 'Invalid login' } }; user = u; cbs.forEach(c => c('SIGNED_IN', { user })); return { error: null } },
       async signOut() { user = null; cbs.forEach(c => c('SIGNED_OUT', null)) }
     },
