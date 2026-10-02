@@ -314,7 +314,7 @@ function vAuth() {
   <form class="f" id="auth-form">${up ? '<label class="fl">이름<input name="name" required autocomplete="name"></label>' : ''}
     <label class="fl">이메일<input name="email" type="email" required autocomplete="email"></label>
     <label class="fl">비밀번호 <span class="pwwrap"><input name="pw" type="password" minlength="6" required autocomplete="${up ? 'new-password' : 'current-password'}"><span role="button" tabindex="0" class="pweye" data-act="pw-eye" aria-label="비밀번호 보기">👁</span></span></label>
-    <button class="btn pri full" type="submit">${up ? '가입하기' : '로그인'}</button>${up ? '' : '<p class="note" style="text-align:center"><button type="button" class="tlink" data-act="pw-forgot">비밀번호를 잊으셨나요?</button></p>'}</form>${up ? '<p class="note">가입하면 바로 시작돼요. 가입하면 <a href="legal.html#terms" target="_blank" rel="noopener">이용약관</a>과 <a href="legal.html#privacy" target="_blank" rel="noopener">개인정보처리방침</a>에 동의한 것으로 봐요.</p>' : ''}</div>`;
+    <button class="btn pri full" type="submit">${up ? '가입하기' : '로그인'}</button>${up ? '' : '<p class="note" style="text-align:center"><button type="button" class="tlink" data-act="pw-forgot">비밀번호를 잊으셨나요?</button></p>'}</form>${location.pathname.includes('/demo') ? '' : `<div class="or"><span>또는</span></div><button type="button" class="btn full kakao" data-act="kakao">카카오로 ${up ? '시작하기' : '로그인'}</button>`}${up ? '<p class="note">가입하면 바로 시작돼요. 가입하면 <a href="legal.html#terms" target="_blank" rel="noopener">이용약관</a>과 <a href="legal.html#privacy" target="_blank" rel="noopener">개인정보처리방침</a>에 동의한 것으로 봐요.</p>' : ''}</div>`;
 }
 function vOnboard() {
   const k = S.onb;
@@ -1622,6 +1622,7 @@ document.addEventListener('click', e => {
     else await q(sb.from('shift_templates').delete().eq('member_id', memberId).eq('weekday', weekday));
     closeSheet(); await reload(); toast('휴무로 바꿨어요');
   });
+  if (a === 'kakao') return busy(async () => { const { error } = await sb.auth.signInWithOAuth({ provider: 'kakao', options: { redirectTo: location.origin + location.pathname } }); if (error) toast('카카오 로그인이 아직 준비 중이에요'); });
   if (a === 'otp-send') { const ph = ($('#dealer-form [name=phone]')?.value || '').trim(); return busy(async () => { const { data, error } = await sb.functions.invoke('phone-otp', { body: { action: 'send', phone: ph } }); if (error || !data?.ok) return toast(data?.msg || '문자 발송에 실패했어요'); openSheet(`<h2>인증번호 입력</h2><p class="sub">${esc(ph)}로 보낸 6자리 숫자를 넣어주세요 (3분 안에)</p><form class="f" id="otp-form"><input name="code" required inputmode="numeric" maxlength="6" autocomplete="one-time-code" style="text-align:center;letter-spacing:.3em;font-size:22px"><button class="btn pri full">확인</button></form>`); }); }
   if (a === 'pw-eye') { const i = b.closest('.pwwrap').querySelector('input'); i.type = i.type === 'password' ? 'text' : 'password'; b.textContent = i.type === 'password' ? '👁' : '🙈'; return; }
   if (a === 'pw-forgot') { const em = ($('#auth-form [name=email]')?.value || '').trim(); if (!em) return toast('이메일을 먼저 적어주세요'); return busy(async () => { const { error } = await sb.auth.resetPasswordForEmail(em, { redirectTo: location.origin + location.pathname }); toast(error ? error.message : '재설정 메일을 보냈어요. 메일의 버튼을 누르면 새 비밀번호를 정할 수 있어요'); }); }
