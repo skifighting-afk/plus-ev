@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="manifest" href="/table/manifest.webmanifest">
+<meta name="theme-color" content="#0f1420">
+<link rel="apple-touch-icon" href="/table/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>+EV TABLE TV</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js" async></script>
+<style>
+  :root { --bg: #070b14; --panel: #0f1626; --line: #1e2a44; --text: #f2f5fb; --muted: #8592ad; --blue: #4f8cff; --mint: #2ee6a8; --amber: #ffb547; --red: #ff5d6c;
+    font-family: "Pretendard", "Apple SD Gothic Neo", "Noto Sans KR", system-ui, sans-serif; color-scheme: dark; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); overflow: hidden; }
+  .tv { height: 100vh; display: grid; grid-template-rows: auto 1fr auto; gap: 1.2vh; padding: 2vh 2.5vw; }
+  .top { display: flex; align-items: center; gap: 2vw; }
+  .top h1 { font-size: 3.6vh; margin: 0; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .top .store { color: var(--muted); font-size: 2.4vh; }
+  .live { color: var(--red); font-weight: 800; font-size: 2.4vh; display: inline-flex; gap: .6vw; align-items: center; }
+  .dot { width: 1.4vh; height: 1.4vh; border-radius: 50%; background: var(--red); animation: p 1.6s infinite; }
+  @keyframes p { 50% { opacity: .3; } }
+  .mid { display: grid; grid-template-columns: 1fr 2.2fr 1fr; gap: 1.5vw; min-height: 0; }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 2vh; padding: 2.4vh 1.6vw; display: grid; align-content: start; gap: 2.2vh; min-height: 0; }
+  .stat span { display: block; color: var(--muted); font-size: 1.8vh; letter-spacing: .12em; text-transform: uppercase; }
+  .stat b { font-size: 4.6vh; font-variant-numeric: tabular-nums; line-height: 1.1; }
+  .stat small { color: var(--muted); font-size: 2.2vh; }
+  .center { text-align: center; align-content: center; background: radial-gradient(120% 90% at 50% 0%, #15254a 0%, var(--panel) 65%); }
+  .lvl { font-size: 3.4vh; font-weight: 800; letter-spacing: .2em; color: var(--muted); }
+  .lvl.brk { color: var(--mint); }
+  .time { font-size: 24vh; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1; letter-spacing: -.02em; }
+  .time.warn { color: var(--amber); } .time.paused { opacity: .5; }
+  .blinds { font-size: 9vh; font-weight: 800; font-variant-numeric: tabular-nums; }
+  .ante { font-size: 3.6vh; color: var(--muted); }
+  .bar { height: 1vh; background: var(--line); border-radius: 1vh; overflow: hidden; margin: 1vh 4vw 0; }
+  .bar i { display: block; height: 100%; background: var(--blue); transition: width 1s linear; }
+  .next { font-size: 3vh; color: var(--muted); }
+  .reg { font-size: 2.6vh; font-weight: 800; } .reg.ok { color: var(--mint); } .reg.tight { color: var(--amber); } .reg.closed { color: var(--muted); }
+  .bottom { display: flex; gap: 1.5vw; align-items: center; color: var(--muted); font-size: 2vh; }
+  .join { display: flex; gap: 1vw; align-items: center; background: var(--panel); border: 1px solid var(--line); border-radius: 1.6vh; padding: 1vh 1.2vw; }
+  .join #qr { background: #fff; padding: .6vh; border-radius: .8vh; width: 11vh; height: 11vh; display: grid; place-items: center; }
+  .join #qr img, .join #qr canvas { width: 100% !important; height: 100% !important; }
+  .join b { color: var(--text); font-size: 2.6vh; display: block; }
+  .callbar { background: var(--amber); color: #111; font-weight: 800; font-size: 3.4vh; border-radius: 1.6vh; padding: 1.2vh 1.6vw; animation: p 1.6s infinite; }
+  .ctl { margin-left: auto; display: flex; gap: .6vw; }
+  button { background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: 1vh; padding: 1vh 1.2vw; font: inherit; cursor: pointer; }
+  .banner { position: fixed; inset: auto 0 0 0; background: var(--amber); color: #000; text-align: center; font-weight: 800; padding: .8vh; font-size: 2vh; }
+  .flash { animation: f 1s 3; } @keyframes f { 50% { background: #1d4ed8; } }
+  .pick { padding: 4vh 4vw; display: grid; gap: 1.5vh; font-size: 2.4vh; }
+  @media (prefers-reduced-motion: reduce) { .dot, .flash { animation: none; } .bar i { transition: none; } }
+  @media (max-aspect-ratio: 1/1) { .mid { grid-template-columns: 1fr; } .time { font-size: 16vh; } .side { display: none; } }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="module">
+import { esc, read, mmss, fetchClock, clockView, segText, hm } from '/table/common.js';
+const root = document.getElementById('root');
+const tid = new URLSearchParams(location.search).get('t');
+let T = null, C = null, lastIdx = null, failAt = 0;
+
+if (!tid) {
+  // 대회 고르기: 공개 일정에서 선택 (TV는 로그인 없이 공개 정보만)
+  const list = await read('public_tournaments').catch(() => []);
+  root.innerHTML = `<div class="pick"><h1>TV에 띄울 대회</h1>${list.filter((t) => ['open', 'running'].includes(t.lifecycle))
+    .map((t) => `<a style="color:var(--text)" href="/table/tv?t=${esc(t.id)}">${esc(t.store.name)} · ${esc(t.title)} · ${hm(t.starts_at)}</a>`).join('') || '진행/예정 대회 없음'}</div>`;
+} else {
+  root.innerHTML = `<div class="tv">
+    <div class="top"><span id="live"></span><h1 id="title">불러오는 중…</h1><span class="store" id="store"></span></div>
+    <div class="mid">
+      <div class="panel side">
+        <div class="stat"><span>Players</span><b id="players">-</b> <small id="entries"></small></div>
+        <div class="stat"><span>Avg stack</span><b id="avg">-</b> <small id="avgbb"></small></div>
+        <div class="stat"><span>Total chips</span><b id="chips">-</b></div>
+        <div class="stat"><span>Starting</span><b id="start">-</b></div>
+      </div>
+      <div class="panel center" id="center">
+        <div class="lvl" id="lvl">-</div>
+        <div class="time" id="time">--:--</div>
+        <div class="blinds" id="blinds">-</div>
+        <div class="ante" id="ante"></div>
+        <div class="bar"><i id="bar" style="width:0"></i></div>
+        <div class="next" id="next"></div>
+      </div>
+      <div class="panel side">
+        <div class="stat"><span>Next break</span><b id="nbreak">-</b></div>
+        <div class="stat"><span>Registration</span><div class="reg" id="reg">-</div></div>
+        <div class="stat"><span>Seats free</span><b id="seats">-</b> <small id="wait"></small></div>
+        <div class="stat"><span>Re-entry</span><b id="re" style="font-size:3.4vh">-</b></div>
+      </div>
+    </div>
+    <div class="bottom">
+      <div class="join"><div id="qr"></div><div><b>폰으로 참가 신청 · 대기 등록</b>QR 찍고 +EV TABLE에서 바로</div></div>
+      <div id="call" class="callbar" hidden></div>
+      <span id="upd"></span>
+      <div class="ctl"><button id="snd" aria-pressed="false">🔈 레벨 알림음</button><button id="fs">⛶ 전체화면</button></div>
+    </div></div><div class="banner" id="net" hidden>연결 확인 중 — 마지막 정보로 표시 중</div>`;
+  const $ = (id) => document.getElementById(id);
+  const fmt = (n) => (n == null ? '-' : Number(n).toLocaleString());
+  let sound = false, audio;
+  $('snd').onclick = () => { sound = !sound; $('snd').setAttribute('aria-pressed', sound); $('snd').textContent = sound ? '🔊 레벨 알림음 켜짐' : '🔈 레벨 알림음'; if (sound) audio ??= new AudioContext(); };
+  $('fs').onclick = () => (document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen?.());
+  const beep = () => { if (!sound || !audio) return; [0, .25, .5].forEach((d) => { const o = audio.createOscillator(), g = audio.createGain(); o.frequency.value = 880; o.connect(g); g.connect(audio.destination);
+    g.gain.setValueAtTime(.25, audio.currentTime + d); g.gain.exponentialRampToValueAtTime(.001, audio.currentTime + d + .2); o.start(audio.currentTime + d); o.stop(audio.currentTime + d + .22); }); };
+  // TV는 꺼지면 안 됨: 화면 꺼짐 방지 (지원 브라우저만)
+  const wake = async () => { try { await navigator.wakeLock?.request('screen'); } catch {} };
+  wake(); document.addEventListener('visibilitychange', () => document.visibilityState === 'visible' && wake());
+
+  const appUrl = `${location.origin}/app#/t/${tid}`;
+  const drawQR = () => { if (window.QRCode) { $('qr').innerHTML = ''; new window.QRCode($('qr'), { text: appUrl, width: 160, height: 160 }); } else $('qr').innerHTML = '<span style="color:#000;font-size:1.4vh">QR</span>'; };
+  setTimeout(drawQR, 800);
+
+  async function refresh() {
+    try {
+      [T, C] = await Promise.all([read('tournament_summary', { p_tournament_id: tid }), fetchClock(tid)]);
+      failAt = 0; $('net').hidden = true; paintStatic();
+    } catch (e) {
+      if (e.code === 'NOT_FOUND_OR_FORBIDDEN') { root.innerHTML = '<div class="pick">대회를 찾을 수 없어요 · <a href="/table/tv" style="color:var(--blue)">다시 고르기</a></div>'; return; }
+      failAt ||= Date.now(); $('net').hidden = Date.now() - failAt < 15000;
+    }
+  }
+  function paintStatic() {
+    const L = T.live;
+    $('title').textContent = T.title; $('store').textContent = T.store.name;
+    $('live').innerHTML = T.lifecycle === 'running' ? '<span class="live"><span class="dot"></span>LIVE</span>' : '';
+    $('players').textContent = `${T.players_remaining}`; $('entries').textContent = `/ ${T.entries_total} 엔트리`;
+    $('avg').textContent = fmt(L.avg_stack); $('avgbb').textContent = L.avg_bb ? `${L.avg_bb} BB` : '';
+    $('chips').textContent = fmt(L.total_chips); $('start').textContent = fmt(L.starting_stack);
+    $('seats').textContent = L.seats_free; $('wait').textContent = T.waiting ? `대기 ${T.waiting}명` : '';
+    $('re').textContent = T.reentry.enabled ? `최대 ${T.reentry.max}회` : '없음';
+    const tp = L.to_paid;   // 입상권 버블: 남은 인원이 입상 인원에 가까워지면 강조
+    if (tp != null && tp <= 10) { $('re').previousElementSibling.textContent = 'Paid places'; $('re').textContent = tp > 0 ? `입상권까지 ${tp}명` : '입상권 진입'; }
+    const reg = $('reg');
+    if (T.registration === 'open') {
+      const m = T.reg_deadline_estimate ? Math.round((Date.parse(T.reg_deadline_estimate) - Date.parse(T.server_now)) / 60000) : null;
+      reg.className = 'reg ' + (m != null && m < 20 ? 'tight' : 'ok');
+      reg.innerHTML = `접수 중${m != null ? ` · ${m}분` : ''}<br><small style="color:var(--muted);font-weight:600">${L.reg_close_level_no ? `Lv${L.reg_close_level_no} 종료 시 마감` : ''}</small>`;
+    } else { reg.className = 'reg closed'; reg.textContent = T.registration === 'scheduled' ? '접수 예정' : '등록 마감'; }
+    $('upd').textContent = `갱신 ${hm(T.server_now)}${T.sponsor ? ` · 협찬 ${T.sponsor.name}` : ''}`;
+    // 대기 호출: 번호만 (이름 없음). 새 번호가 생기면 알림음
+    const cw = T.called_wait_nos || [], key = cw.join(',');
+    $('call').hidden = !cw.length; $('call').textContent = `🔔 대기 ${cw.map((n) => '#' + n).join(' · ')} 카운터로 오세요`;
+    if (key && key !== window.__lastCall) beep(); window.__lastCall = key;
+  }
+  function tick() {
+    const v = clockView(C); if (!v) return;
+    const s = v.seg, brk = s?.kind === 'break';
+    const lvNo = C.levels.slice(0, v.idx + 1).filter((x) => x.kind === 'level').length;
+    if (lastIdx !== null && v.idx !== lastIdx) { beep(); $('center').classList.remove('flash'); void $('center').offsetWidth; $('center').classList.add('flash'); }
+    lastIdx = v.idx;
+    $('lvl').textContent = T?.lifecycle === 'finished' ? '종료' : T?.lifecycle === 'cancelled' ? '취소됨' : C.state === 'not_started' ? '시작 전' : brk ? 'BREAK' : `LEVEL ${lvNo}`;
+    $('lvl').className = 'lvl' + (brk ? ' brk' : '');
+    $('time').textContent = mmss(v.rem);
+    $('time').className = 'time' + (C.state === 'paused' ? ' paused' : v.rem < 60000 && C.state === 'running' ? ' warn' : '');
+    $('blinds').textContent = brk ? '휴식' : `${fmt(s?.sb)} / ${fmt(s?.bb)}`;
+    $('ante').textContent = C.state === 'paused' ? '⏸ 일시정지' : !brk && s?.ante ? `ANTE ${fmt(s.ante)}` : '';
+    $('next').textContent = `NEXT  ${segText(v.next)}`;
+    $('bar').style.width = s ? `${100 - (v.rem / (s.minutes * 60000)) * 100}%` : '0';
+    // 다음 브레이크: 현재 남은 + 이후 레벨 합
+    let nb = brk ? 0 : v.rem, found = brk;
+    for (let i = v.idx + 1; !brk && i < C.levels.length; i++) { if (C.levels[i].kind === 'break') { found = true; break; } nb += C.levels[i].minutes * 60000; }
+    $('nbreak').textContent = C.state === 'not_started' || !found ? '-' : brk ? '휴식 중' : mmss(nb);
+  }
+  await refresh(); tick();
+  setInterval(tick, 250);
+  setInterval(refresh, 5000);   // ponytail: 5초 조회. Realtime 신호 구독 연결 시 이벤트 기반으로 교체
+}
+</script>
+</body>
+</html>

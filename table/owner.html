@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="manifest" href="/table/manifest.webmanifest">
+<meta name="theme-color" content="#0f1420">
+<link rel="apple-touch-icon" href="/table/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>+EV TABLE 점주</title>
+<link rel="stylesheet" href="/table/style.css">
+</head>
+<body>
+<header class="top"><a class="btn small" href="/table/app#/my" aria-label="손님 화면으로">←</a><span class="brand"><em>+</em>EV TABLE · 점주</span><span class="ctx" id="ctx"></span><button class="small" id="loginBtn"></button></header>
+<main id="view"></main>
+<script type="module">
+import { $, esc, badge, dt, toast, read, mutate, errText, session, devLogin, logout } from '/table/common.js';
+const view = $('#view');
+let store = null;
+$('#loginBtn').onclick = async () => { if (session.user) logout(); else await devLogin((u) => (u.roles || []).some((r) => /^(owner|manager)@/.test(r))); store = null; boot(); };
+
+// 스트럭처 입력: 한 줄에 "SB BB 앤티 분" 또는 "휴식 분"
+const parseLevels = (txt) => txt.trim().split('\n').map((l, i) => l.trim().split(/\s+/)).map((p, i, all) => {
+  const lv = all.slice(0, i).filter((x) => x[0] !== '휴식').length + 1, br = all.slice(0, i).filter((x) => x[0] === '휴식').length + 1;
+  return p[0] === '휴식' ? { segment_id: 'B' + br, kind: 'break', minutes: Number(p[1]) }
+                        : { segment_id: 'L' + lv, kind: 'level', sb: Number(p[0]), bb: Number(p[1]), ante: Number(p[2] || 0), minutes: Number(p[3] || 20) };
+});
+
+async function boot() {
+  $('#loginBtn').textContent = session.user ? `${session.nick} · 로그아웃` : '로그인';
+  if (!session.user) { view.innerHTML = '<div class="empty">점주/매니저 계정으로 로그인하세요</div>'; return; }
+  const stores = (await read('my_staff_stores')).filter((s) => s.role !== 'staff');
+  if (!store) store = stores[0];
+  if (!store) { view.innerHTML = '<div class="empty">관리 권한 매장이 없어요</div>'; return; }
+  $('#ctx').textContent = `${store.name} (${store.role})`;
+  const [ts, tbls, st, tpls, fbs] = await Promise.all([read('staff_tournaments', { p_store_id: store.store_id }), read('store_tables', { p_store_id: store.store_id }),
+    read('owner_stats', { p_store_id: store.store_id, p_days: 30 }), read('store_templates', { p_store_id: store.store_id }), read('store_feedback', { p_store_id: store.store_id })]);
+  const [boosts, isPlat] = await Promise.all([read('store_boosts', { p_store_id: store.store_id }), read('am_platform_admin')]);
+  const plat = isPlat ? await read('platform_overview') : null;
+  const storeInfo = (await read('public_stores')).find((x) => x.id === store.store_id) || {};
+  view.innerHTML = `${dashboard(st)}
+  <div class="card"><h2>대회 만들기</h2>
+    <form id="fT" style="display:grid;gap:8px">
+      <label>제목<input name="title" required maxlength="80"></label>
+      <label>시작 (실제 날짜·시각)<input name="starts_at" type="datetime-local" required></label>
+      <div class="row"><label style="flex:1">입장 정원<input name="cap" type="number" min="1" value="18" required></label>
+        <label style="flex:1">등록 마감 구간 ID<input name="seg" value="L4" required></label></div>
+      <div class="row"><label style="flex:1">재참가 최대<input name="re" type="number" min="0" value="0"></label>
+        <label style="flex:1">승인 방식<select name="mode"><option value="auto">자동 확정</option><option value="manual">직원 승인</option></select></label></div>
+      <label>스트럭처 (한 줄: SB BB 앤티 분 / 휴식 분)<textarea name="lv" rows="6">100 200 0 20
+200 400 0 20
+300 600 600 20
+휴식 10
+400 800 800 20
+500 1000 1000 20</textarea></label>
+      <div class="row"><label style="flex:1">시작 스택<input name="stack" type="number" value="20000"></label></div>
+      <fieldset class="row" style="border:1px solid var(--line);border-radius:10px"><legend class="muted">사용 테이블 (진행 중 대회끼리 겹치면 시작 불가)</legend>
+        ${tbls.map((t) => `<label class="row"><input type="checkbox" name="tb" value="${t.id}" checked style="width:22px;min-height:22px">${esc(t.label)} (${t.seat_count}석)</label>`).join('') || '<span class="muted">테이블 없음</span>'}</fieldset>
+      <label>참가 조건·제공 서비스 (결제 없음)<input name="cond" maxlength="1000"></label>
+      <label>시상 안내 (자유문구 · 금액 구조화 안 함)<input name="prize" maxlength="1000" placeholder="예: 상위 입상자 시드권"></label>
+      <label>포스터 이미지 주소 (https)<input name="poster" type="url" pattern="https://.*" placeholder="https://..."></label>
+      <label class="row" style="color:var(--text)"><input type="checkbox" name="idreq" style="width:22px;min-height:22px"> 입장 시 신원·연령 확인 기록 필수</label>
+      <label class="row" style="color:var(--text)"><input type="checkbox" name="autocall" checked style="width:22px;min-height:22px"> 자리 나면 대기 1번 자동 호출</label>
+      <label>입상 인원 (버블 안내용, 비우면 표시 안 함)<input name="paid" type="number" min="1" max="500"></label>
+      <button class="primary" data-m>만들고 공개</button>
+    </form></div>
+  <div class="card"><h2>최근 대회</h2>${ts.map((t) => `<div class="row between"><span>${esc(t.title)} · ${dt(t.starts_at)} ${badge(t.lifecycle)}</span>
+      <span class="row"><button class="small" data-clone="${t.id}" data-at="${t.starts_at}">내일 같은 시각 복제</button><button class="small" data-tpl="${t.id}" data-at="${t.starts_at}">매주 반복</button><a class="btn small" style="min-height:36px" href="/table/poster?t=${t.id}" target="_blank" rel="noopener">🖨 입구 포스터</a>
+      ${['open', 'running'].includes(t.lifecycle) ? `<button class="small" data-boost="${t.id}" data-slot="top">📣 상단 노출 요청</button><button class="small" data-boost="${t.id}" data-slot="hot">📣 홈 배너 요청</button>` : ''}</span></div>`).join('') || '<div class="muted">없음</div>'}
+    <div id="tplBox"></div></div>
+  <div class="card"><h2>광고 요청 <span class="sub">운영사 승인 후 노출 · 모든 노출에 "광고" 표시</span></h2>
+    ${boosts.map((b) => `<div class="row between"><span>${esc(b.tournament)} · ${b.slot === 'top' ? '상단 노출' : '홈 배너'} ${b.hours}시간</span>
+      <span>${{ requested: '⏳ 승인 대기', active: `✅ 노출 중 ~${dt(b.ends_at)}`, rejected: '✗ 반려', ended: '종료', cancelled: '취소' }[b.status]}${b.note ? ` <span class="sub">${esc(b.note)}</span>` : ''}</span></div>`).join('') || '<div class="muted">최근 대회에서 "📣 요청"을 누르세요</div>'}</div>
+  <div class="card"><h2>스탬프 카드</h2><form id="fStamp" class="row">
+    <label style="flex:1">보상<input name="reward" maxlength="100" placeholder="예: 음료 쿠폰 1장" value="${esc(storeInfo.stamp_reward || '')}"></label>
+    <label style="width:110px">도장 수<input name="goal" type="number" min="3" max="50" value="${storeInfo.stamp_goal || 10}"></label><button>저장</button></form>
+    <div class="sub">손님이 입장한 영업일마다 도장 1개. 다 모으면 직원 화면 체크인 검색에서 보상 지급 버튼이 떠요.</div></div>
+  ${plat ? `<div class="card" style="border-color:var(--accent)"><h2>운영사 · 광고 승인</h2>
+    ${plat.requests.map((r) => `<div class="row between"><span>${esc(r.store)} · ${esc(r.tournament)} · ${r.slot === 'top' ? '상단' : '홈 배너'} ${r.hours}h</span>
+      <span class="row"><button class="small primary" data-dec="${r.id}" data-ok="1">승인</button><button class="small danger" data-dec="${r.id}" data-ok="0">반려</button></span></div>`).join('') || '<div class="muted">대기 중인 요청 없음</div>'}
+    <div class="sub">노출 중 ${plat.active.length}건 (슬롯당 최대 3)</div>
+    <h3>협찬 표시</h3>${plat.tournaments.map((t) => `<form class="row" data-sp="${t.id}"><span style="flex:1">${esc(t.store)} · ${esc(t.title)}</span>
+      <input name="n" placeholder="협찬사 이름" value="${esc(t.sponsor || '')}" style="width:160px"><button class="small">저장</button></form>`).join('')}</div>` : ''}
+  <div class="card"><div class="row between"><h2>반복 대회</h2><button class="small primary" id="gen" ${tpls.some((x) => x.active) ? '' : 'disabled'}>앞으로 7일 만들기</button></div>
+    ${tpls.map((x) => `<div class="row between"><span>${esc(x.title)} · ${x.weekdays.map((d) => '일월화수목금토'[d]).join('')} ${x.start_time.slice(0, 5)}</span>
+      <button class="small" data-tact="${x.id}" data-on="${!x.active}">${x.active ? '멈추기' : '다시 켜기'}</button></div>`).join('') || '<div class="muted">"매주 반복"을 누르면 요일별 자동 생성돼요. 매일 자동으로 7일치를 유지해요.</div>'}</div>
+  <div class="card"><h2>테이블 추가</h2><form id="fTb" class="row"><input name="label" placeholder="예: T3" required style="flex:1"><input name="n" type="number" min="2" max="11" value="9" style="width:90px"><button data-m>추가</button></form></div>
+  <div class="card"><div class="row between"><h2>직원 초대 링크</h2><span class="row"><button class="small" data-inv="staff">직원 링크</button><button class="small" data-inv="manager">매니저 링크</button></span></div>
+    <div id="invBox" class="sub">1회용 · 48시간. 받은 사람이 로그인하면 바로 등록돼요.</div></div>
+  <div class="card"><h2>손님 피드백 <span class="sub">${fbs.filter((f) => f.status !== 'done').length}</span></h2>
+    ${fbs.map((f) => `<div class="row between" style="${f.status === 'done' ? 'opacity:.5' : ''}"><span>${esc(f.body)} <span class="sub">${esc(f.nickname)} · ${dt(f.created_at)}</span></span>
+      <span class="row">${['new', 'doing', 'done'].map((k) => `<button class="small" data-fb="${f.id}" data-st="${k}" aria-pressed="${f.status === k}">${{ new: '새로', doing: '처리 중', done: '완료' }[k]}</button>`).join('')}</span></div>`).join('') || '<div class="muted">아직 없어요</div>'}</div>
+  <div class="card"><h2>직원 권한</h2><form id="fS" class="row"><input name="q" placeholder="닉네임 검색" required style="flex:1"><button>검색</button></form><div id="sres"></div></div>`;
+
+  $('#fT').onsubmit = async (e) => {
+    e.preventDefault(); const fd = new FormData(e.target); const f = Object.fromEntries(fd);
+    try {
+      const sv = await mutate('create_structure_version', { p_store_id: store.store_id, p_name: f.title + ' 구조', p_starting_stack: Number(f.stack), p_levels: parseLevels(f.lv) });
+      await mutate('create_tournament', {
+        p_store_id: store.store_id, p_structure_version_id: sv.structure_version_id, p_open: true,
+        p_table_ids: fd.getAll('tb'),
+        p_fields: { title: f.title, starts_at: new Date(f.starts_at).toISOString(), admission_capacity: Number(f.cap), reg_close_mode: 'level', reg_close_segment_id: f.seg,
+                    reentry_enabled: Number(f.re) > 0, reentry_max: Number(f.re), approval_mode: f.mode, conditions: f.cond || null,
+                    prize_note: f.prize || null, poster_url: f.poster || null, require_id_check: !!f.idreq, auto_call: !!f.autocall, paid_places: f.paid ? Number(f.paid) : null } });
+      toast('대회 공개됨'); boot();
+    } catch (err) { toast(errText(err) + (err.detail ? ` (${err.detail})` : '')); }
+  };
+  const on = (sel, f) => view.querySelectorAll(sel).forEach((b) => (b.onclick = () => f(b)));
+  on('[data-clone]', async (b) => {
+    let at = new Date(Date.parse(b.dataset.at) + 864e5); while (at < Date.now()) at = new Date(+at + 864e5);
+    try { await mutate('clone_tournament', { p_tournament_id: b.dataset.clone, p_starts_at: at.toISOString(), p_open: true }); toast(`복제 · ${dt(at)} 공개`); boot(); } catch (err) { toast(errText(err)); }
+  });
+  on('[data-tpl]', (b) => {
+    const at = new Date(b.dataset.at);
+    const dow = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].indexOf(at.toLocaleString('en-US', { timeZone: 'Asia/Seoul', weekday: 'short' }));
+    const hm = at.toLocaleTimeString('en-GB', { timeZone: 'Asia/Seoul', hour: '2-digit', minute: '2-digit' });
+    $('#tplBox').innerHTML = `<form class="card" id="fTpl"><b>매주 반복 요일</b><div class="row">${[...'일월화수목금토'].map((d, i) => `<label class="row" style="color:var(--text)"><input type="checkbox" name="d" value="${i}" ${i === dow ? 'checked' : ''} style="width:20px;min-height:20px">${d}</label>`).join('')}</div>
+      <label>시작 시각<input name="t" type="time" value="${hm}" required></label><button class="primary">반복 저장</button></form>`;
+    $('#fTpl').onsubmit = async (e) => { e.preventDefault(); const fd = new FormData(e.target); const days = fd.getAll('d').map(Number);
+      if (!days.length) return toast('요일을 하나 이상 고르세요');
+      try { await mutate('save_tournament_template', { p_source_tournament_id: b.dataset.tpl, p_weekdays: days, p_start_time: fd.get('t') });
+            const g = await read('generate_from_templates', { p_store_id: store.store_id, p_days: 7 }); toast(`반복 저장 · ${g.created}개 생성`); boot(); }
+      catch (err) { toast(errText(err)); } };
+  });
+  on('[data-boost]', async (b) => { try { await mutate('request_boost', { p_tournament_id: b.dataset.boost, p_slot: b.dataset.slot, p_hours: 3 }); toast('광고 요청됨 · 운영사 승인 후 노출'); boot(); } catch (err) { toast(errText(err)); } });
+  on('[data-dec]', async (b) => { try { await read('decide_boost', { p_boost_id: b.dataset.dec, p_approve: b.dataset.ok === '1' }); toast(b.dataset.ok === '1' ? '승인 · 지금부터 노출' : '반려'); boot(); } catch (err) { toast(errText(err) + (err.detail ? ` (${err.detail})` : '')); } });
+  view.querySelectorAll('[data-sp]').forEach((f) => (f.onsubmit = async (e) => { e.preventDefault();
+    try { await read('set_sponsor', { p_tournament_id: f.dataset.sp, p_name: new FormData(f).get('n') }); toast('협찬 저장'); } catch (err) { toast(errText(err)); } }));
+  $('#fStamp').onsubmit = async (e) => { e.preventDefault(); const f = Object.fromEntries(new FormData(e.target));
+    try { await read('set_stamp_program', { p_store_id: store.store_id, p_goal: Number(f.goal), p_reward: f.reward }); toast('스탬프 카드 저장'); } catch (err) { toast(errText(err) + (err.detail ? ` (${err.detail})` : '')); } };
+  on('#gen', async () => { try { const g = await read('generate_from_templates', { p_store_id: store.store_id, p_days: 7 }); toast(`${g.created}개 생성 (이미 있는 날은 건너뜀)`); boot(); } catch (err) { toast(errText(err)); } });
+  on('[data-tact]', async (b) => { try { await read('set_template_active', { p_template_id: b.dataset.tact, p_active: b.dataset.on === 'true' }); boot(); } catch (err) { toast(errText(err)); } });
+  on('[data-inv]', async (b) => {
+    try { const r = await read('create_staff_invite', { p_store_id: store.store_id, p_role: b.dataset.inv }); const link = `${location.origin}/staff?invite=${encodeURIComponent(r.token)}`;
+      $('#invBox').innerHTML = `<div class="row"><input readonly value="${esc(link)}" id="invLink" aria-label="초대 링크"><button class="small" id="invCopy">복사</button></div><span class="sub">${b.dataset.inv === 'manager' ? '매니저' : '직원'} · ${dt(r.expires_at)}까지</span>`;
+      $('#invCopy').onclick = async () => { try { await navigator.clipboard.writeText(link); toast('복사됨'); } catch { $('#invLink').select(); } };
+    } catch (err) { toast(errText(err)); } });
+  on('[data-fb]', async (b) => { try { await read('set_feedback_status', { p_id: Number(b.dataset.fb), p_status: b.dataset.st }); boot(); } catch (err) { toast(errText(err)); } });
+  $('#fTb').onsubmit = async (e) => { e.preventDefault(); const f = Object.fromEntries(new FormData(e.target));
+    try { await mutate('create_physical_table', { p_store_id: store.store_id, p_label: f.label, p_seat_count: Number(f.n) }); toast('추가됨'); } catch (err) { toast(errText(err)); } };
+  $('#fS').onsubmit = async (e) => { e.preventDefault();
+    try {
+      const list = await read('staff_search_customers', { p_store_id: store.store_id, p_query: new FormData(e.target).get('q') });
+      $('#sres').innerHTML = list.map((u) => `<div class="row between"><span>${esc(u.nickname)} <span class="muted">${u.short_id}</span></span><span class="row">
+        ${['staff', 'manager'].map((r) => `<button class="small" data-u="${u.user_id}" data-r="${r}">${r === 'staff' ? '직원' : '매니저'} 지정</button>`).join('')}
+        <button class="small danger" data-u="${u.user_id}" data-r="off">권한 해제</button></span></div>`).join('') || '<div class="muted">결과 없음</div>';
+      $('#sres').querySelectorAll('[data-u]').forEach((b) => (b.onclick = async () => {
+        try { await mutate('set_staff_role', { p_store_id: store.store_id, p_user_id: b.dataset.u, p_role: b.dataset.r === 'off' ? 'staff' : b.dataset.r, p_active: b.dataset.r !== 'off' }); toast('저장됨'); }
+        catch (err) { toast(errText(err)); }
+      }));
+    } catch (err) { toast(errText(err)); } };
+}
+// ── 점주 대시보드: 30일 KPI + 일별 참가자 막대 + 요일×시간 입장 히트맵 ──
+function dashboard(st) {
+  const r = st.reservations, pl = st.players, pct = (a, b) => (b ? Math.round((a / b) * 100) : null);
+  const k = [['고유 손님', pl.unique, ''], ['재방문율', pct(pl.repeat, pl.unique), '%'], ['노쇼율', pct(r.no_show, r.total), '%'], ['호출 응답률', pct(r.called_ack, r.called_total), '%']];
+  const days = st.daily, max = Math.max(1, ...days.map((d) => d.players));
+  const W = 600, H = 120, bw = days.length ? Math.min(40, (W - 20) / days.length - 4) : 0;
+  const bars = days.map((d, i) => { const h = (d.players / max) * (H - 34), x = 10 + i * (bw + 4);
+    return `<rect x="${x}" y="${H - 20 - h}" width="${bw}" height="${h}" rx="3" fill="var(--accent)"><title>${d.date} · ${d.players}명 · ${d.entries}엔트리</title></rect>
+      <text x="${x + bw / 2}" y="${H - 6}" font-size="9" text-anchor="middle" fill="var(--muted)">${d.date.slice(5)}</text>
+      <text x="${x + bw / 2}" y="${H - 24 - h}" font-size="10" text-anchor="middle" fill="var(--text)">${d.players}</text>`; }).join('');
+  const hm = {}; let hmax = 1; st.hours.forEach((h) => { hm[h.dow + '-' + h.hour] = h.entries; hmax = Math.max(hmax, h.entries); });
+  const hours = [12, 14, 16, 18, 20, 22, 0, 2, 4];
+  const heat = `<table style="font-size:11px;width:auto"><tr><th></th>${hours.map((h) => `<th>${h}시</th>`).join('')}</tr>${[...'일월화수목금토'].map((d, i) => `<tr><th>${d}</th>${hours.map((h) => {
+    const v = (hm[i + '-' + h] || 0) + (hm[i + '-' + ((h + 1) % 24)] || 0); return `<td title="${d} ${h}~${h + 2}시 · ${v}명" style="width:30px;height:20px;border-radius:4px;background:color-mix(in srgb, var(--mint) ${Math.round((v / hmax) * 90)}%, transparent)"></td>`; }).join('')}</tr>`).join('')}</table>`;
+  return `<div class="card"><div class="row between"><h2>최근 30일</h2><span class="sub">매장 운영 데이터 기준</span></div>
+    <div class="stat-grid">${k.map(([n, v, u]) => `<div class="stat"><b>${v ?? '-'}${v == null ? '' : u}</b><span>${n}</span></div>`).join('')}</div>
+    ${days.length ? `<div style="overflow-x:auto"><svg viewBox="0 0 ${W} ${H}" width="100%" style="max-width:${W}px" role="img" aria-label="일별 고유 참가자">${bars}</svg></div>` : '<div class="muted">아직 대회 기록이 없어요</div>'}
+    ${st.suggestions.length ? `<div class="banner info">💡 정원 추천 ${st.suggestions.map((x) => `<div>${esc(x.title)} · 대기 평균 ${x.avg_waiting}명 (${x.full_runs}/${x.runs}회) → 정원 <b>${x.capacity} → ${x.suggest}</b></div>`).join('')}</div>` : ''}
+    <details><summary class="sub">요일 × 시간 입장 히트맵 (언제 대회를 열면 좋을지)</summary><div style="overflow-x:auto">${heat}</div></details></div>`;
+}
+boot();
+</script>
+</body>
+</html>

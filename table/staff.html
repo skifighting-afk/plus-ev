@@ -1,0 +1,315 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="manifest" href="/table/manifest.webmanifest">
+<meta name="theme-color" content="#0f1420">
+<link rel="apple-touch-icon" href="/table/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>+EV TABLE 직원</title>
+<link rel="stylesheet" href="/table/style.css">
+</head>
+<body>
+<header class="top">
+  <a class="btn small" href="/table/app#/my" aria-label="손님 화면으로">←</a><span class="brand"><em>+</em>EV TABLE · 직원</span>
+  <span class="ctx" id="ctx">매장·대회 선택 전</span>
+  <button class="small" id="switchBtn">변경</button>
+  <button class="small" id="loginBtn"></button>
+</header>
+<nav class="tabs" aria-label="직원 메뉴" id="tabs" hidden>
+  <a href="#ops" data-tab="ops">운영</a><a href="#seats" data-tab="seats">좌석</a><a href="#clock" data-tab="clock">시계·등록</a><a href="#results" data-tab="results">종료·결과</a>
+</nav>
+<div id="netBanner" style="padding:0 16px" role="status" aria-live="polite"></div>
+<main class="wide" id="view"></main>
+
+<script type="module">
+import { $, esc, badge, dt, hm, mmss, toast, read, mutate, errText, session, devLogin, logout, poll, clockView, segText, conn, connStale } from '/table/common.js';
+const view = $('#view');
+const S = { store: null, storeName: '', tid: null, d: null, sel: new Set(), tab: location.hash.slice(1) || 'ops' };
+try { Object.assign(S, JSON.parse(localStorage.getItem('tl.staffCtx') || '{}'), { d: null, sel: new Set(), tab: location.hash.slice(1) || 'ops' }); } catch {}
+const saveCtx = () => { try { localStorage.setItem('tl.staffCtx', JSON.stringify({ store: S.store, storeName: S.storeName, tid: S.tid })); } catch {} };
+const isMgr = () => ['owner', 'manager'].includes(S.d?.staff_role);
+
+const renderLogin = () => ($('#loginBtn').textContent = session.user ? `${session.nick} · 로그아웃` : '로그인');
+$('#loginBtn').onclick = async () => { if (session.user) logout(); else await devLogin((u) => u.roles); Object.assign(S, { store: null, tid: null }); saveCtx(); renderLogin(); boot(); };
+$('#switchBtn').onclick = () => { S.tid = null; S.store = null; saveCtx(); boot(); };
+renderLogin();
+const netRender = () => {
+  const stale = connStale();
+  $('#netBanner').innerHTML = stale ? `<div class="banner warn">연결 확인 중 — 변경 버튼 비활성</div>` : '';
+  if (stale) view.querySelectorAll('button[data-m]').forEach((b) => (b.disabled = true));   // 복구 시 다음 재조회 렌더가 원래 상태로 되돌림
+};
+conn.listeners.add(netRender); setInterval(netRender, 4000);
+
+// 입력 대화상자: fields = [{name,label,type,options,required,value}]
+function ask(title, fields = [], okText = '확인') {
+  const dlg = document.createElement('dialog');
+  dlg.innerHTML = `<form method="dialog" class="card" style="border:0;padding:0"><h2>${esc(title)}</h2>
+    ${fields.map((f) => `<label>${esc(f.label)}${f.options ? `<select name="${f.name}" ${f.required ? 'required' : ''}>${f.options.map((o) => `<option value="${esc(o[0])}">${esc(o[1])}</option>`).join('')}</select>`
+      : `<input name="${f.name}" type="${f.type || 'text'}" value="${esc(f.value ?? '')}" ${f.required ? 'required' : ''}>`}</label>`).join('')}
+    <div class="row"><button class="primary" value="ok">${esc(okText)}</button><button value="cancel" formnovalidate>취소</button></div></form>`;
+  document.body.append(dlg); dlg.showModal();
+  return new Promise((res) => dlg.addEventListener('close', () => {
+    const ok = dlg.returnValue === 'ok'; const v = Object.fromEntries(new FormData(dlg.querySelector('form'))); dlg.remove(); res(ok ? v : null);
+  }));
+}
+function pickSeat(title, filter = (s) => !s.entry_no && !s.held && s.usable) {
+  const seats = S.d.seats; const dlg = document.createElement('dialog');
+  const tables = [...new Set(seats.map((s) => s.table))];
+  dlg.innerHTML = `<div class="card" style="border:0;padding:0"><h2>${esc(title)}</h2>
+    ${tables.map((tb) => `<h3>${esc(tb)}</h3><div class="seat-grid">${seats.filter((s) => s.table === tb).map((s) => filter(s)
+      ? `<button class="seat pick" data-id="${s.seat_id}">${s.seat_no}번</button>`
+      : `<div class="seat ${s.entry_no ? 'occ' : ''} ${s.held ? 'held' : ''}">${s.seat_no}${s.entry_no ? ` #${s.entry_no}` : s.held ? ' 이동' : ''}</div>`).join('')}</div>`).join('') || '<div class="empty">배정된 테이블이 없어요</div>'}
+    <button data-x>닫기</button></div>`;
+  document.body.append(dlg); dlg.showModal();
+  return new Promise((res) => dlg.addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; dlg.close(); dlg.remove(); res(b.dataset.id || null); }));
+}
+
+async function run(btn, fn, body, ok) {
+  if (btn) btn.disabled = true;
+  try { const r = await mutate(fn, body); toast(ok || '처리됨'); await refresh(); return r; }
+  catch (e) { toast(errText(e) + (e.detail ? ` (${e.detail})` : '')); if (['STATE_CHANGED', 'VERSION_CONFLICT'].includes(e.code)) await refresh(); else if (btn) btn.disabled = false; }
+}
+
+async function boot() {
+  const inv = new URLSearchParams(location.search).get('invite');
+  if (!session.user) { view.innerHTML = `<div class="empty">${inv ? '초대받은 계정으로 로그인하면 바로 직원 등록돼요' : '직원 계정으로 로그인하세요'}</div>`; $('#tabs').hidden = true; return; }
+  if (inv) {
+    try { const r = await mutate('accept_staff_invite', { p_token: inv }); toast(`${r.store} 직원으로 등록됐어요`); Object.assign(S, { store: r.store_id, storeName: r.store, tid: null }); saveCtx(); }
+    catch (e) { toast('초대 링크가 만료됐거나 이미 사용됐어요'); }
+    history.replaceState(null, '', '/table/staff');
+  }
+  if (!S.store) {
+    const stores = await read('my_staff_stores');
+    view.innerHTML = `<h1>작업 매장</h1>${stores.map((s) => `<button class="card" style="text-align:left" data-store="${s.store_id}" data-name="${esc(s.name)}"><h2>${esc(s.name)}</h2><span class="muted">${esc(s.role)}</span></button>`).join('') || '<div class="empty">권한 있는 매장이 없어요</div>'}`;
+    view.querySelectorAll('[data-store]').forEach((b) => (b.onclick = () => { S.store = b.dataset.store; S.storeName = b.dataset.name; saveCtx(); boot(); }));
+    return;
+  }
+  if (!S.tid) {
+    const ts = await read('staff_tournaments', { p_store_id: S.store });
+    $('#ctx').textContent = S.storeName;
+    view.innerHTML = `<h1>대회 선택</h1>${ts.map((t) => `<button class="card" style="text-align:left" data-t="${t.id}"><div class="row between"><h2>${esc(t.title)}</h2>${badge(t.lifecycle)}</div><span class="muted">${dt(t.starts_at)} · 영업일 ${t.business_date}</span></button>`).join('') || '<div class="empty">대회가 없어요</div>'}`;
+    view.querySelectorAll('[data-t]').forEach((b) => (b.onclick = () => { S.tid = b.dataset.t; saveCtx(); boot(); }));
+    return;
+  }
+  $('#tabs').hidden = false;
+  if (!S.poller) S.poller = poll(refresh, 5000); else refresh();
+}
+
+async function refresh() {
+  if (!S.tid) return;
+  try { S.d = await read('staff_dashboard', { p_tournament_id: S.tid }); S.d._at = performance.now(); }
+  catch (e) {
+    if (e?.code !== 'NOT_FOUND_OR_FORBIDDEN') { netRender(); return; }   // 일시적 연결 실패: 문맥 유지, 다음 주기에 재조회
+    view.innerHTML = `<div class="banner bad">${esc(errText(e))}</div>`; S.tid = null; saveCtx(); return;
+  }
+  $('#ctx').innerHTML = `<b>${esc(S.d.store.name)}</b> · ${esc(S.d.title)} ${badge(S.d.lifecycle)}`;
+  document.querySelectorAll('#tabs a').forEach((a) => (a.dataset.tab === S.tab ? a.setAttribute('aria-current', 'page') : a.removeAttribute('aria-current')));
+  ({ ops, seats, clock, results })[S.tab]?.();
+  netRender();
+}
+addEventListener('hashchange', () => { S.tab = location.hash.slice(1) || 'ops'; refresh(); });
+
+function header() {
+  const d = S.d, c = clockView({ ...d.clock, _at: d._at });
+  return `<div class="stat-grid">
+    <div class="stat"><b>${badge(d.registration)}</b><span>등록 ${d.reg_deadline_estimate ? '· 예상 마감 ' + hm(d.reg_deadline_estimate) : ''}</span></div>
+    <div class="stat"><b>${d.slots_used}/${d.admission_capacity}</b><span>입장 슬롯/정원</span></div>
+    <div class="stat"><b>${d.waiting}</b><span>대기</span></div>
+    <div class="stat"><b>${d.players_remaining}</b><span>남은 참가자</span></div>
+    <div class="stat"><b>${d.players_unique}/${d.entries_total}</b><span>고유 인원/엔트리</span></div>
+    <div class="stat"><b data-live-clock>${c ? mmss(c.rem) : '-'}</b><span>${esc(segText(c?.seg))}</span></div></div>`;
+}
+
+function ops() {
+  const d = S.d, rs = d.reservations, es = d.entries;
+  const issues = [
+    ...rs.filter((r) => r.call_expired_now).map((r) => `호출 시간 초과: ${esc(r.nickname)}`),
+    ...rs.filter((r) => r.no_show_candidate).map((r) => `노쇼 후보: ${esc(r.nickname)} <button class="small" data-m data-noshow="${r.id}">노쇼 확정</button>`),
+    ...rs.filter((r) => r.status === 'pending').map((r) => `승인 필요: ${esc(r.nickname)}`),
+    ...d.review_groups.map((g) => `동시 탈락 검토: #${g.entry_nos.join(', #')}`),
+    ...es.filter((e) => e.status === 'active' && !e.seat).map((e) => `좌석 미배정: #${e.entry_no} ${esc(e.nickname)} <button class="small" data-m data-seat="${e.id}">배정</button>`),
+  ];
+  view.innerHTML = `${header()}
+    ${issues.length ? `<div class="card"><h2>해결 필요 ${issues.length}</h2>${issues.map((i) => `<div class="row">${i}</div>`).join('')}</div>` : ''}
+    <div class="card"><h2>체크인 (입장)</h2>
+      <form id="checkin" class="row" autocomplete="off"><input id="ci" placeholder="QR 코드 또는 닉네임 2자 이상" aria-label="QR 코드 또는 닉네임" style="flex:1;min-width:200px">
+        <button class="primary" data-m>찾기/입장</button>${'BarcodeDetector' in window ? `<button type="button" id="scan">${S.scanning ? '카메라 끄기' : '카메라 연속 스캔'}</button>` : ''}</form>
+      <div class="row">
+        <label class="row" style="color:var(--text)"><input type="checkbox" id="cont" ${S.cont ? 'checked' : ''} style="width:22px;min-height:22px"> 연속 모드 (스캐너·QR 연달아)</label>
+        ${d.policy.require_id_check ? `<label class="row" style="color:var(--text)">신원 확인 <select id="idc" style="width:auto;min-height:36px">${[['id_card', '신분증 확인'], ['known_member', '아는 단골'], ['other', '기타']]
+          .map(([v, n]) => `<option value="${v}" ${S.idc === v ? 'selected' : ''}>${n}</option>`).join('')}</select></label>` : ''}</div>
+      ${S.recent?.length ? `<div class="sub">${S.recent.map((x) => `<span style="color:${x.ok ? 'var(--ok)' : 'var(--bad)'}">${esc(x.text)}</span>`).join(' · ')}</div>` : ''}
+      <div id="ciResult"></div><div class="muted">입장 = 예약 확인 + 엔트리 생성 + 슬롯 이전을 한 번에. '도착'은 참고 표시일 뿐이에요.${d.policy.require_id_check ? ' 이 대회는 신원 확인 기록이 필수예요 (사진·번호는 저장 안 함).' : ''}</div></div>
+    <div class="card"><div class="row between"><h2>예약 · 대기</h2><button class="primary small" data-m id="callNext" ${d.waiting && d.slots_used < d.admission_capacity ? '' : 'disabled'} title="빈 입장 슬롯이 있어야 호출 가능">다음 대기 호출</button></div>
+      ${rs.length ? `<table><thead><tr><th>고객</th><th>상태</th><th></th></tr></thead><tbody>${rs.map((r) => `<tr>
+        <td>${esc(r.nickname)} <span class="muted">${r.short_id}</span>${r.first_visit ? ' <span class="badge b-ok" data-icon="🌱">첫 방문</span>' : ''}${r.intent === 'reentry' ? ' <span class="badge b-info" data-icon="↻">재참가</span>' : ''}${r.arrived_at ? ' <span class="muted">도착</span>' : ''}</td>
+        <td>${badge(r.status)}${r.status === 'called' ? ` <span data-countdown="${r.call_expires_at}"></span>` : ''}</td>
+        <td class="row">${r.status === 'pending' ? `<button class="small" data-m data-approve="${r.id}">승인</button><button class="small danger" data-m data-reject="${r.id}">거절</button>` : ''}
+          ${['confirmed', 'called'].includes(r.status) ? `<button class="small primary" data-m data-admit="${r.id}">입장</button>` : ''}
+          ${!r.arrived_at ? `<button class="small" data-m data-arrive="${r.id}">도착</button>` : ''}
+          ${r.status === 'waitlisted' ? `<button class="small" data-m data-callthis="${r.id}">순서 예외 호출</button>` : ''}
+          <button class="small" data-m data-scancel="${r.id}">취소</button></td></tr>`).join('')}</tbody></table>` : '<div class="empty">활성 예약 없음</div>'}</div>
+    <div class="card"><div class="row between"><h2>참가자</h2><button class="small danger" data-m id="elimBtn" disabled>선택 탈락 처리</button></div>
+      ${es.length ? `<table><thead><tr><th></th><th>#</th><th>고객</th><th>좌석</th><th>상태</th><th></th></tr></thead><tbody>${es.map((e) => `<tr>
+        <td>${e.status === 'active' ? `<input type="checkbox" data-pick="${e.id}" aria-label="#${e.entry_no} 선택" style="width:24px;min-height:24px">` : ''}</td>
+        <td>${e.entry_no}</td><td>${esc(e.nickname)}${e.kind === 'reentry' ? ' ↻' : ''}${e.first_visit ? ' <span class="badge b-ok" data-icon="🌱">첫 방문</span>' : ''}</td>
+        <td>${e.seat ? `${esc(e.seat.table)}-${e.seat.seat_no}` : '-'}${e.move ? ` → ${esc(e.move.to.table)}-${e.move.to.seat_no} ${badge(e.move.status)}` : ''}</td>
+        <td>${badge(e.status)}</td>
+        <td class="row">${e.status === 'active' ? (e.seat ? (e.move ? `<button class="small primary" data-m data-mvdone="${e.move.id}">이동 완료</button><button class="small" data-m data-mvcancel="${e.move.id}">이동 취소</button>`
+              : `<button class="small" data-m data-move="${e.id}">이동</button>`) : `<button class="small" data-m data-seat="${e.id}">좌석</button>`) : ''}
+          ${isMgr() && e.status === 'eliminated' ? `<button class="small" data-m data-revert="${e.id}">탈락 취소</button>` : ''}
+          ${isMgr() && ['active', 'eliminated'].includes(e.status) ? `<button class="small danger" data-m data-void="${e.id}">무효</button>` : ''}</td></tr>`).join('')}</tbody></table>` : '<div class="empty">입장한 참가자 없음</div>'}</div>`;
+  bindOps();
+}
+
+function bindOps() {
+  const on = (sel, f) => view.querySelectorAll(sel).forEach((b) => (b.onclick = () => f(b)));
+  on('[data-approve]', (b) => run(b, 'approve_reservation', { p_reservation_id: b.dataset.approve }, '승인'));
+  on('[data-reject]', async (b) => { const v = await ask('거절 사유', [{ name: 'r', label: '사유', required: true }]); v && run(b, 'reject_reservation', { p_reservation_id: b.dataset.reject, p_reason: v.r }, '거절'); });
+  on('[data-admit]', (b) => run(b, 'admit_player', { p_tournament_id: S.tid, p_reservation_id: b.dataset.admit, p_id_check: idCheck() }, '입장 완료'));
+  on('[data-arrive]', (b) => run(b, 'mark_arrival', { p_reservation_id: b.dataset.arrive }, '도착 표시'));
+  on('[data-noshow]', (b) => run(b, 'mark_no_show', { p_reservation_id: b.dataset.noshow }, '노쇼 기록'));
+  on('[data-scancel]', async (b) => { const v = await ask('예약 취소', [{ name: 'r', label: '사유', required: true }]); v && run(b, 'cancel_reservation', { p_reservation_id: b.dataset.scancel, p_reason: v.r }, '취소'); });
+  on('[data-callthis]', async (b) => { const v = await ask('순서 예외 호출', [{ name: 'r', label: '사유 (기록됨)', required: true }]); v && run(b, 'call_next_waiter', { p_tournament_id: S.tid, p_reservation_id: b.dataset.callthis, p_reason: v.r }, '호출'); });
+  on('#callNext', (b) => run(b, 'call_next_waiter', { p_tournament_id: S.tid }, '호출했어요'));
+  on('[data-seat]', async (b) => { const s = await pickSeat('좌석 배정'); s && run(b, 'assign_seat', { p_entry_id: b.dataset.seat, p_seat_id: s }, '배정'); });
+  on('[data-move]', async (b) => {
+    const s = await pickSeat('이동할 좌석 (hold)'); if (!s) return;
+    const v = await ask('이동 사유', [{ name: 'r', label: '사유', options: [['balance', '밸런싱'], ['break_table', '테이블 해체'], ['request', '고객 요청'], ['other', '기타']] }]);
+    v && run(b, 'plan_seat_move', { p_entry_id: b.dataset.move, p_to_seat_id: s, p_reason: v.r }, '이동 예정 — 다음 핸드에 완료를 누르세요');
+  });
+  on('[data-mvdone]', (b) => run(b, 'complete_seat_move', { p_move_id: b.dataset.mvdone }, '이동 완료'));
+  on('[data-mvcancel]', async (b) => { const v = await ask('이동 취소', [{ name: 'r', label: '사유', required: true }]); v && run(b, 'cancel_seat_move', { p_move_id: b.dataset.mvcancel, p_reason: v.r }, '이동 취소'); });
+  on('[data-revert]', async (b) => { const v = await ask('탈락 취소 (정정)', [{ name: 'r', label: '사유', required: true }]); v && run(b, 'correct_elimination', { p_entry_id: b.dataset.revert, p_action: 'revert', p_reason: v.r }, '정정됨'); });
+  on('[data-void]', async (b) => { const v = await ask('엔트리 무효 (잘못된 체크인 등)', [{ name: 'r', label: '사유', required: true }]); v && run(b, 'correct_elimination', { p_entry_id: b.dataset.void, p_action: 'void', p_reason: v.r }, '무효 처리'); });
+  view.querySelectorAll('[data-pick]').forEach((c) => (c.onchange = () => { c.checked ? S.sel.add(c.dataset.pick) : S.sel.delete(c.dataset.pick); $('#elimBtn').disabled = !S.sel.size; }));
+  on('#elimBtn', async (b) => {
+    const ids = [...S.sel]; let note = null;
+    if (ids.length > 1) { const v = await ask(`${ids.length}명 동시 탈락`, [{ name: 'n', label: '메모 (동시 탈락은 결과 공개 전 검토 필요)' }]); if (!v) return; note = v.n; }
+    else if (!confirm('탈락 처리할까요?')) return;
+    S.sel.clear(); run(b, 'record_eliminations', { p_tournament_id: S.tid, p_entry_ids: ids, p_note: note }, '탈락 기록');
+  });
+  const f = $('#checkin');
+  const cont = $('#cont'); if (cont) cont.onchange = () => { S.cont = cont.checked; $('#ci').focus(); };
+  const idc = $('#idc'); if (idc) { S.idc = idc.value; idc.onchange = () => (S.idc = idc.value); }
+  if (S.cont && !document.querySelector('dialog[open]')) $('#ci')?.focus();   // 재조회 렌더 후에도 스캐너 입력 유지
+  if (f) f.onsubmit = async (ev) => {
+    ev.preventDefault(); const q = $('#ci').value.trim(); if (!q) return;
+    if (q.startsWith('TL1.')) { $('#ci').value = ''; return admitQR(q); }
+    try {
+      const list = await read('staff_search_customers', { p_store_id: S.d.store.id, p_query: q });
+      $('#ciResult').innerHTML = list.map((u) => `<div class="row between"><span>${esc(u.nickname)} <span class="muted">${u.short_id}${u.member ? ' · 단골' : ''}</span>
+          ${u.stamps?.reward ? `<span class="muted"> · 스탬프 ${u.stamps.available}/${u.stamps.goal}</span>` : ''}</span>
+        <span class="row">${u.stamps?.reward && u.stamps.available >= u.stamps.goal ? `<button class="small" data-m data-redeem="${u.user_id}">🎁 ${esc(u.stamps.reward)} 지급</button>` : ''}
+        <button class="small primary" data-m data-walk="${u.user_id}">입장</button></span></div>`).join('') || '<div class="muted">결과 없음</div>';
+      $('#ciResult').querySelectorAll('[data-redeem]').forEach((b) => (b.onclick = async () => { b.disabled = true;
+        try { const r = await mutate('redeem_stamps', { p_store_id: S.d.store.id, p_user_id: b.dataset.redeem }); toast(`보상 지급: ${r.given} · 남은 도장 ${r.available}`); b.remove(); }
+        catch (e) { toast(errText(e)); b.disabled = false; } }));
+      $('#ciResult').querySelectorAll('[data-walk]').forEach((b) => (b.onclick = () => run(b, 'admit_player', { p_tournament_id: S.tid, p_user_id: b.dataset.walk, p_id_check: idCheck() }, '입장 완료')));
+    } catch (e) { toast(errText(e)); }
+  };
+  const sc = $('#scan');
+  if (sc) sc.onclick = () => (S.scanning ? stopScan() : startScan());
+}
+
+// ── QR 입장 (연속 모드: 성공/실패 소리 + 최근 5건, 입력창 계속 유지) ──
+const idCheck = () => (S.d?.policy?.require_id_check ? S.idc || 'id_card' : null);
+function blip(ok) {
+  try { const a = (S.audio ??= new AudioContext()), o = a.createOscillator(), g = a.createGain(); o.frequency.value = ok ? 1320 : 220; o.connect(g); g.connect(a.destination);
+    g.gain.setValueAtTime(.25, a.currentTime); g.gain.exponentialRampToValueAtTime(.001, a.currentTime + (ok ? .12 : .4)); o.start(); o.stop(a.currentTime + .42); } catch {}
+  try { navigator.vibrate?.(ok ? 60 : [120, 80, 120]); } catch {}
+}
+async function admitQR(token) {
+  try {
+    const r = await mutate('admit_player', { p_tournament_id: S.tid, p_qr_token: token, p_id_check: idCheck() });
+    const nick = S.d.reservations.find((x) => x.user_id === r.user_id)?.nickname || '';
+    S.recent = [{ ok: true, text: `✓ #${r.entry_no} ${nick}` }, ...(S.recent || [])].slice(0, 5); blip(true); toast(`QR 입장 완료 #${r.entry_no}`);
+  } catch (e) { S.recent = [{ ok: false, text: `✗ ${errText(e)}` }, ...(S.recent || [])].slice(0, 5); blip(false); toast(errText(e)); }
+  await refresh();
+}
+// 카메라 연속 스캔: 화면 재조회와 무관하게 body 에 붙여 유지, 같은 코드는 5초 안에 다시 처리 안 함
+async function startScan() {
+  try {
+    S.stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+    const v = document.createElement('video'); v.id = 'scanVideo'; v.srcObject = S.stream; v.setAttribute('playsinline', ''); v.muted = true;
+    v.style.cssText = 'position:fixed;right:16px;bottom:16px;width:220px;border-radius:12px;border:2px solid var(--accent);z-index:30';
+    document.body.append(v); await v.play(); S.scanning = true; refresh();
+    const det = new BarcodeDetector({ formats: ['qr_code'] }); const seen = new Map();
+    while (S.scanning) {
+      const r = await det.detect(v).catch(() => []); const code = r[0]?.rawValue;
+      if (code?.startsWith('TL1.') && !(seen.get(code) > Date.now() - 5000)) { seen.set(code, Date.now()); await admitQR(code); if (!S.cont) break; }
+      await new Promise((x) => setTimeout(x, 250));
+    }
+  } catch { toast('카메라를 쓸 수 없어요. 닉네임 검색으로 입장하세요'); }
+  stopScan();
+}
+function stopScan() { S.scanning = false; S.stream?.getTracks().forEach((t) => t.stop()); document.getElementById('scanVideo')?.remove(); refresh(); }
+
+function seats() {
+  const d = S.d; const tables = [...new Set(d.seats.map((s) => s.table))];
+  view.innerHTML = `${header()}${tables.map((tb) => `<div class="card"><h2>${esc(tb)}</h2><div class="seat-grid">${d.seats.filter((s) => s.table === tb).map((s) =>
+    `<div class="seat ${s.entry_no ? 'occ' : ''} ${s.held ? 'held' : ''}" aria-label="${esc(tb)} ${s.seat_no}번 ${s.entry_no ? '사용 중 #' + s.entry_no : s.held ? '이동 예정 보호' : '비어 있음'}">${s.seat_no}번<br>${s.entry_no ? `#${s.entry_no}` : s.held ? 'HOLD' : '빈 좌석'}</div>`).join('')}</div></div>`).join('') || '<div class="empty">배정된 테이블 없음 (점주 화면에서 설정)</div>'}
+    <div class="muted">HOLD = 이동 예정 좌석 보호 · 실제 이동은 '이동 완료'를 누를 때 반영</div>`;
+}
+
+function clock() {
+  const d = S.d, c = d.clock, v = clockView({ ...c, _at: d._at }); const ver = c.version;
+  view.innerHTML = `${header()}
+    <div class="card clock"><div class="muted">${esc(segText(v.seg))}</div><div class="time" data-live-clock>${mmss(v.rem)}</div>
+      <div class="muted">다음: ${esc(segText(v.next))} · ${badge(c.state === 'running' ? 'running' : c.state === 'paused' ? 'pending' : c.state === 'not_started' ? 'scheduled' : 'finished')} v${ver}</div>
+      <div class="row" style="justify-content:center">
+        ${c.state === 'not_started' ? `<button class="primary" data-m id="cStart">시작</button>` : ''}
+        ${c.state === 'running' ? `<button data-m id="cPause">일시정지</button>` : ''}
+        ${c.state === 'paused' ? `<button class="primary" data-m id="cResume">재개</button>` : ''}
+        ${isMgr() && ['running', 'paused'].includes(c.state) ? `<button data-m id="cAdjust">시간 조정</button>` : ''}
+        <a class="btn" href="/table/tv?t=${S.tid}" target="_blank" rel="noopener">📺 매장 TV 화면 열기</a></div></div>
+    <div class="card"><h2>등록</h2><div>${badge(d.registration)} ${d.reg_deadline_estimate ? `예상 마감 ${dt(d.reg_deadline_estimate)}` : ''}</div>
+      <div class="muted">한 번 마감되면 시계를 되돌려도 자동 재개되지 않아요. 재개는 매니저가 사유와 기한을 남겨야 해요.</div>
+      ${isMgr() ? `<div class="row">${d.registration === 'open' ? '<button class="danger" data-m id="rClose">지금 마감</button>' : ''}<button data-m id="rReopen">재개</button></div>` : ''}</div>`;
+  const key = (id, f) => { const b = $(id); if (b) b.onclick = () => f(b); };
+  key('#cStart', (b) => run(b, 'start_clock', { p_tournament_id: S.tid, p_expected_version: ver }, '시작'));
+  key('#cPause', (b) => run(b, 'pause_clock', { p_tournament_id: S.tid, p_expected_version: ver }, '일시정지'));
+  key('#cResume', (b) => run(b, 'resume_clock', { p_tournament_id: S.tid, p_expected_version: ver }, '재개'));
+  key('#cAdjust', async (b) => {
+    const val = await ask('시간 조정', [{ name: 's', label: '구간', options: c.levels.map((l, i) => [i, segText(l)]) }, { name: 'm', label: '남은 시간 (분)', type: 'number', value: Math.floor(v.rem / 60000), required: true }, { name: 'r', label: '사유', required: true }]);
+    val && run(b, 'adjust_clock', { p_tournament_id: S.tid, p_expected_version: ver, p_segment_index: Number(val.s), p_remaining_ms: Math.round(Number(val.m) * 60000), p_reason: val.r }, '조정됨');
+  });
+  key('#rClose', async (b) => { const val = await ask('등록 마감', [{ name: 'r', label: '사유' }]); val && run(b, 'close_registration', { p_tournament_id: S.tid, p_reason: val.r || null }, '마감'); });
+  key('#rReopen', async (b) => { const val = await ask('등록 재개', [{ name: 'm', label: '몇 분 동안', type: 'number', value: 15, required: true }, { name: 'r', label: '사유', required: true }]);
+    val && run(b, 'reopen_registration', { p_tournament_id: S.tid, p_until: new Date(Date.now() + Number(val.m) * 60000).toISOString(), p_reason: val.r }, '재개'); });
+}
+
+function results() {
+  const d = S.d; const es = d.entries.filter((e) => e.status !== 'voided');
+  if (!isMgr()) { view.innerHTML = `${header()}<div class="empty">종료·결과·취소는 매니저 이상만 할 수 있어요</div>`; return; }
+  // 제안 순서: 생존자 → 늦게 탈락한 순. 클릭 순서는 참고일 뿐, 직원이 확인·수정.
+  const order = d.results?.rows?.length ? d.results.rows.map((r) => es.find((e) => e.id === r.entry_id)).filter(Boolean)
+    : [...es.filter((e) => e.status === 'active'), ...es.filter((e) => e.status !== 'active').sort((a, b) => (b.eliminated_at || '').localeCompare(a.eliminated_at || ''))];
+  const table = `<table><thead><tr><th>순위</th><th>#</th><th>고객</th><th>상태</th></tr></thead><tbody>${order.map((e, i) =>
+    `<tr><td><input type="number" min="1" max="${es.length}" value="${i + 1}" data-place="${e.id}" aria-label="#${e.entry_no} 순위" style="width:80px"></td><td>${e.entry_no}</td><td>${esc(e.nickname)}</td><td>${badge(e.status)}${e.elim_group_id && d.review_groups.some((g) => g.id === e.elim_group_id) ? ' <span class="badge b-warn" data-icon="!">동시탈락</span>' : ''}</td></tr>`).join('')}</tbody></table>`;
+  const placements = () => [...view.querySelectorAll('[data-place]')].map((i) => ({ entry_id: i.dataset.place, place: Number(i.value) }));
+  const check = (p) => { const s = new Set(p.map((x) => x.place)); return s.size === p.length && Math.min(...s) === 1 && Math.max(...s) === p.length; };
+  view.innerHTML = `${header()}
+    ${d.lifecycle === 'running' ? `<div class="card"><h2>대회 종료</h2><div class="muted">모든 엔트리 순위를 1~${es.length} 중복 없이 확인하세요. 남은 참가자 자동 동순위는 없어요.</div>${table}<button class="primary" data-m id="finish">종료하고 결과 초안 저장</button></div>` : ''}
+    ${d.lifecycle === 'finished' && d.results ? `<div class="card"><h2>결과 r${d.results.revision} ${badge(d.results.status === 'published' ? 'confirmed' : 'draft')}</h2>${table}
+       ${d.review_groups.length ? `<div class="banner warn">동시 탈락 검토 필요: ${d.review_groups.map((g) => `<label class="row"><input type="checkbox" data-grp="${g.id}" style="width:24px;min-height:24px"> #${g.entry_nos.join(', #')} 순위 확인함</label>`).join('')}</div>` : ''}
+       <div class="row">${d.results.status === 'draft' ? '<button class="primary" data-m id="publish">결과 공개</button>' : ''}<button data-m id="correct">순위 정정</button></div></div>` : ''}
+    ${['open', 'running', 'finished'].includes(d.lifecycle) ? `<div class="card"><h2>대회 취소</h2><div class="muted">삭제가 아니에요. 기록은 보존되고 예약·좌석이 정리되며 고객에게 알림이 가요.</div><button class="danger" data-m id="cancelT">대회 취소</button></div>` : ''}`;
+  const key = (id, f) => { const b = $(id); if (b) b.onclick = () => f(b); };
+  key('#finish', (b) => { const p = placements(); if (!check(p)) return toast('순위가 중복되거나 비었어요'); confirm('종료할까요? 되돌릴 수 없어요') && run(b, 'finish_tournament', { p_tournament_id: S.tid, p_placements: p }, '종료 · 초안 저장'); });
+  key('#publish', (b) => run(b, 'publish_results', { p_tournament_id: S.tid, p_reviewed_group_ids: [...view.querySelectorAll('[data-grp]:checked')].map((c) => c.dataset.grp) }, '결과 공개'));
+  key('#correct', async (b) => { const p = placements(); if (!check(p)) return toast('순위가 중복되거나 비었어요'); const v = await ask('순위 정정', [{ name: 'r', label: '사유', required: true }]); v && run(b, 'correct_results', { p_tournament_id: S.tid, p_placements: p, p_reason: v.r }, '정정됨'); });
+  key('#cancelT', async (b) => { const v = await ask('대회 취소', [{ name: 'r', label: '사유 (고객에게 안내됨)', required: true }], '대회 취소'); v && run(b, 'cancel_tournament', { p_tournament_id: S.tid, p_reason: v.r }, '취소됨'); });
+}
+
+setInterval(() => {
+  if (!S.d) return; const v = clockView({ ...S.d.clock, _at: S.d._at });
+  document.querySelectorAll('[data-live-clock]').forEach((el) => (el.textContent = mmss(v.rem)));
+  document.querySelectorAll('[data-countdown]').forEach((el) => (el.textContent = mmss(Date.parse(el.dataset.countdown) - (Date.now() + (Date.parse(S.d.server_now) - (performance.timeOrigin + S.d._at))))));
+}, 500);
+boot();
+</script>
+</body>
+</html>

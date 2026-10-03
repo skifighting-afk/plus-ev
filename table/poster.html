@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>+EV TABLE 입구 포스터</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js" async></script>
+<style>
+  @page { size: A4; margin: 0; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #e9edf5; font-family: "Pretendard", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif; color: #0f1420; }
+  .bar { text-align: center; padding: 12px; } .bar button { font-size: 16px; padding: 10px 22px; border-radius: 10px; border: 0; background: #4f8cff; color: #fff; }
+  .a4 { width: 210mm; height: 297mm; margin: 0 auto 24px; background: #fff; padding: 22mm 18mm; display: flex; flex-direction: column; align-items: center; text-align: center; }
+  .brand { letter-spacing: .3em; font-weight: 800; color: #4f8cff; font-size: 14pt; }
+  h1 { font-size: 34pt; margin: 10mm 0 3mm; line-height: 1.15; }
+  .meta { font-size: 15pt; color: #46506a; }
+  #qr { margin: 12mm 0 6mm; padding: 6mm; border: 3px solid #0f1420; border-radius: 6mm; width: 96mm; height: 96mm; display: grid; place-items: center; }
+  #qr img, #qr canvas { width: 82mm !important; height: 82mm !important; }
+  .cta { font-size: 22pt; font-weight: 800; } .steps { margin-top: 8mm; font-size: 13pt; color: #46506a; line-height: 1.9; }
+  .url { margin-top: auto; font-size: 10pt; color: #8592ad; word-break: break-all; }
+  @media print { body { background: #fff; } .bar { display: none; } .a4 { margin: 0; } }
+</style>
+</head>
+<body>
+<div class="bar"><button onclick="print()">🖨 인쇄 / PDF 저장</button></div>
+<div class="a4">
+  <div class="brand"><em>+</em>EV TABLE</div>
+  <h1 id="title">불러오는 중…</h1>
+  <div class="meta" id="meta"></div>
+  <div id="qr"></div>
+  <div class="cta">📱 찍고 바로 예약</div>
+  <div class="steps">① 카메라로 QR 찍기 · ② 로그인 · ③ 예약 / 대기 등록<br>호출되면 알림으로 알려드려요</div>
+  <div class="url" id="url"></div>
+</div>
+<script type="module">
+import { read, dt } from '/table/common.js';
+const tid = new URLSearchParams(location.search).get('t');
+const link = `${location.origin}/app#/t/${tid}`;
+document.getElementById('url').textContent = link;
+try {
+  const t = await read('tournament_summary', { p_tournament_id: tid });
+  document.title = `${t.title} 포스터`;
+  document.getElementById('title').textContent = t.title;
+  document.getElementById('meta').textContent = `${t.store?.name ?? ''} · ${dt(t.starts_at)} 시작`;
+} catch { document.getElementById('title').textContent = '대회 정보를 불러오지 못했어요'; }
+// QR 라이브러리가 못 오면(오프라인) 링크 글자만 남김
+const draw = (n = 0) => window.QRCode ? new QRCode(document.getElementById('qr'), { text: link, width: 512, height: 512, correctLevel: QRCode.CorrectLevel.M })
+  : n < 30 ? setTimeout(() => draw(n + 1), 100) : (document.getElementById('qr').textContent = 'QR 없음 · 아래 주소 입력');
+draw();
+</script>
+</body>
+</html>

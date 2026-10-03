@@ -1,0 +1,463 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="manifest" href="/table/manifest.webmanifest">
+<meta name="theme-color" content="#0f1420">
+<link rel="apple-touch-icon" href="/table/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#0f1420">
+<link rel="apple-touch-icon" href="/table/icon.svg">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>+EV TABLE</title>
+<link rel="stylesheet" href="/table/style.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js" async onerror="window.__noQR=true"></script>
+</head>
+<body class="has-nav">
+<header class="top">
+  <span class="brand"><em>+</em>EV TABLE</span>
+  <span class="ctx" id="ctx"></span>
+  <a class="btn small" id="storeBtn" href="/table/staff" hidden>🏪 매장</a>
+  <button class="small" id="loginBtn"></button>
+</header>
+<div id="netBanner" role="status" aria-live="polite" style="padding:0 16px"></div>
+<main id="view" aria-live="polite"></main>
+<nav class="bnav" aria-label="메뉴">
+  <a href="#/" data-r="home"><span class="i">⌂</span>홈</a>
+  <a href="#/live" data-r="live"><span class="i">◉</span>라이브<span class="n" id="liveN" hidden></span></a>
+  <a href="#/qr" data-r="qr" class="qr"><span class="i">▣</span>입장 QR</a>
+  <a href="#/me" data-r="me"><span class="i">♠</span>내 게임</a>
+  <a href="#/my" data-r="my"><span class="i">☺</span>마이<span class="n" id="notiN" hidden></span></a>
+</nav>
+
+<script type="module">
+import { LIVE, LOGIN_READY, installCard, bindInstall, $, esc, badge, dt, hm, mmss, toast, read, mutate, errText, session, devLogin, logout, poll, segText, conn, connStale } from '/table/common.js';
+
+const view = $('#view');
+const S = { list: [], at: 0, mine: [], favs: new Set(), filter: 'all', region: '', geo: null, openTab: 'main', detail: null };
+let serverOffset = 0;
+const nowServer = () => Date.now() + serverOffset;
+const syncOffset = (j) => { if (j?.server_now) serverOffset = Date.parse(j.server_now) - Date.now(); };
+const pref = { get(k) { try { return localStorage.getItem(k); } catch { return null; } }, set(k, v) { try { localStorage.setItem(k, v); } catch {} } };
+S.filter = pref.get('tl.filter') || 'all'; S.region = pref.get('tl.region') || '';
+if (S.filter === 'near') S.filter = 'all';
+
+const renderLogin = () => { $('#loginBtn').textContent = session.user ? `${session.nick} · 로그아웃` : '로그인'; storeMode(); };
+$('#loginBtn').onclick = async () => { if (session.user) logout(); else await devLogin(); renderLogin(); route(); };
+renderLogin();
+// 한 앱 안에서 역할 전환: 직원·점주 권한이 있으면 상단에 매장 버튼
+async function storeMode() {
+  S.stores = session.user ? await read('my_staff_stores').catch(() => []) : [];
+  $('#storeBtn').hidden = !S.stores.length;
+}
+const netRender = () => { $('#netBanner').innerHTML = connStale() ? `<div class="banner warn">연결 확인 중 — 표시 정보가 최신이 아닐 수 있어요</div>` : ''; };
+conn.listeners.add(netRender); setInterval(netRender, 5000);
+
+// ── 공통 계산 ──
+const lv = (t) => {   // 서버 스냅샷 + 단조 경과시간
+  const L = t.live; if (!L) return null;
+  let rem = L.remaining_ms; if (L.clock_state === 'running') rem -= performance.now() - S.at;
+  return { ...L, rem: Math.max(0, rem) };
+};
+const levelText = (t) => {
+  const L = t.live; if (!L || L.clock_state === 'not_started') return `시작 ${hm(t.starts_at)}`;
+  const s = L.segment; return s?.kind === 'break' ? '브레이크' : `Lv${L.level_no} ${Number(s.sb).toLocaleString()}/${Number(s.bb).toLocaleString()}`;
+};
+const km = (t) => {
+  if (!S.geo || t.store.lat == null) return null;
+  const r = (d) => d * Math.PI / 180, dLa = r(t.store.lat - S.geo.lat), dLo = r(t.store.lng - S.geo.lng);
+  const a = Math.sin(dLa / 2) ** 2 + Math.cos(r(S.geo.lat)) * Math.cos(r(t.store.lat)) * Math.sin(dLo / 2) ** 2;
+  return 2 * 6371 * Math.asin(Math.sqrt(a));
+};
+// +EV TABLE 킥 ① "지금 가면 될까?" — 등록 마감까지 남은 시간(+거리 있으면 이동시간 반영)
+function arrival(t) {
+  if (t.registration === 'scheduled') return { cls: 'ok', text: '접수 예정' };
+  if (t.registration !== 'open' || !t.reg_deadline_estimate) return { cls: 'closed', text: t.lifecycle === 'finished' ? '종료' : '등록 마감' };
+  const mins = Math.round((Date.parse(t.reg_deadline_estimate) - nowServer()) / 60000);
+  const d = km(t); const travel = d != null ? Math.round(d * 3 + 5) : 0;   // ponytail: 도심 3분/km 근사, 지도 API 연결 시 교체
+  const slack = mins - travel;
+  const cls = slack > 45 ? 'ok' : slack > 15 ? 'tight' : 'closing';
+  const lbl = d != null ? (slack > 15 ? '지금 출발 OK' : slack > 0 ? '서두르면 가능' : '도착 전 마감') : (cls === 'ok' ? '시간 넉넉' : cls === 'tight' ? '시간 빠듯' : '마감 임박');
+  return { cls, text: `${lbl} · 마감 ${mins > 90 ? hm(t.reg_deadline_estimate) : mins + '분'}${d != null ? ` · ${d.toFixed(1)}km` : ''}` };
+}
+const isMineActive = (m) => ['open', 'running'].includes(m.tournament.lifecycle) &&
+  (m.entries.some((e) => e.status === 'active') || ['pending', 'confirmed', 'waitlisted', 'called'].includes(m.reservation?.status));
+const myStatusFor = (tid) => S.mine.find((m) => m.tournament.id === tid);
+
+async function load() {
+  const [list, mine, favs] = await Promise.all([read('public_tournaments'), session.user ? read('my_participation') : [], session.user ? read('my_favorites') : []]);
+  // 호출 감지: 대기 → 호출로 바뀌는 순간 진동·소리·토스트 (화면 어디에 있든)
+  const called = new Set(mine.filter((m) => m.reservation?.status === 'called').map((m) => m.reservation.id));
+  if (S.called && [...called].some((id) => !S.called.has(id))) alertCalled();
+  S.called = called;
+  S.list = list; S.mine = mine; S.favs = new Set(favs); S.at = performance.now(); syncOffset(list[0]);
+  const n = list.filter((t) => t.lifecycle === 'running').length; $('#liveN').hidden = !n; $('#liveN').textContent = n;
+  if (session.user) read('my_notifications').then((ns) => { const u = ns.filter((x) => !x.read_at).length; $('#notiN').hidden = !u; $('#notiN').textContent = u; }).catch(() => {});
+}
+
+function alertCalled() {
+  toast('🔔 호출됐어요! 카운터로 와주세요');
+  try { navigator.vibrate?.([300, 150, 300, 150, 600]); } catch {}
+  try { const a = new AudioContext(); [0, .3, .6].forEach((d) => { const o = a.createOscillator(), g = a.createGain(); o.frequency.value = 988; o.connect(g); g.connect(a.destination);
+    g.gain.setValueAtTime(.3, a.currentTime + d); g.gain.exponentialRampToValueAtTime(.001, a.currentTime + d + .25); o.start(a.currentTime + d); o.stop(a.currentTime + d + .26); }); } catch {}
+  const t0 = document.title; let n = 0; const iv = setInterval(() => { document.title = n++ % 2 ? t0 : '🔔 호출!'; if (n > 12) { clearInterval(iv); document.title = t0; } }, 700);
+}
+
+// +EV TABLE 킥 ② MY TABLE 바 — 어느 화면에서든 내 자리·대기·호출이 한 줄로
+function myBar() {
+  const m = S.mine.find(isMineActive); if (!m) return '';
+  const t = m.tournament, act = m.entries.find((e) => e.status === 'active'), r = m.reservation;
+  let k, v;
+  if (act) { k = act.move ? '이동 예정' : '내 자리'; v = act.move ? `${esc(act.move.to.table)}·${act.move.to.seat_no}번` : act.seat ? `${esc(act.seat.table)}·${act.seat.seat_no}번` : '배정 대기'; }
+  else if (r.status === 'called') { k = '🔔 호출'; v = `<span data-countdown="${esc(r.call_expires_at)}"></span> 안에 입장`; }
+  else if (r.status === 'waitlisted') { k = `대기 #${r.wait_no}`; v = r.queue_position <= 2 ? '🚶 곧 호출 · 지금 출발하세요' : `앞에 ${r.queue_position - 1}명`; }
+  else { k = r.status === 'pending' ? '승인 대기' : '예약 확정'; v = `시작 ${hm(t.starts_at)}`; }
+  return `<a class="mybar" href="#/me"><span class="k">${k}</span><span class="v">${v}</span><span class="k" style="margin-left:auto;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><span data-tick="${esc(t.id)}">${esc(t.title)}</span></span></a>`;
+}
+
+// +EV TABLE 킥 ③ 원탭 신청 + 실제 빈 좌석 (정보판이 아니라 운영 데이터)
+// 혼잡 신호등: 빈 입장 슬롯·대기 인원으로 지금 가도 되는지 (등록 중일 때만)
+function light(t) {
+  if (t.registration !== 'open') return null;
+  const free = t.admission_capacity - t.slots_used;
+  if (t.waiting >= 3 || (free <= 0 && t.waiting > 0)) return { c: 'red', t: '혼잡' };
+  if (free <= 2 || t.waiting > 0) return { c: 'yellow', t: '거의 참' };
+  return { c: 'green', t: '여유' };
+}
+const lightTag = (t) => { const l = light(t); return l ? `<span class="light ${l.c}" title="혼잡도">${l.t}</span>` : ''; };
+const adTag = (t, slot) => (t.ad?.includes(slot) ? '<span class="adtag">광고</span>' : '');
+// 광고 슬롯이 있는 대회를 맨 앞으로 (라벨 필수)
+const adFirst = (slot) => (a, b) => (b.ad?.includes(slot) ? 1 : 0) - (a.ad?.includes(slot) ? 1 : 0);
+
+function gcard(t) {
+  const a = arrival(t), my = myStatusFor(t.id), fav = S.favs.has(t.store.id);
+  const canQuick = session.user && t.registration === 'open' && !my;
+  const full = t.slots_used >= t.admission_capacity || t.waiting;
+  return `<div class="gcard ${a.cls}">
+    <a class="cnt" href="#/t/${esc(t.id)}" aria-label="${esc(t.title)} 상세"><b>${t.lifecycle === 'running' ? t.players_remaining : t.slots_used}</b><span>/${t.admission_capacity}<br>${t.lifecycle === 'running' ? '<span style="color:var(--red)">● LIVE</span>' : '예약'}</span></a>
+    <a class="t" href="#/t/${esc(t.id)}" style="color:inherit;text-decoration:none">
+      <div class="row" style="gap:4px;flex-wrap:nowrap"><b>${esc(t.store.name)}</b><span class="sub" style="flex:none">${esc(t.store.region || '')}</span></div>
+      <div class="sub" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(t.title)}</div>
+      <div class="lv"><span data-tick="${esc(t.id)}">${levelText(t)}</span>${t.live?.reg_close_level_no ? ` <span style="color:var(--mint)">REG ~ Lv${t.live.reg_close_level_no}</span>` : ''}</div>
+      <div class="row" style="gap:6px">${lightTag(t)}<span class="eta ${a.cls}">${esc(a.text)}</span>${adTag(t, 'top')}</div>
+      ${t.sponsor ? `<div class="sub">협찬 · ${esc(t.sponsor.name)}</div>` : ''}</a>
+    <div class="right">
+      <button class="heart" aria-pressed="${fav}" aria-label="${esc(t.store.name)} 즐겨찾기" data-fav="${esc(t.store.id)}">${fav ? '♥' : '♡'}</button>
+      ${my ? badge(my.entries.some((e) => e.status === 'active') ? 'active' : my.reservation?.status) : ''}
+      ${canQuick ? `<button class="small ${full ? '' : 'primary'}" data-quick="${esc(t.id)}">${full ? `대기 ${t.waiting}명` : '바로 신청'}</button>` : ''}
+      <span>빈자리 ${t.live?.seats_free ?? '-'}</span></div></div>`;
+}
+
+function hotCard(t) {
+  return `<a class="hot" href="#/t/${esc(t.id)}"><div class="art">${t.poster_url ? `<img src="${esc(t.poster_url)}" alt="" loading="lazy" referrerpolicy="no-referrer">` : esc(t.title)}
+    <span class="now">${t.lifecycle === 'running' ? `<span class="dot"></span> 지금 ${t.players_remaining}명` : `${hm(t.starts_at)} 시작`}</span></div>
+    <div class="meta"><b>${esc(t.store.name)} ${adTag(t, 'hot')}</b><span class="sub">${esc(t.title)}</span></div></a>`;
+}
+
+function bindCards() {
+  view.querySelectorAll('[data-fav]').forEach((b) => (b.onclick = async (e) => {
+    e.preventDefault(); if (!session.user) { await devLogin(); renderLogin(); return route(); }
+    try { const r = await mutate('toggle_favorite_store', { p_store_id: b.dataset.fav }); toast(r.favorite ? '즐겨찾기 — 새 게임이 열리면 알려드려요' : '즐겨찾기 해제'); } catch (err) { toast(errText(err)); }
+    route();
+  }));
+  view.querySelectorAll('[data-quick]').forEach((b) => (b.onclick = async (e) => {
+    e.preventDefault(); b.disabled = true;
+    try { const r = await mutate('reserve', { p_tournament_id: b.dataset.quick }); toast(r.status === 'confirmed' ? '예약 확정!' : r.status === 'waitlisted' ? '대기 등록 완료' : '신청 완료 (승인 대기)'); }
+    catch (err) { toast(errText(err)); }
+    route();
+  }));
+  bindPart();
+}
+
+async function home() {
+  await load();
+  const live = S.list.filter((t) => t.lifecycle === 'running').length, soon = S.list.filter((t) => t.lifecycle === 'open').length;
+  const h = new Date().getHours();
+  const hot = [...S.list].filter((t) => ['open', 'running'].includes(t.lifecycle)).sort((a, b) => b.players_unique - a.players_unique || b.slots_used - a.slots_used).sort(adFirst('hot')).slice(0, 8);
+  const openNow = S.list.filter((t) => t.registration === 'open').sort(adFirst('top'));
+  const stamps = session.user ? await read('my_stamps').catch(() => []) : [];
+  const active = S.mine.filter(isMineActive);
+  view.innerHTML = `${myBar()}
+    <div><p class="hello">${h < 12 ? '좋은 아침이에요' : h < 18 ? '좋은 오후예요' : '오늘 밤도 좋은 패를'}${session.user ? `, ${esc(session.nick)}님` : ''}</p>
+      <div class="sub"><span class="dot"></span> 라이브 ${live} · 예정 ${soon} · 매장 운영 데이터 실시간</div></div>
+    ${active.length ? `<div class="sec-h"><h2>내 게임</h2><a href="#/me">전체 →</a></div>${active.map(partCard).join('')}` : ''}
+    ${stamps.length ? `<div class="sec-h"><h2>내 스탬프</h2></div>${stamps.map((st) => `<div class="card" style="padding:12px 14px"><div class="row between"><b>${esc(st.store)}</b><span class="sub">🎁 ${esc(st.reward)}</span></div>
+      <div class="stamps" aria-label="${st.available}/${st.goal}">${Array.from({ length: st.goal }, (_, i) => `<span class="st ${i < Math.min(st.available, st.goal) ? 'on' : ''}">${i < st.available ? '♠' : ''}</span>`).join('')}</div>
+      <div class="sub">${st.available >= st.goal ? '보상 받을 수 있어요! 카운터에 말해주세요' : `${st.goal - st.available}번 더 오면 보상`}</div></div>`).join('')}` : ''}
+    ${hot.length ? `<div class="sec-h"><h2>오늘 핫한 게임</h2><a href="#/live">전체 →</a></div><div class="hscroll">${hot.map(hotCard).join('')}</div>` : ''}
+    <div class="sec-h"><h2>지금 등록 가능 <span class="sub">${openNow.length}</span></h2><a href="#/live">전체 →</a></div>
+    ${openNow.length ? openNow.map(gcard).join('') : '<div class="empty">지금 등록 가능한 게임이 없어요</div>'}`;
+  bindCards();
+}
+
+async function live() {
+  await load();
+  const regions = [...new Set(S.list.map((t) => t.store.region).filter(Boolean))].sort();
+  let L = S.list.filter((t) => ['open', 'running'].includes(t.lifecycle));
+  if (S.filter === 'fav') L = L.filter((t) => S.favs.has(t.store.id));
+  if (S.filter === 'open') L = L.filter((t) => t.registration === 'open');
+  if (S.region) L = L.filter((t) => t.store.region === S.region);
+  if (S.filter === 'near' && S.geo) L = L.filter((t) => km(t) != null).sort((a, b) => km(a) - km(b));
+  else L.sort((a, b) => Date.parse(a.reg_deadline_estimate || '9999-01-01') - Date.parse(b.reg_deadline_estimate || '9999-01-01')).sort(adFirst('top'));   // 광고 → 마감 임박 순
+  const chip = (k, t) => `<button class="chip-btn" aria-pressed="${S.filter === k}" data-f="${k}">${t}</button>`;
+  view.innerHTML = `${myBar()}
+    <div class="row between"><h1>라이브</h1><span class="sub">${hm(S.list[0]?.server_now)} 갱신</span></div>
+    <div class="filters">${chip('all', '전체')}${chip('open', '등록 가능')}${chip('fav', '♥ 즐겨찾기')}${chip('near', '내 주변')}
+      <select id="region" aria-label="지역" style="min-height:36px;width:auto;padding:4px 10px"><option value="">지역 전체</option>${regions.map((r) => `<option ${r === S.region ? 'selected' : ''}>${esc(r)}</option>`).join('')}</select></div>
+    ${L.length ? L.map(gcard).join('') : `<div class="empty">${S.filter === 'fav' ? '즐겨찾기한 매장의 게임이 없어요. ♡를 눌러 담아보세요' : '조건에 맞는 게임이 없어요'}</div>`}`;
+  view.querySelectorAll('[data-f]').forEach((b) => (b.onclick = async () => {
+    S.filter = b.dataset.f; pref.set('tl.filter', S.filter);
+    if (S.filter === 'near' && !S.geo) {
+      try { const p = await new Promise((ok, no) => (navigator.geolocation ? navigator.geolocation.getCurrentPosition(ok, no, { timeout: 6000, maximumAge: 600000 }) : no()));
+            S.geo = { lat: p.coords.latitude, lng: p.coords.longitude }; }
+      catch { toast('위치를 쓸 수 없어요 — 지역으로 골라보세요'); S.filter = 'all'; pref.set('tl.filter', 'all'); }
+    }
+    live();
+  }));
+  $('#region').onchange = (e) => { S.region = e.target.value; pref.set('tl.region', S.region); live(); };
+  bindCards();
+}
+
+async function detail(id) {
+  const [t] = await Promise.all([read('tournament_summary', { p_tournament_id: id }), load()]);
+  syncOffset(t); S.at = performance.now(); S.detail = t;
+  const my = myStatusFor(id), c = t.clock, L = t.live, fav = S.favs.has(t.store.id), a = arrival(t);
+  const canReserve = t.registration === 'open' && !my?.entries?.some((e) => e.status === 'active')
+     && !['pending', 'confirmed', 'waitlisted', 'called'].includes(my?.reservation?.status) && !my?.entries?.length;
+  const tab = S.openTab;
+  const tabs = [['main', '메인'], ['blinds', '블라인드'], ['prize', '시상'], ['poster', '포스터'], ['store', '매장정보']];
+  const firstLevel = c.levels.find((s) => s.kind === 'level');
+  const body = {
+    main: `<section class="livecard" aria-label="라이브 시계">
+        <div class="row between"><span>${t.lifecycle === 'running' ? '<span class="dot"></span> <b style="color:var(--red)">LIVE</b>' : badge(t.lifecycle === 'open' ? t.registration : t.lifecycle)}</span>
+          <span class="eta ${a.cls}">${L.reg_close_level_no ? `REG CLOSE · Lv${L.reg_close_level_no}` : ''}</span></div>
+        <div class="next">${L.segment?.kind === 'break' ? 'BREAK' : L.level_no ? `LEVEL ${L.level_no}` : '시작 전'}</div>
+        <div class="timer" data-timer>${mmss(L.remaining_ms)}</div>
+        <div class="blinds">${L.segment?.kind === 'break' ? '휴식' : `${Number(L.segment?.sb ?? 0).toLocaleString()} / ${Number(L.segment?.bb ?? 0).toLocaleString()}`}<span class="sub"> ${L.segment?.ante ? `앤티 ${Number(L.segment.ante).toLocaleString()}` : ''}</span></div>
+        <div class="next">NEXT ${esc(segText(L.next_segment))}</div>
+        <div class="kv">
+          <div><b>${t.players_remaining}/${t.entries_total}</b><span>남은/엔트리</span></div>
+          <div><b>${L.avg_stack ? Number(L.avg_stack).toLocaleString() : '-'}</b><span>평균 스택 ${L.avg_bb ? `(${L.avg_bb}BB)` : ''}</span></div>
+          <div><b data-nbreak>${L.next_break_ms != null ? mmss(L.next_break_ms) : '-'}</b><span>다음 브레이크</span></div>
+          <div><b>${Number(L.total_chips).toLocaleString()}</b><span>총 칩</span></div>
+          <div><b>${t.slots_used}/${t.admission_capacity}</b><span>입장 슬롯/정원</span></div>
+          <div><b>${L.seats_free}</b><span>빈 좌석</span></div></div>
+        <div class="eta ${a.cls}" style="text-align:center">${esc(a.text)}</div></section>
+      <table class="info"><tbody>
+        <tr><td>날짜</td><td>${dt(t.starts_at)} <span class="sub">영업일 ${esc(t.business_date)}</span></td></tr>
+        <tr><td>스타팅 칩</td><td>${Number(L.starting_stack).toLocaleString()}</td></tr>
+        <tr><td>재참가</td><td>${t.reentry.enabled ? `최대 ${t.reentry.max}회 (탈락 후, 등록 마감 전)` : '없음'}</td></tr>
+        <tr><td>블라인드 타임</td><td>${firstLevel?.minutes ?? '-'}분</td></tr>
+        <tr><td>등록 마감</td><td>${L.reg_close_level_no ? `Lv${L.reg_close_level_no} 종료 시` : '-'} ${t.reg_deadline_estimate ? `<span class="sub">(예상 ${hm(t.reg_deadline_estimate)})</span>` : ''}</td></tr>
+        <tr><td>참가 조건</td><td>${esc(t.conditions || '-')}</td></tr>
+        <tr><td>제공 서비스</td><td>${esc(t.services || '-')}</td></tr>
+        <tr><td>취소·호출</td><td class="sub">시작 ${t.policy.cancel_deadline_minutes}분 전까지 취소 · 호출 후 ${t.policy.call_minutes}분 안에 입장 · 결제 없음</td></tr></tbody></table>`,
+    blinds: `<table><thead><tr><th>Lv</th><th>블라인드</th><th>앤티</th><th>시간</th></tr></thead><tbody>${c.levels.map((s, i) =>
+        `<tr ${i === c.segment_index && c.state !== 'not_started' ? 'style="color:var(--accent);font-weight:800"' : ''}><td>${s.kind === 'break' ? '☕' : s.segment_id}</td><td>${s.kind === 'break' ? '브레이크' : `${Number(s.sb).toLocaleString()}/${Number(s.bb).toLocaleString()}`}</td><td>${s.ante ? Number(s.ante).toLocaleString() : '-'}</td><td>${s.minutes}분</td></tr>`).join('')}</tbody></table>`,
+    prize: `<div class="card"><h3>시상 안내</h3><div>${esc(t.prize_note || '매장 안내를 확인해주세요')}</div><div class="sub">매장이 작성한 안내예요. +EV TABLE는 상금·결제를 다루지 않아요.</div></div>`,
+    poster: t.poster_url ? `<img src="${esc(t.poster_url)}" alt="${esc(t.title)} 포스터" style="width:100%;border-radius:14px" referrerpolicy="no-referrer">` : '<div class="empty">포스터가 없어요</div>',
+    store: `<div class="card"><h3>${esc(t.store.name)}</h3><div>${esc(t.store.address || '')}</div>
+        <a class="btn" href="https://map.naver.com/p/search/${encodeURIComponent(t.store.address || t.store.name)}" target="_blank" rel="noopener">길 찾기</a></div>`,
+  };
+  view.innerHTML = `${myBar()}
+    <div class="row" style="flex-wrap:nowrap"><a href="#/" aria-label="뒤로" style="font-size:24px;text-decoration:none">‹</a>
+      <div style="flex:1;min-width:0"><h1 style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(t.title)}</h1><div class="sub">${esc(t.store.name)} · ${esc(t.store.region || '')} ${lightTag(t)}${t.sponsor ? ` · 협찬 ${esc(t.sponsor.name)}` : ''}</div></div>
+      <button class="heart" aria-pressed="${fav}" aria-label="매장 즐겨찾기" data-fav="${esc(t.store.id)}">${fav ? '♥' : '♡'}</button>
+      <button class="heart" id="share" aria-label="공유">↗</button></div>
+    <div class="dtabs" role="tablist">${tabs.map(([k, n]) => `<button role="tab" aria-selected="${k === tab}" data-tab="${k}">${n}</button>`).join('')}</div>
+    ${my ? partCard(my) : ''}
+    ${body[tab]}
+    ${canReserve ? `<div class="sticky-cta"><button class="primary" style="width:100%" id="reserveBtn">${session.user ? (t.policy.approval_mode === 'manual' ? '참가 신청 (승인 필요)' : t.slots_used >= t.admission_capacity || t.waiting ? '대기 등록' : '참가 신청') : '로그인 후 신청'}</button></div>` : ''}`;
+  view.querySelectorAll('[data-tab]').forEach((b) => (b.onclick = () => { S.openTab = b.dataset.tab; detail(id); }));
+  // 공유는 미리보기 카드가 뜨는 /s/t/ 주소로 (카톡·SNS)
+  $('#share').onclick = async () => { const u = `${location.origin}/table/app#/t/${id}`; try { if (navigator.share) await navigator.share({ title: t.title, url: u }); else { await navigator.clipboard.writeText(u); toast('링크 복사됨 — 카톡에 붙여넣으면 미리보기가 떠요'); } } catch {} };
+  bindCards();
+  const rb = $('#reserveBtn');
+  if (rb) rb.onclick = async () => {
+    if (!session.user) { await devLogin(); renderLogin(); return route(); }
+    rb.disabled = true;
+    try { const r = await mutate('reserve', { p_tournament_id: id }); toast(r.status === 'confirmed' ? '예약 확정!' : r.status === 'waitlisted' ? '대기 등록 완료' : '신청 완료 (승인 대기)'); }
+    catch (e) { toast(errText(e)); }
+    route();
+  };
+}
+
+function partCard(m) {
+  const t = m.tournament, r = m.reservation, es = m.entries;
+  const act = es.find((e) => e.status === 'active');
+  let body = '';
+  if (act) {
+    body += act.seat ? `<div><span class="muted">내 좌석</span><div class="big">${esc(act.seat.table)} · ${act.seat.seat_no}번</div></div>`
+                     : `<div class="banner info">입장 완료 · 좌석 배정을 기다려주세요</div>`;
+    if (act.move) body += `<div class="banner warn">좌석 이동 예정 → <b>${esc(act.move.to.table)} · ${act.move.to.seat_no}번</b><br>직원 안내(다음 핸드)에 맞춰 이동하세요. 지금은 현재 좌석 유지.
+      ${act.move.status === 'planned' ? `<div><button class="small" data-ackmove="${esc(act.move.id)}">안내 확인</button></div>` : '<div>확인함</div>'}</div>`;
+    if (t.live?.avg_bb) body += `<div class="sub">평균 스택 ${t.live.avg_bb}BB · 남은 ${t.players_remaining}명</div>`;
+    const tp = t.live?.to_paid;   // 입상권 버블 (매장이 입상 인원을 정한 대회만)
+    if (tp != null && tp <= 10) body += tp > 0 ? `<div class="banner warn">🎯 입상권까지 <b>${tp}명</b> 남았어요</div>` : `<div class="banner info">🏅 입상권 진입!</div>`;
+    body += `<div class="muted">엔트리 #${act.entry_no} ${act.kind === 'reentry' ? '(재참가)' : ''}</div>`;
+  } else if (r && ['pending', 'confirmed', 'waitlisted', 'called'].includes(r.status)) {
+    if (r.status === 'waitlisted') body += `<div><span class="muted">내 대기 번호 · 앞에 ${r.queue_position - 1}명</span><div class="big">#${r.wait_no}</div></div>`;
+    if (r.status === 'called') body += `<div class="banner info">🔔 대기 #${r.wait_no} 지금 입장 가능 — <b data-countdown="${esc(r.call_expires_at)}">--:--</b> 안에 카운터로 와주세요
+        ${r.acknowledged_at ? '<div>확인함</div>' : `<div><button class="small primary" data-ack="${esc(r.id)}">확인했어요</button></div>`}</div>`;
+    if (r.status === 'confirmed') body += `<div class="muted">입장 유효 ${r.admission_valid_until ? `~ ${dt(r.admission_valid_until)} (등록 마감 예상)` : ''}</div>`;
+    if (r.status !== 'pending') body += `<a class="btn" href="#/qr">입장 QR 열기</a>`;
+    const canCancel = (r.status !== 'confirmed' && r.status !== 'called') || nowServer() < Date.parse(r.cancel_until);
+    body += canCancel ? `<button class="small danger" data-cancel="${esc(r.id)}">${r.status === 'waitlisted' ? '대기 취소' : '못 가요 (취소)'}</button>${t.policy.auto_call && r.status !== 'waitlisted' ? '<span class="sub">취소하면 다음 대기자에게 바로 자리가 넘어가요</span>' : ''}`
+                      : `<div class="muted">취소 기한(${dt(r.cancel_until)}) 지남 · 매장에 문의</div>`;
+  }
+  const done = es.filter((e) => e.status !== 'active');
+  if (done.length) body += `<div class="muted">${done.map((e) => `#${e.entry_no} ${e.final_place ? `<b style="color:var(--text)">최종 ${e.final_place}위</b>` : e.status === 'eliminated' ? '중간 탈락 (최종 순위는 결과 공개 후)' : badge(e.status)}`).join(' · ')}</div>`;
+  const best = done.filter((e) => e.final_place).sort((a, b) => a.final_place - b.final_place)[0];
+  if (best) body += `<button class="small" data-card="${esc(t.id)}" data-place="${best.final_place}" data-total="${t.entries_total}">🏆 인증 카드 만들기</button>`;
+  if (m.can_reenter) body += `<button class="primary" data-reentry="${esc(t.id)}">재참가 신청 (최대 ${t.reentry.max}회)</button>`;
+  if (r && ['expired', 'no_show', 'rejected'].includes(r.status) && !es.length) body += `<div class="muted">${badge(r.status)} ${r.end_reason === 'call_expired' ? '호출 시간 초과' : r.end_reason === 'registration_closed' ? '등록 마감' : ''}</div>`;
+  if (t.lifecycle === 'cancelled') body += `<div class="banner bad">대회 취소: ${esc(t.cancel_reason || '')}</div>`;
+  const st = act ? 'active' : r?.status || es[0]?.status;
+  return `<section class="card ${act || r?.status === 'called' ? 'hl' : ''}" aria-label="${esc(t.title)} 참가 상태">
+    <div class="row between"><a href="#/t/${esc(t.id)}"><h2>${esc(t.title)}</h2></a>${badge(st)}</div>
+    <div class="muted">${esc(t.store.name)} · ${dt(t.starts_at)} ${t.lifecycle === 'running' ? `· <span data-tick="${esc(t.id)}"></span>` : ''}</div>${body}</section>`;
+}
+
+function bindPart() {
+  view.querySelectorAll('[data-ack]').forEach((b) => (b.onclick = () => act(b, 'acknowledge_call', { p_reservation_id: b.dataset.ack }, '확인했어요')));
+  view.querySelectorAll('[data-ackmove]').forEach((b) => (b.onclick = () => act(b, 'acknowledge_seat_move', { p_move_id: b.dataset.ackmove }, '확인했어요')));
+  view.querySelectorAll('[data-card]').forEach((b) => (b.onclick = () => resultCard(S.mine.find((m) => m.tournament.id === b.dataset.card)?.tournament || S.detail, +b.dataset.place, +b.dataset.total)));
+  view.querySelectorAll('[data-cancel]').forEach((b) => (b.onclick = () => confirm('정말 취소할까요?') && act(b, 'cancel_reservation', { p_reservation_id: b.dataset.cancel }, '취소됐어요')));
+  view.querySelectorAll('[data-reentry]').forEach((b) => (b.onclick = () => act(b, 'request_reentry', { p_tournament_id: b.dataset.reentry }, '재참가 신청 완료')));
+}
+// 입상 인증 카드: 기기 안에서 그림을 만들어 공유/저장 (서버로 보내는 것 없음)
+async function resultCard(t, place, total) {
+  if (!t) return;
+  const c = document.createElement('canvas'); c.width = 1080; c.height = 1350; const g = c.getContext('2d');
+  const bg = g.createLinearGradient(0, 0, 1080, 1350); bg.addColorStop(0, '#0f1420'); bg.addColorStop(.6, '#15254a'); bg.addColorStop(1, '#0b6e57');
+  g.fillStyle = bg; g.fillRect(0, 0, 1080, 1350);
+  const font = (w, s) => `${w} ${s}px "Pretendard","Apple SD Gothic Neo","Noto Sans KR",sans-serif`;
+  g.fillStyle = '#9fb3d9'; g.font = font(700, 40); g.fillText('+EV TABLE', 80, 120);
+  g.fillStyle = '#ffffff'; g.font = font(800, 300); g.fillText(`${place}`, 80, 560); const w = g.measureText(`${place}`).width;
+  g.font = font(800, 110); g.fillText('위', 100 + w, 560);
+  g.fillStyle = '#2ee6a8'; g.font = font(700, 54); g.fillText(`${total}엔트리 중`, 80, 650);
+  g.fillStyle = '#ffffff'; g.font = font(800, 64);
+  const title = t.title.length > 16 ? t.title.slice(0, 16) + '…' : t.title; g.fillText(title, 80, 860);
+  g.fillStyle = '#c7d3ec'; g.font = font(600, 46); g.fillText(t.store.name, 80, 940); g.fillText(new Date(t.starts_at).toLocaleDateString('ko-KR', { timeZone: t.timezone }), 80, 1010);
+  g.fillStyle = '#ffffff55'; g.font = font(600, 34); g.fillText(`${session.nick} · 결과는 매장 공개 기준`, 80, 1250);
+  const blob = await new Promise((r) => c.toBlob(r, 'image/png'));
+  const file = new File([blob], `tablelink-rank${place}.png`, { type: 'image/png' });
+  try { if (navigator.canShare?.({ files: [file] })) { await navigator.share({ files: [file], title: `${t.title} ${place}위` }); return; } } catch { return; }
+  const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(blob), download: file.name }); document.body.append(a); a.click(); a.remove(); toast('인증 카드를 저장했어요');
+}
+
+async function act(btn, fn, body, ok) { btn.disabled = true; try { await mutate(fn, body); toast(ok); } catch (e) { toast(errText(e)); } route(); }
+
+// 0.5초마다 표시만 갱신 (서버 스냅샷 기준, 기기 시계 변경 영향 없음)
+setInterval(() => {
+  document.querySelectorAll('[data-countdown]').forEach((el) => (el.textContent = mmss(Date.parse(el.dataset.countdown) - nowServer())));
+  const byId = new Map([...S.list, ...S.mine.map((m) => m.tournament), ...(S.detail ? [S.detail] : [])].map((t) => [t.id, t]));
+  document.querySelectorAll('[data-tick]').forEach((el) => {
+    const t = byId.get(el.dataset.tick), v = t && lv(t); if (!v || v.clock_state === 'not_started') return;
+    el.textContent = `${levelText(t)} · ${mmss(v.rem)}${v.clock_state === 'paused' ? ' ⏸' : ''}`;
+  });
+  if (S.detail && location.hash.startsWith('#/t/')) {
+    const v = lv(S.detail); const tm = $('[data-timer]'); if (tm && v) tm.textContent = mmss(v.rem) + (v.clock_state === 'paused' ? ' ⏸' : '');
+    const nb = $('[data-nbreak]'); if (nb && v?.next_break_ms != null) nb.textContent = mmss(v.next_break_ms - (v.clock_state === 'running' ? performance.now() - S.at : 0));
+  }
+}, 500);
+
+let qrTimer;
+async function qr() {
+  if (!session.user) { view.innerHTML = `<div class="empty">로그인하면 입장 QR이 보여요</div>`; return; }
+  const draw = async () => {
+    let q; try { q = await mutate('issue_member_qr'); } catch (e) { view.innerHTML = `<div class="banner bad">${esc(errText(e))}</div>`; return; }
+    serverOffset = 0;
+    view.innerHTML = `<div class="card hl"><h1>입장 QR</h1>
+      <div class="qr-box"><div id="qrimg" aria-label="입장 QR 코드"></div><div class="qr-code">${esc(q.token)}</div></div>
+      <div class="row between"><span class="muted">자동 갱신 · 유효 <b data-countdown="${esc(q.expires_at)}">--:--</b></span><button class="small" id="qrRefresh">새로 받기</button></div>
+      <div class="muted">직원에게 보여주세요. 화면 캡처는 60초 뒤 무효예요. QR이 안 되면 닉네임으로 찾아드려요.</div></div>`;
+    if (window.QRCode) new window.QRCode($('#qrimg'), { text: q.token, width: 220, height: 220 });
+    else $('#qrimg').innerHTML = '<span class="muted">(QR 이미지 라이브러리를 불러오지 못해 코드로 표시)</span>';
+    $('#qrRefresh').onclick = draw;
+  };
+  await draw();
+  clearInterval(qrTimer); qrTimer = setInterval(() => (location.hash === '#/qr' ? draw() : clearInterval(qrTimer)), 50000);
+}
+
+async function me() {
+  if (!session.user) { view.innerHTML = `<div class="empty">로그인하면 내 참가 현황이 보여요</div>`; return; }
+  await load();
+  view.innerHTML = `${myBar()}<h1>내 게임</h1>${S.mine.length ? S.mine.map(partCard).join('') : '<div class="empty">참가 기록이 없어요</div>'}`;
+  bindPart();
+}
+
+const NOTI = { new_game: '♥ 즐겨찾기 매장 새 게임', called: '🔔 대기 호출', admitted: '입장 완료', seated: '좌석 배정', move_planned: '좌석 이동 예정', move_completed: '좌석 이동 완료',
+  eliminated: '탈락 기록', results_published: '결과 공개', results_corrected: '결과 정정', tournament_cancelled: '대회 취소', reservation_confirmed: '예약 확정', reservation_waitlisted: '대기 등록', starting_soon: '⏰ 30분 뒤 시작', almost_up: '🚶 곧 호출 — 지금 출발하세요', stamp_reward: '🎁 스탬프 보상 지급' };
+async function my() {
+  if (!session.user) {
+    view.innerHTML = `<div class="card"><h1>반갑습니다</h1><div class="sub">로그인하고 내 게임을 모아보세요</div>
+      ${LIVE ? (LOGIN_READY ? '<button class="primary kakao" id="devIn">카카오로 3초 만에 시작</button>' : '<button class="btn" disabled>카카오 로그인 준비 중 · 지금은 대회 보기만</button>') : '<button class="btn" disabled>카카오로 3초 만에 시작 (앱 키 연결 전)</button><button class="primary" id="devIn">개발용 계정으로 시작</button>'}</div>`;
+    const di = $('#devIn'); if (di) di.onclick = async () => { await devLogin(); renderLogin(); route(); };
+    return;
+  }
+  const [stores, favs, notis, , plat] = await Promise.all([read('public_stores'), read('my_favorites'), read('my_notifications'), storeMode(), read('am_platform_admin').catch(() => false)]);
+  S.favs = new Set(favs);
+  const owner = (S.stores || []).some((s) => s.role !== 'staff');
+  view.innerHTML = `<div class="card"><h1>${esc(session.nick)}님</h1><div class="sub">즐겨찾기 매장에 새 게임이 열리면 알려드려요</div></div>
+    ${installCard()}
+    ${S.stores?.length ? `<div class="card"><h2>🏪 매장 모드</h2><div class="sub">${S.stores.map((s) => esc(s.name)).join(' · ')}</div>
+      <div class="row" style="flex-wrap:wrap;gap:8px"><a class="btn" href="/table/staff">직원 화면</a>${owner ? '<a class="btn" href="/table/owner">점주 화면</a>' : ''}<a class="btn" href="/table/staff#clock">시계·TV</a></div></div>` : ''}
+    ${plat ? `<form class="card" id="newStore"><h2>🏢 매장 등록 (운영사)</h2><div class="sub">등록하면 점주 초대 링크가 나와요 · 7일 유효 · 1회용</div>
+      <label>매장 이름<input name="name" required maxlength="60"></label><label>주소용 영문 (예: sillim-1)<input name="slug" required pattern="[a-z0-9-]{2,40}"></label>
+      <label>지역 (예: 서울 신림)<input name="region"></label><label>주소<input name="address"></label><button class="primary">등록하고 점주 링크 받기</button><div id="nsOut"></div></form>` : ''}
+    <div class="sec-h"><h2>즐겨찾기 매장 <span class="sub">${favs.length}</span></h2></div>
+    ${stores.map((s) => `<div class="row between card" style="padding:10px 14px"><span><b>${esc(s.name)}</b> <span class="sub">${esc(s.region || '')}</span></span>
+      <button class="heart" aria-pressed="${S.favs.has(s.id)}" aria-label="${esc(s.name)} 즐겨찾기" data-fav="${esc(s.id)}">${S.favs.has(s.id) ? '♥' : '♡'}</button></div>`).join('')}
+    <div class="sec-h"><h2>알림</h2></div>
+    ${notis.length ? notis.map((n) => `<a class="card" style="padding:10px 14px;color:inherit;text-decoration:none;${n.read_at ? 'opacity:.6' : ''}" href="${n.tournament_id ? '#/t/' + esc(n.tournament_id) : '#/my'}" data-read="${esc(n.id)}">
+      <div class="row between"><b>${esc(NOTI[n.kind] || n.kind)}</b><span class="sub">${hm(n.created_at)}</span></div><div class="sub">${esc(n.title || n.body?.title || '')}</div></a>`).join('') : '<div class="empty">알림이 없어요</div>'}
+    <div class="sec-h"><h2>불편한 점 알려주기</h2></div>
+    <form class="card" id="fb" style="padding:12px"><label for="fbText">매장·앱 불편, 원하는 기능 무엇이든</label>
+      <textarea id="fbText" rows="3" maxlength="1000" required minlength="2"></textarea><button class="primary">보내기</button></form>
+    <div class="row" style="justify-content:space-between"><a href="/table/legal" class="sub">약관 · 개인정보처리방침</a>
+      <button class="small danger" id="delAcc">탈퇴하기</button></div>
+    <div id="delBox"></div>`;
+  $('#fb').onsubmit = async (e) => { e.preventDefault();
+    try { await mutate('submit_feedback', { p_body: $('#fbText').value, p_page: '/table/app', p_store_id: S.mine[0]?.tournament?.store?.id ?? null }); $('#fbText').value = ''; toast('고마워요! 매장·운영팀에 전달했어요'); }
+    catch (err) { toast(errText(err)); } };
+  // 탈퇴: 확인 단계를 화면 안에 (참가 기록은 익명으로 남음)
+  $('#delAcc').onclick = () => { $('#delBox').innerHTML = `<div class="card" style="border-color:var(--bad)"><b>정말 탈퇴할까요?</b>
+      <div class="sub">닉네임·즐겨찾기·QR이 지워지고, 대회 기록은 익명으로 남아요. 진행 중인 대회가 있으면 끝난 뒤 가능해요.</div>
+      <label for="delConfirm">확인을 위해 <b>탈퇴</b> 라고 입력</label><input id="delConfirm"><button class="danger" id="delGo">탈퇴</button></div>`;
+    $('#delGo').onclick = async () => { try { await mutate('delete_my_account', { p_confirm: $('#delConfirm').value.trim() }); logout(); renderLogin(); toast('탈퇴 처리됐어요'); location.hash = '#/'; }
+      catch (err) { toast(err.code === 'STATE_CHANGED' ? '진행 중인 대회가 끝난 뒤 탈퇴할 수 있어요' : errText(err)); } }; };
+  bindInstall();
+  if (plat) $('#newStore').onsubmit = async (e) => { e.preventDefault(); const f = Object.fromEntries(new FormData(e.target));
+    try { const r = await read('create_store', { p_name: f.name, p_slug: f.slug, p_region: f.region, p_address: f.address });
+      const link = `${location.origin}/staff?invite=${encodeURIComponent(r.owner_invite)}`;
+      $('#nsOut').innerHTML = `<label>점주 초대 링크<input readonly id="nsLink" value="${esc(link)}"></label>`; toast('매장 등록 완료 · 링크를 점주에게 보내세요'); }
+    catch (err) { toast(err.detail === 'slug taken' ? '이미 쓰는 영문 주소예요' : errText(err)); } };
+  bindCards();
+  view.querySelectorAll('[data-read]').forEach((a) => a.addEventListener('click', () => mutate('mark_notification_read', { p_notification_id: a.dataset.read }).catch(() => {})));
+}
+
+async function route() {
+  const h = location.hash || '#/';
+  const tab = h.startsWith('#/me') ? 'me' : h.startsWith('#/qr') ? 'qr' : h.startsWith('#/live') ? 'live' : h.startsWith('#/my') ? 'my' : h.startsWith('#/t/') ? '' : 'home';
+  document.querySelectorAll('.bnav a').forEach((a) => (a.dataset.r === tab ? a.setAttribute('aria-current', 'page') : a.removeAttribute('aria-current')));
+  if (!h.startsWith('#/t/')) S.detail = null;
+  try {
+    if (h.startsWith('#/t/')) await detail(h.slice(4));
+    else if (tab === 'me') await me();
+    else if (tab === 'qr') await qr();
+    else if (tab === 'live') await live();
+    else if (tab === 'my') await my();
+    else await home();
+  } catch (e) {
+    view.innerHTML = `<div class="banner bad">${esc(errText(e))}</div><button onclick="location.reload()">다시 시도</button>`;
+  }  // 느린 이전 화면이 늦게 그려져 새 화면을 덮었으면 지금 주소로 한 번 더
+  if ((location.hash || '#/') !== h) return route();
+}
+addEventListener('hashchange', () => { if (!location.hash.startsWith('#/t/')) S.openTab = 'main'; route(); });
+route();
+setTimeout(() => poll(() => (['#/qr', '#/my'].includes(location.hash) ? null : route()), 8000), 8000);
+</script>
+</body>
+</html>

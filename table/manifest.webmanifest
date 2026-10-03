@@ -1,0 +1,26 @@
+{
+  "id": "/table/app",
+  "name": "+EV TABLE",
+  "short_name": "+EV TABLE",
+  "description": "홀덤펍 대회 신청·대기·입장·라이브 — 손님과 매장이 같이 쓰는 앱",
+  "start_url": "/table/app",
+  "scope": "/table/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0f1420",
+  "theme_color": "#0f1420",
+  "lang": "ko",
+  "categories": ["entertainment", "lifestyle"],
+  "icons": [
+    { "src": "/table/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/table/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/table/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
+    { "src": "/table/icon.svg", "sizes": "any", "type": "image/svg+xml" }
+  ],
+  "shortcuts": [
+    { "name": "입장 QR", "url": "/table/app#/qr", "icons": [{ "src": "/table/icon-192.png", "sizes": "192x192" }] },
+    { "name": "내 게임", "url": "/table/app#/me", "icons": [{ "src": "/table/icon-192.png", "sizes": "192x192" }] },
+    { "name": "직원 화면", "url": "/table/staff", "icons": [{ "src": "/table/icon-192.png", "sizes": "192x192" }] },
+    { "name": "점주 화면", "url": "/table/owner", "icons": [{ "src": "/table/icon-192.png", "sizes": "192x192" }] }
+  ]
+}
