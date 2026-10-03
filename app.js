@@ -330,6 +330,7 @@ function render() {
   if (S.mode === 'store' && S.tab === 'jobs') feeBox();
   if (S.mode === 'dealer' && S.tab === 'lounge') loungeLoad();
   if (S.mode === 'hq' && S.tab === 'rep') hqRepLoad();
+  if (S.mode === 'store' && S.tab === 'sales' && S.store) tossLoad();
   moneyPop(); basicsCheck(); draftRestore();
   if (lock && !S.lockAsked) { S.lockAsked = 1; openSheet(`<h2>무료 체험 한 달이 끝났어요</h2><p class="sub">매출·직원·스케줄 등 입력하신 내용은 <b>모두 저장돼 있어요.</b> 지금은 보기만 돼요. 연장하시겠어요?</p>
     ${isOwner() ? `<div class="plans"><div class="plan"><b>베이직</b><b class="num">월 ₩${E.won(PRICE.basic)}</b><button class="btn sm" data-act="plan" data-v="basic">베이직으로 연장</button></div><div class="plan cur"><span class="pill y">추천</span><b>프로</b><b class="num">월 ₩${E.won(PRICE.pro)}</b><button class="btn sm gold" data-act="plan" data-v="pro">프로로 연장</button></div></div>` : '<p class="note">요금제는 대표님만 바꿀 수 있어요.</p><button class="btn full" data-act="ask-owner" data-v="요금제">대표님께 요청</button>'}
@@ -1013,10 +1014,23 @@ function dailyCal() {
     <p class="note">날짜를 누르면 그날 마감 내용이 나와요.</p></div>${wdCard()}${vatCard()}`;
 }
 function vDaily() { return `${storeHead('일 매출')}${dailyCal()}`; }
+// ===== 토스 POS 연동 (Open API 웹훅 → pos_payments) =====
+const bizDay = () => { const d = new Date(Date.now() - 6 * 36e5); return E.ymd(d.getFullYear(), d.getMonth() + 1, d.getDate()); };
+async function tossLoad(force) {
+  if (!isOwner() || S.tossBusy || (!force && S.tossAt && Date.now() - S.tossAt < 60000)) return; S.tossBusy = 1;
+  try { const { data } = await sb.rpc('toss_my_merchants'); S.toss = data || []; const me = S.toss.find(x => x.store_id === S.store.id); S.tossSum = me ? (await sb.rpc('pos_day_summary', { p_store: S.store.id, p_date: bizDay() })).data : null; S.tossAt = Date.now(); } catch { S.toss = []; } finally { S.tossBusy = 0; }
+  if (S.tab === 'sales') render();
+}
+function tossCard() {
+  const L = S.toss || [], me = L.find(x => x.store_id === S.store.id), free = L.filter(x => !x.store_id), t = S.tossSum;
+  if (me) return `<div class="card pos toss"><div><b>토스 POS 연결됨 <span class="pill g">자동</span></b><small>오늘 영업일 매출 <b class="num">₩${E.won(t?.total || 0)}</b> · ${t?.n || 0}건${t?.last ? ` · 마지막 결제 ${String(t.last).slice(11, 16)}` : ''} · 새벽 6시 기준</small></div><button class="btn sm pri" data-act="pos-fill">마감에 채우기</button></div>`;
+  if (free.length) return `<div class="card pos toss"><div><b>토스 POS가 설치됐어요</b><small>어느 매장 POS인지 골라주세요</small>${free.map(x => `<div class="row between" style="margin-top:8px"><span>${esc(x.name)} <small class="mut">${esc(x.address || '')}</small></span><button class="btn sm pri" data-act="toss-link" data-v="${x.merchant_id}">${esc(S.store.name)}에 연결</button></div>`).join('')}</div></div>`;
+  return '';
+}
 function vSales() {
   const r0 = S.reports.find(r => r.report_date === TODAY) || {}, ask = S.posAsk;
   return `${storeHead('매출 마감')}
-  <div class="card pos"><div><b>포스기 연동</b><small>${ask ? `<span class="warn">${esc(ask)}</span> 연동 신청됨 · 준비되면 알림으로 알려드려요` : '연동하면 매출·카드·현금이 마감 때 자동으로 채워져요. 숫자는 그대로 고칠 수 있어요.'}</small></div>${ask ? '<span class="pill y">준비 중</span>' : '<button class="btn sm pri" data-act="pos">포스기 연동하기</button>'}</div>
+  ${tossCard() || `<div class="card pos"><div><b>포스기 연동</b><small>${ask ? `<span class="warn">${esc(ask)}</span> 연동 신청됨 · 준비되면 알림으로 알려드려요` : '연동하면 매출·카드·현금이 마감 때 자동으로 채워져요. 숫자는 그대로 고칠 수 있어요.'}</small></div>${ask ? '<span class="pill y">준비 중</span>' : '<button class="btn sm pri" data-act="pos">포스기 연동하기</button>'}</div>`}
   ${S.open ? `<div class="card openbar"><span><b>${fmtDT(S.open.opened_at).split(' ').slice(-2).join(' ')} 오픈</b> · 시작 시재 ₩${E.won(S.open.start_cash)}</span><button class="btn sm" data-act="open-edit">수정</button></div>`
     : `<form class="f card openbar" id="open-form"><div><b>오늘 오픈</b><small class="mut" style="display:block">영업 전 금고에 있는 돈을 넣고 오픈하세요</small></div><div class="row" style="flex-wrap:nowrap"><input name="start_cash" aria-label="시작 현금" type="number" inputmode="numeric" value="${S.lastStart ?? 300000}" style="width:140px"><button class="btn pri">오픈</button></div></form>`}
   <form class="f card" id="report-form"><div class="row between"><h3 style="margin:0">마감 <button type="button" class="btn sm" data-act="rcpt" title="포스 마감영수증 사진으로 자동 입력">📷 사진으로 입력</button><input type="file" accept="image/*" capture="environment" id="rcpt-file" hidden></h3><label class="fl" style="margin:0"><input type="date" name="date" value="${TODAY}" max="${TODAY}" style="width:auto"></label></div>
@@ -1891,6 +1905,10 @@ document.addEventListener('click', e => {
       slots: urg ? Array.from({ length: +v.heads || 1 }, () => ({ start: v.s, end: v.e, pay: +digits(v.pay) || 0, status: 'OPEN' })) : [], pay_text: urg ? '' : v.ptype === '협의' ? '급여 협의' : `${v.ptype} ₩${E.won(+digits(v.pamt) || 0)}${v.nego ? ' · 협의 가능' : ''}`, work_time: urg ? '' : `${[...f.querySelectorAll('[name=wd]:checked')].map(x => x.value).join('·')} ${v.s}–${v.e}` };
     return openSheet(`<h2>딜러에게 이렇게 보여요</h2><p class="sub">아직 올라가지 않았어요. 닫고 고치거나 올리세요.</p>${jobCard(j, true)}<button class="btn full" data-act="close" style="margin-top:12px">닫고 계속 쓰기</button>`); }
   if (a === 'memo-save') return busy(async () => { const t = $('#mmemo')?.value || ''; await q(sb.from('member_notes').upsert({ member_id: d.m, memo: t, updated_at: new Date().toISOString() })); toast('메모를 저장했어요'); });
+  if (a === 'toss-link') return busy(async () => { await q(sb.rpc('toss_link', { p_merchant: +d.v, p_store: S.store.id })); toast('토스 POS를 연결했어요'); await tossLoad(1); });
+  if (a === 'pos-fill') return busy(async () => { const f = $('#report-form'); if (!f) return; const dt = f.elements.date?.value || bizDay(), t = (await q(sb.rpc('pos_day_summary', { p_store: S.store.id, p_date: dt }))) || {}; if (!t.total) return toast(`${dt.slice(5).replace('-', '/')} 토스 POS 결제가 아직 없어요`);
+    const set = (n, v) => { if (f.elements[n]) { f.elements[n].value = v; f.elements[n].dispatchEvent(new Event('input', { bubbles: true })); } }; set('sales', t.total); set('card', t.card); set('transfer', (t.transfer || 0) + (t.other || 0)); f.querySelector('details.more')?.setAttribute('open', ''); closeCalc(); f.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    toast(`토스 POS ${t.n}건 · ₩${E.won(t.total)}을 채웠어요. 숫자 확인하고 마감하세요`); });
   if (a === 'wmon') { let y = S.wy || now.getFullYear(), m = (S.wm || now.getMonth() + 1) + +d.v; if (m < 1) { m = 12; y--; } if (m > 12) { m = 1; y++; } S.wy = y; S.wm = m; return render(); }
   if (a === 'big') { const on = b.checked; lsSet('ev_big', on ? '1' : ''); document.documentElement.classList.toggle('big', on); return; }
   if (a === 'srch-go') { closeSheet(); if (d.s) { S.tab = 'more'; S.sub = d.s; } else if (d.t) { S.tab = d.t; S.sub = null; } render(); return scrollTo(0, 0); }
