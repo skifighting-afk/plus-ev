@@ -368,7 +368,7 @@ function vOnboard() {
     <p class="note">점장도 먼저 딜러·스태프로 가입해 매장 초대 링크(가입코드)로 소속 신청하세요. 대표님이 승인한 뒤 점장 권한을 주면 돼요.</p>`;
   if (k === 'owner') return `<h1>매장 등록</h1><p class="sub">사업자등록번호가 없으면 가입할 수 없어요. 첫 달 무료로 시작해요.</p>
     <form class="f card" id="owner-form"><label class="fl">회사(상호)<input name="name" required placeholder="예: 로얄플러시"></label>
-    <label class="fl">브랜드 (프랜차이즈면)<input name="brand" placeholder="없으면 비워두세요"></label>
+    <label class="fl">브랜드 (프랜차이즈면)<input name="brand" list="brand-list" autocomplete="off" placeholder="골라도 되고 직접 써도 돼요 · 없으면 비워두세요"><datalist id="brand-list"><option value="ES 홀덤펍"><option value="KPC 홀덤"><option value="KT Stadium"><option value="MZ"><option value="VIP홀덤펍"><option value="WDHL"><option value="WDHL JUNIOR"><option value="골드버튼 홀덤펍"><option value="러너펍"><option value="몬스터홀덤펍"><option value="미믹"><option value="블랙레이디"><option value="쇼다운홀덤펍"><option value="시저스홀덤"><option value="액시스 홀덤펍"><option value="야자수"><option value="엠더블유(MW)홀덤펍"><option value="잭펍(JACKPUB)"><option value="젠틀래빗"><option value="포카드 홀덤펍"><option value="하이롤러"><option value="홀덤클라쓰"><option value="홀팡(HOLPANG)"></datalist></label>
     <label class="fl">사업자등록번호 (10자리)<input name="biz" required inputmode="numeric" placeholder="123-45-67890"></label>
     <label class="fl">첫 매장 이름<input name="store" required placeholder="예: 강남 1호점"></label>
     <label class="fl">지역<input name="area" placeholder="예: 서울 강남"></label>
