@@ -2788,6 +2788,18 @@ Object.assign(A68, {
   cv: (b, d) => { cvView(d.v); },
   'hq-dcsv': () => download(`딜러명단_${TODAY}.csv`, [['이름', '전화', '본인인증', '지역', '경력(개월)', '가입일', '완료 근무', '노쇼', '최근 근무', '정지'], ...(S.hqDealers || []).map(d => [d.name, d.phone || '', d.verified ? 'Y' : '', d.area || '', d.career_months || 0, String(d.created_at).slice(0, 10), d.done, d.noshow, d.last_work ? String(d.last_work).slice(0, 10) : '', d.banned ? 'Y' : ''])])
 });
+// ===== 사장님: 우리 지역 딜러 수 (이름 없이 숫자만) =====
+function areaDealerCard() {
+  const A = S.areaD; if (!A || !isMgr()) return '';
+  const where = A.gu ? `${A.sido} ${A.gu}` : A.sido || '전국', tile = (l, v, c = '') => `<div><small>${l}</small><b class="num ${c}">${E.won(v)}<i style="font-size:12px;font-style:normal">명</i></b></div>`;
+  const ratio = A.posts30 ? (A.sido_n / A.posts30).toFixed(1) : null;
+  return `<div class="card"><div class="row between"><h3 style="margin:0">우리 지역 딜러 <small>${esc(where)}</small></h3><button class="btn sm" data-tab="jobs">구인 →</button></div>
+  <div class="kpi5" style="margin:10px 0">${tile(`${A.sido || '전국'} 딜러`, A.sido_n || A.all)}${A.gu ? tile(`${A.gu} 활동`, A.gu_n) : ''}${tile('근무 경험', A.worked)}${tile('본인 인증', A.verified)}${tile('🙋 지금 가능', A.now_on, A.now_on ? 'up' : '')}</div>
+  <small class="mut">긴급 알림 받는 딜러 ${E.won(A.alert_on)}명 · 이번 주 새로 가입 ${E.won(A.new7)}명 · 전국 ${E.won(A.all)}명${ratio ? ` · 최근 30일 우리 지역 공고 ${A.posts30}건 (공고 1건당 딜러 ${ratio}명)` : ''}</small></div>`;
+}
+{ const o = loadStore; loadStore = async () => { await o(); if (isMgr()) S.areaD = (await sb.rpc('area_dealers', { p_store: S.store.id })).data || null; }; }
+{ const o = vJobs; vJobs = () => areaDealerCard() + o(); }
+{ const o = vHome; vHome = () => o().replace('<div class="hside">', `<div class="hside">${areaDealerCard()}`); }
 document.addEventListener('click', e => {
   const b = e.target.closest('[data-tab],[data-act]'); if (!b) return; const d = b.dataset;
   if (d.tab) { S.tab = d.tab; S.sub = null; closeSheet(); render(); scrollTo(0, 0); return; }
