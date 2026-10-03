@@ -717,3 +717,40 @@ details.err{border-top:1px solid var(--border-subtle);padding:8px 0}details.err 
 .pos-toss .steps{margin:10px 0 8px;padding-left:20px;line-height:2;font-size:14px}
 .pos-toss .steps .btn{margin-left:4px;vertical-align:middle}
 .pos-top>.btn{white-space:nowrap;flex:none}
+/* v0.65 매출 묶음 */
+.slip1{background:linear-gradient(160deg,rgba(var(--brand-rgb),.12),var(--card2) 60%);border:1px solid rgba(var(--brand-rgb),.3);border-radius:16px;padding:14px;margin:6px 0 14px;display:grid;gap:12px}
+.s1-top{display:grid;gap:4px;justify-items:start}.s1-top small{color:var(--muted)}.s1-top b{font-size:30px;line-height:1.1;letter-spacing:-.02em}
+.s1-g,.evc{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.s1-g div,.evc div{background:var(--card);border:1px solid var(--line2);border-radius:12px;padding:9px 10px;display:grid;gap:2px;min-width:0}
+.s1-g small,.evc small{color:var(--muted);font-size:11.5px}.s1-g b,.evc b{font-size:16px}
+.evc{margin-bottom:8px}
+.lbud{display:flex;justify-content:space-between;align-items:center;gap:10px}.lbud>div{flex:1;min-width:0;display:grid;gap:3px}.lbud small{color:var(--muted);font-size:12.5px}
+.lbud .bar{height:6px;border-radius:9px;background:var(--card2);overflow:hidden;margin-top:4px}.lbud .bar i{display:block;height:100%;background:var(--brand-2);border-radius:9px}
+.lbud.over{border-color:rgba(var(--danger-rgb),.5)}.lbud.over .bar i{background:#F08C7A}
+.lbud>.btn{flex:none}
+.evd{font-style:normal;font-size:9px;margin-left:2px}
+.mywk{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px}
+.mywk>div{display:grid;gap:3px;min-width:0}.mywk small{color:var(--muted);font-size:12px}.mywk b{font-size:28px;line-height:1.1}.mywk b i{font-style:normal;font-size:13px;margin-left:3px;color:var(--muted)}
+.mywk .bar{height:6px;border-radius:9px;background:var(--card2);overflow:hidden;margin-top:4px}.mywk .bar i{display:block;height:100%;background:var(--brand-2)}.mywk .bar i.over{background:#F08C7A}
+/* v0.65 인사·급여 */
+.chks{display:flex;flex-wrap:wrap;gap:6px}.chks.col{flex-direction:column}
+.chks label{display:flex;align-items:center;gap:8px;border:1px solid var(--line2);border-radius:10px;padding:8px 11px;background:var(--card2);font-size:13.5px;cursor:pointer}
+.chks input{width:18px;height:18px;accent-color:var(--brand-2);margin:0}
+.chks label:has(input:checked){border-color:rgba(var(--brand-rgb),.5)}
+.upc .li>span{display:flex;align-items:center;gap:8px;flex-wrap:wrap;min-width:0}
+.card.paid{display:flex;justify-content:space-between;align-items:center;gap:10px;border-color:rgba(var(--brand-rgb),.45)}.card.paid small{display:block;color:var(--muted);font-size:12.5px;margin-top:2px}
+/* v0.65 매장 노트 */
+.opsent{display:flex;justify-content:space-between;align-items:center;gap:10px;text-align:left;width:100%;cursor:pointer;flex:1;min-width:0}.opsent small{display:block;color:var(--muted);font-size:12px;margin-top:2px}.opsent>span{font-size:18px;color:var(--brand-2)}
+.sosent{display:grid;place-items:center;gap:2px;width:72px;flex:none;cursor:pointer;font-size:22px;border-color:rgba(var(--danger-rgb),.45)}.sosent small{font-size:11px;color:#FCA5A5;font-weight:700}
+.btn.sos{border-color:rgba(var(--danger-rgb),.5);color:#FCA5A5}
+.sos2{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:6px 0 12px}.sos2 .btn{display:grid;gap:2px;padding:16px;border-color:rgba(var(--danger-rgb),.55);background:rgba(var(--danger-rgb),.12);text-decoration:none}.sos2 b{font-size:28px;color:#FCA5A5}.sos2 small{color:var(--muted)}
+.note .nt{display:block;margin-top:8px;font-size:15px}.note .nb{margin:4px 0 0;white-space:pre-wrap;color:var(--text);font-size:14px;line-height:1.55}
+.note.pin{border-color:rgba(var(--brand-rgb),.45)}.note.done{opacity:.6}
+.vote{display:grid;gap:6px;width:100%;margin-top:6px}.vote button{position:relative;overflow:hidden;display:flex;justify-content:space-between;gap:8px;border:1px solid var(--line2);border-radius:10px;padding:9px 12px;background:var(--card2);color:var(--text);font:inherit;cursor:pointer}
+.vote button span,.vote button b{position:relative;z-index:1}.vote button i{position:absolute;left:0;top:0;bottom:0;background:rgba(var(--brand-rgb),.18)}.vote button.on{border-color:rgba(var(--brand-rgb),.6)}
+.note .row:last-child>.row:first-child{flex-wrap:wrap;flex:1}
+.sktags i.on{background:rgba(var(--brand-rgb),.18);color:var(--brand-2)}.sktags i[role=button]{cursor:pointer}
+.chk .chks{margin:8px 0 4px}
+.mywk .bar i,.lbud .bar i{position:static;margin:0;transform:none}
+.sktags.edu i:not(.on){background:var(--card2);color:var(--muted);border-color:var(--line2)}
+.mywk .bar,.lbud .bar{display:block;flex:none;width:100%}.mywk .bar i,.lbud .bar i{min-height:0;border-radius:9px}
