@@ -790,3 +790,4 @@ details.err{border-top:1px solid var(--border-subtle);padding:8px 0}details.err 
 .only-kiosk{display:none}body.kiosk .only-kiosk{display:block}body.kiosk .no-kiosk,body.kiosk #tabs,body.kiosk header.top,body.kiosk #top-r,body.kiosk .sh{display:none!important}
 body.kiosk #qr-code{font-size:84px}
 body.kiosk .subnav{display:none!important}
+.lockbar{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}.lockbar small{display:block;margin-top:2px}
