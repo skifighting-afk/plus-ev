@@ -998,7 +998,7 @@ function shiftSheet({ memberId, date, weekday, add }) {
     <button class="btn pri full">저장</button>${!add && t ? `<button class="btn red full" type="button" data-act="shift-off">${date ? '이날 휴무' : '이 요일 근무 없애기'}</button>` : ''}
     <button class="btn full" type="button" data-act="close">취소</button></form>`);
 }
-const POS = ['토스플레이스', '페이히어', '이지포스', 'OKPOS', '포스뱅크'];
+const POS = ['토스플레이스', '스마트로', '페이히어', '이지포스', 'OKPOS', '포스뱅크'], TOSS_CODE = '7YES2HMV';
 const DMET = [['sales', '매출'], ['entries', '엔트리'], ['card', '카드'], ['cash', '현금'], ['cash_diff', '금고 차액'], ['all', '전체']];
 function dailyCal() {
   const met = S.dmet || 'sales', D = E.daysIn(S.y, S.m), lead = E.wdOf(S.y, S.m, 1), by = Object.fromEntries(S.hist.map(r => [r.report_date, r])), rs = S.reports;
@@ -1021,16 +1021,18 @@ async function tossLoad(force) {
   try { const { data } = await sb.rpc('toss_my_merchants'); S.toss = data || []; const me = S.toss.find(x => x.store_id === S.store.id); S.tossSum = me ? (await sb.rpc('pos_day_summary', { p_store: S.store.id, p_date: bizDay() })).data : null; S.tossAt = Date.now(); } catch { S.toss = []; } finally { S.tossBusy = 0; }
   if (S.tab === 'sales') render();
 }
-function tossCard() {
-  const L = S.toss || [], me = L.find(x => x.store_id === S.store.id), free = L.filter(x => !x.store_id), t = S.tossSum;
-  if (me) return `<div class="card pos toss"><div><b>토스 POS 연결됨 <span class="pill g">자동</span></b><small>오늘 영업일 매출 <b class="num">₩${E.won(t?.total || 0)}</b> · ${t?.n || 0}건${t?.last ? ` · 마지막 결제 ${String(t.last).slice(11, 16)}` : ''} · 새벽 6시 기준</small></div><button class="btn sm pri" data-act="pos-fill">마감에 채우기</button></div>`;
-  if (free.length) return `<div class="card pos toss"><div><b>토스 POS가 설치됐어요</b><small>어느 매장 POS인지 골라주세요</small>${free.map(x => `<div class="row between" style="margin-top:8px"><span>${esc(x.name)} <small class="mut">${esc(x.address || '')}</small></span><button class="btn sm pri" data-act="toss-link" data-v="${x.merchant_id}">${esc(S.store.name)}에 연결</button></div>`).join('')}</div></div>`;
-  return '';
+function posCard() {
+  const L = S.toss || [], me = L.find(x => x.store_id === S.store.id), free = L.filter(x => !x.store_id), t = S.tossSum, ask = S.posAsk;
+  const chips = `<div class="pos-chips">${POS.map(p => p === '토스플레이스' ? `<span class="pill ${me ? 'g' : ''}">${me ? '✓ ' : ''}토스플레이스</span>` : `<span class="pill off">${p}${ask === p ? ' · 신청됨' : ''}<i>준비 중</i></span>`).join('')}</div>`;
+  const body = me ? `<small>토스플레이스 연결됨 · 오늘 영업일 매출 <b class="num">₩${E.won(t?.total || 0)}</b> · ${t?.n || 0}건${t?.last ? ` · 마지막 결제 ${String(t.last).slice(11, 16)}` : ''} · 새벽 6시 기준</small>`
+    : free.length ? `<small>토스 POS가 설치됐어요 · 어느 매장 POS인지 골라주세요</small>${free.map(x => `<div class="row between" style="margin-top:8px"><span>${esc(x.name)} <small class="mut">${esc(x.address || '')}</small></span><button class="btn sm pri" data-act="toss-link" data-v="${x.merchant_id}">${esc(S.store.name)}에 연결</button></div>`).join('')}`
+    : `<small>연동하면 매출·카드·현금이 마감 때 자동으로 채워져요. 숫자는 그대로 고칠 수 있어요.</small>`;
+  return `<div class="card pos"><div class="pos-top"><div><b>통합 POS 연동 ${me ? '<span class="pill g">자동</span>' : ''}</b>${body}</div>${me ? '<button class="btn sm pri" data-act="pos-fill">마감에 채우기</button>' : free.length ? '' : '<button class="btn sm pri" data-act="pos">연동하기</button>'}</div>${chips}</div>`;
 }
 function vSales() {
   const r0 = S.reports.find(r => r.report_date === TODAY) || {}, ask = S.posAsk;
   return `${storeHead('매출 마감')}
-  ${tossCard() || `<div class="card pos"><div><b>포스기 연동</b><small>${ask ? `<span class="warn">${esc(ask)}</span> 연동 신청됨 · 준비되면 알림으로 알려드려요` : '연동하면 매출·카드·현금이 마감 때 자동으로 채워져요. 숫자는 그대로 고칠 수 있어요.'}</small></div>${ask ? '<span class="pill y">준비 중</span>' : '<button class="btn sm pri" data-act="pos">포스기 연동하기</button>'}</div>`}
+  ${posCard()}
   ${S.open ? `<div class="card openbar"><span><b>${fmtDT(S.open.opened_at).split(' ').slice(-2).join(' ')} 오픈</b> · 시작 시재 ₩${E.won(S.open.start_cash)}</span><button class="btn sm" data-act="open-edit">수정</button></div>`
     : `<form class="f card openbar" id="open-form"><div><b>오늘 오픈</b><small class="mut" style="display:block">영업 전 금고에 있는 돈을 넣고 오픈하세요</small></div><div class="row" style="flex-wrap:nowrap"><input name="start_cash" aria-label="시작 현금" type="number" inputmode="numeric" value="${S.lastStart ?? 300000}" style="width:140px"><button class="btn pri">오픈</button></div></form>`}
   <form class="f card" id="report-form"><div class="row between"><h3 style="margin:0">마감 <button type="button" class="btn sm" data-act="rcpt" title="포스 마감영수증 사진으로 자동 입력">📷 사진으로 입력</button><input type="file" accept="image/*" capture="environment" id="rcpt-file" hidden></h3><label class="fl" style="margin:0"><input type="date" name="date" value="${TODAY}" max="${TODAY}" style="width:auto"></label></div>
@@ -2094,7 +2096,7 @@ document.addEventListener('click', e => {
   if (a === 'exp-del') busy(async () => { await q(sb.from('expenses').delete().eq('id', d.id)); closeSheet(); await reload(); toast('삭제했어요'); });
   if (a === 'exp-new') openSheet(`<h2>고지서·기타 비용</h2><form class="f" id="expense-form"><div class="grid2"><label class="fl">항목<select name="cat">${Object.entries(CAT).filter(([k]) => k !== 'card').map(([v, l]) => `<option value="${v}">${l}</option>`).join('')}</select></label><label class="fl">금액 (원)<input name="amount" type="number" inputmode="numeric" required></label></div><label class="fl">날짜<input type="date" name="date" value="${TODAY}"></label><label class="fl">영수증 사진 <small class="mut">(선택)</small><input type="file" name="photo" accept="image/*"></label><button class="btn pri full">추가</button></form>`);
   if (a === 'exp-list') openSheet(`<h2>${S.m}월 비용 내역</h2>${S.expenses.map(x => `<div class="li"><div><b>${CAT[x.category] || x.category}</b><small>${x.spent_on} · ${x.source === 'close' ? '마감 때 쓴 현금' : '직접 입력'}</small></div><span class="row"><span class="num">₩${E.won(x.amount)}</span>${x.photo ? `<button class="btn sm" data-act="exp-photo" data-p="${esc(x.photo)}" aria-label="영수증 보기">📎</button>` : ''}<button class="btn sm" data-act="exp-del" data-id="${x.id}">삭제</button></span></div>`).join('') || '<div class="empty">비용 기록이 없어요</div>'}<button class="btn sm" data-act="bin" style="margin-top:10px">최근 삭제한 기록 (7일)</button>`);
-  if (a === 'pos') openSheet(`<h2>포스기 연동</h2><p class="mut">매장에서 쓰는 포스기를 골라주세요. 운영사가 연동을 준비해서 알려드려요.</p><form class="f" id="pos-form"><div class="seg brk" style="flex-wrap:wrap">${[...POS, '기타'].map((p, i) => `<label style="flex:1 1 30%"><input type="radio" name="pos" value="${p}" ${i ? '' : 'checked'}><span>${p}</span></label>`).join('')}</div><label class="fl">기타면 이름<input name="etc" placeholder="예: 포스 회사 이름"></label><button class="btn pri full">연동 신청</button></form>`);
+  if (a === 'pos') openSheet(`<h2>통합 POS 연동</h2><div class="card pos-toss"><b>토스플레이스 <span class="pill g">지금 연결 가능</span></b><ol class="steps"><li>토스 POS → <b>설정</b> → <b>기타설정</b> → <b>서비스 연동</b></li><li><b>서비스 코드로 연결</b> 누르기</li><li>코드 입력 <button type="button" class="btn sm" data-act="copy" data-v="${TOSS_CODE}"><b class="num">${TOSS_CODE}</b> 복사</button></li></ol><small class="mut">설치되면 이 화면에 바로 떠요</small></div><h3 style="margin:18px 0 6px">다른 POS · 준비 중</h3><p class="mut">쓰는 POS를 신청해 주시면 먼저 연동해서 알려드려요.</p><form class="f" id="pos-form"><div class="seg brk" style="flex-wrap:wrap">${[...POS.slice(1), '기타'].map((p, i) => `<label style="flex:1 1 30%"><input type="radio" name="pos" value="${p}" ${i ? '' : 'checked'}><span>${p}</span></label>`).join('')}</div><label class="fl">기타면 이름<input name="etc" placeholder="예: 포스 회사 이름"></label><button class="btn pri full">연동 신청</button></form>`);
   if (a === 'csv') {
     const rows = [['이름', '실명', '직책', '계약', '시급', '근무일', '근무시간', '기본급', '야간수당', '연장수당', '주휴수당', '인센티브', '지급총액', '공제', '실지급', '은행', '계좌번호', '예금주']];
     S.members.filter(p => p.role !== 'owner').forEach(p => { const r = payOf(p); rows.push([p.nick, p.real_name, p.job_role, p.contract, p.hourly_rate, r.days, r.hours.toFixed(1), r.base, r.np, r.otp, r.juhu, r.inc, r.gross, r.ded, r.net, p.bank_name, p.bank_acct, p.bank_holder]); });
