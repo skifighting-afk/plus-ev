@@ -791,3 +791,16 @@ details.err{border-top:1px solid var(--border-subtle);padding:8px 0}details.err 
 body.kiosk #qr-code{font-size:84px}
 body.kiosk .subnav{display:none!important}
 .lockbar{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}.lockbar small{display:block;margin-top:2px}
+/* v0.68 */
+.kpi5{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin:6px 0}.kpi5>div{display:grid;gap:2px;min-width:0}.kpi5 b{font-size:18px}.kpi5 small{font-size:11.5px}
+.ledger .li details summary{cursor:pointer;list-style:none}.ledger .li{gap:8px}
+table.heat{border-collapse:separate;border-spacing:2px;font-size:11px}table.heat td,table.heat th{min-width:22px;height:22px;text-align:center;padding:0;border-radius:4px}table.heat td.ok{background:rgba(143,227,196,calc(var(--a)*.75))}table.heat td.lo{background:rgba(248,113,113,.45)}
+.spark{display:inline-flex;align-items:flex-end;gap:3px;height:30px}.spark i{width:7px;background:var(--brand);border-radius:2px;opacity:.85}
+.phs{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:8px;margin-top:8px}.phs figure{margin:0;display:grid;gap:3px}.phs img,.phs i{width:100%;aspect-ratio:1;object-fit:cover;border-radius:10px;background:var(--s2,#1D2227);display:block}.phs figcaption{font-size:11px;color:var(--muted)}
+img.face{width:44px;height:44px;border-radius:50%;object-fit:cover}
+.favbar{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}.ced{display:flex;gap:6px;justify-content:flex-end;margin-bottom:6px}.ced button{font-size:12px;border:1px dashed var(--muted);background:none;color:var(--text);border-radius:8px;padding:3px 8px}.card.dim{opacity:.4}
+.amsg{font-size:13px;margin-top:4px;padding:6px 9px;border-radius:9px;background:rgba(143,227,196,.1)}
+kbd{font:700 12px ui-monospace,monospace;border:1px solid var(--muted);border-radius:6px;padding:2px 7px;min-width:44px;text-align:center}
+#mic{margin-top:6px}.fw .li span{font-size:14px}
+html.cvd .up,html.cvd .home .top3 .kpi .v.up{color:#5AA9F0}html.cvd .down{color:#F0A030}html.cvd .pill.g{color:#5AA9F0;border-color:rgba(90,169,240,.5)}html.cvd .pill.r{color:#F0A030;border-color:rgba(240,160,48,.5)}html.cvd table.heat td.ok{background:rgba(90,169,240,calc(var(--a)*.75))}html.cvd table.heat td.lo{background:rgba(240,160,48,.5)}
+@media print{body.printing>*:not(#sheet){display:none!important}body.printing #sheet{position:static;background:#fff;color:#000}body.printing #sheet .btn{display:none}}
