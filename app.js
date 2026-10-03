@@ -2766,6 +2766,28 @@ Object.assign(F68, {
     const { data: k, error } = await sb.rpc('attend', { p_code: S.pendCode }); if (error) { toast('인수인계는 남겼어요. 번호가 바뀌었으니 매장 화면의 새 번호로 퇴근을 다시 눌러주세요'); return reload(); } toast(k === 'out' ? '인수인계 남기고 퇴근했어요. 수고하셨어요' : '인수인계를 남겼어요'); await reload(); }
 });
 
+// ===== 운영사: 딜러 명단 =====
+function hqDealerRows() {
+  const q0 = (S.hqDq || '').trim(), f = S.hqDf || 'all', L = (S.hqDealers || []).filter(d => (!q0 || `${d.name} ${d.phone || ''} ${d.area || ''}`.includes(q0)) && (f === 'all' || (f === 'now' && d.now_on) || (f === 'work' && +d.done > 0) || (f === 'new' && Date.now() - Date.parse(d.created_at) < 30 * 864e5) || (f === 'ban' && d.banned)));
+  return L.slice(0, 200).map(d => `<div class="li"><div style="min-width:0"><b>${esc(d.name || '이름 없음')}</b>${d.verified ? ' <span class="pill g">✓ 인증</span>' : ''}${d.now_on ? ' <span class="pill g">🙋 지금 가능</span>' : ''}${d.banned ? ' <span class="pill r">정지</span>' : ''}${!d.verified && d.open_to_sub ? ' <span class="pill">직원 겸 대타</span>' : ''}<small class="mut" style="display:block">${esc(d.area || '지역 없음')} · 경력 ${d.career_months || 0}개월 · 가입 ${new Date(d.created_at).toLocaleDateString('ko-KR')}${d.last_work ? ` · 최근 근무 ${new Date(d.last_work).toLocaleDateString('ko-KR')}` : ''}</small></div><span class="row" style="gap:6px;flex-wrap:nowrap"><span class="num">${d.done}회${+d.noshow ? ` · <span class="down">노쇼 ${d.noshow}</span>` : ''}</span>${d.phone ? `<button class="btn sm" data-act="copy" data-v="${esc(d.phone)}" aria-label="전화번호 복사">📞</button>` : ''}<button class="btn sm" data-act="cv" data-v="${d.id}">이력</button></span></div>`).join('') || '<div class="empty">조건에 맞는 딜러가 없어요</div>';
+}
+function hqDealerCard() {
+  if (!S.hqDealers) { if (!S.hqDBusy) { S.hqDBusy = 1; sb.rpc('hq_dealers').then(({ data }) => { S.hqDealers = data || []; S.hqDBusy = 0; render(); }); } return '<div class="card empty">딜러 명단 불러오는 중…</div>'; }
+  const D = S.hqDealers, c = k => D.filter(k).length, wk = Date.now() - 7 * 864e5;
+  const areas = Object.entries(D.reduce((a, d) => { const k = (d.area || '미지정').split(' ')[0]; a[k] = (a[k] || 0) + 1; return a; }, {})).sort((a, b) => b[1] - a[1]), mx = Math.max(1, ...areas.map(x => x[1]));
+  return `<div class="card"><div class="row between"><h3 style="margin:0">딜러 <small>전체 ${D.length}명</small></h3><button class="btn sm" data-act="hq-dcsv">엑셀</button></div>
+  <div class="kpi5" style="margin:10px 0"><div><small>전체</small><b class="num">${D.length}</b></div><div><small>본인 인증</small><b class="num">${c(d => d.verified)}</b></div><div><small>근무 1회+</small><b class="num">${c(d => +d.done > 0)}</b></div><div><small>지금 가능</small><b class="num up">${c(d => d.now_on)}</b></div><div><small>이번 주 가입</small><b class="num">${c(d => Date.parse(d.created_at) > wk)}</b></div></div>
+  ${areas.slice(0, 8).map(([a, n]) => `<div class="cb"><span>${esc(a)}</span><div class="bar"><i style="width:${n / mx * 100}%"></i></div><b class="num">${n}명</b></div>`).join('')}
+  <div class="row" style="gap:6px;margin:12px 0 6px;flex-wrap:wrap"><input id="hq-dq" placeholder="이름·전화·지역 찾기" value="${esc(S.hqDq || '')}" style="flex:1;min-width:140px">${[['all', '전체'], ['work', '근무 경험'], ['now', '지금 가능'], ['new', '최근 30일'], ['ban', '정지']].map(([k, l]) => `<button class="fchip ${(S.hqDf || 'all') === k ? 'on' : ''}" data-act="hq-df" data-v="${k}">${l}</button>`).join('')}</div>
+  <div id="hq-dl">${hqDealerRows()}</div></div>`;
+}
+{ const o = vHqDash; vHqDash = () => { const h = o(); return h.replace('<div class="grid2">', `${hqDealerCard()}<div class="grid2">`); }; }
+document.addEventListener('input', e => { if (e.target.id !== 'hq-dq') return; S.hqDq = e.target.value; const el = $('#hq-dl'); if (el) el.innerHTML = hqDealerRows(); });
+Object.assign(A68, {
+  'hq-df': (b, d) => { S.hqDf = d.v; render(); },
+  cv: (b, d) => { cvView(d.v); },
+  'hq-dcsv': () => download(`딜러명단_${TODAY}.csv`, [['이름', '전화', '본인인증', '지역', '경력(개월)', '가입일', '완료 근무', '노쇼', '최근 근무', '정지'], ...(S.hqDealers || []).map(d => [d.name, d.phone || '', d.verified ? 'Y' : '', d.area || '', d.career_months || 0, String(d.created_at).slice(0, 10), d.done, d.noshow, d.last_work ? String(d.last_work).slice(0, 10) : '', d.banned ? 'Y' : ''])])
+});
 document.addEventListener('click', e => {
   const b = e.target.closest('[data-tab],[data-act]'); if (!b) return; const d = b.dataset;
   if (d.tab) { S.tab = d.tab; S.sub = null; closeSheet(); render(); scrollTo(0, 0); return; }
