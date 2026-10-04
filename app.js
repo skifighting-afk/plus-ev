@@ -2802,15 +2802,19 @@ function areaDealerCard() {
 { const o = vJobs; vJobs = () => areaDealerCard() + o(); }
 { const o = vHome; vHome = () => o().replace('<div class="hside">', `<div class="hside">${areaDealerCard()}`); }
 // v0.74 손님앱(+EV TABLE) 연결: 버튼 한 번 → 매장 자동 등록 + 점주 초대 링크로 이동
-const tableCard = () => isOwner() && S.store?.id ? `<div class="card"><h3>📱 손님앱 <small>+EV TABLE · 대회 신청·대기·좌석</small></h3><p class="sub" style="margin:4px 0 10px">손님이 폰으로 대회 신청·대기 등록·내 자리 확인. 버튼 한 번이면 ${esc(S.store.name)}이(가) 바로 연결돼요.</p><div class="row"><button class="btn pri" data-act="ev-table">손님앱 열기</button><a class="btn" href="https://plusevapp.kr/table/owner" target="_blank" rel="noopener">점주 화면</a></div></div>` : '';
+const tableCard = () => isOwner() && S.store?.id ? `<div class="card"><h3>📱 손님앱 <small>+EV TABLE · 대회 신청·대기·좌석</small></h3><p class="sub" style="margin:4px 0 10px">손님이 폰으로 대회 신청·대기 등록·내 자리 확인. ${esc(S.store.name)}은(는) 자동 연결돼 있어요 · 손님앱에 같은 카카오로 로그인하면 바로 점주 화면이 열려요.</p><div class="row"><button class="btn pri" data-act="ev-table">손님앱 열기</button><a class="btn" href="https://plusevapp.kr/table/owner" target="_blank" rel="noopener">점주 화면</a></div></div>` : '';
 A68['ev-table'] = async () => { const w = window.open('', '_blank'); try {
   const tok = (await sb.auth.getSession()).data.session?.access_token;
-  const r = await fetch('https://vjvsbuaxptnnqyghwxcb.supabase.co/functions/v1/ev-link', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: tok, store: S.store.id }) });
+  const r = await fetch('https://vjvsbuaxptnnqyghwxcb.supabase.co/functions/v1/ev-link', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: tok, store: S.store.id, invite: true }) });
   const d = await r.json(); if (!r.ok || !d.invite) throw new Error(d.error || '연결 실패');
   const url = 'https://plusevapp.kr/table/staff?invite=' + encodeURIComponent(d.invite); if (w) w.location = url; else location.href = url;
   toast('손님앱에 매장을 연결했어요 · 카카오로 로그인하면 점주로 등록돼요');
 } catch (e) { w?.close(); toast('손님앱 연결에 실패했어요: ' + e.message); } };
 { const o = vHome; vHome = () => o().replace('<div class="hside">', `<div class="hside">${tableCard()}`); }
+// 자동 연결: 사장이 앱을 열면 매장을 손님앱에 하루 한 번 동기화 → 손님앱에 같은 카카오/이메일로 로그인하면 바로 점주
+{ const o = loadStore; loadStore = async () => { await o(); if (!isOwner() || !S.store?.id || !sb.auth.getSession) return; const k = 'ev-tl-' + S.store.id + '-' + TODAY; try { if (localStorage.getItem(k)) return; } catch { }
+  sb.auth.getSession().then(({ data }) => data.session && fetch('https://vjvsbuaxptnnqyghwxcb.supabase.co/functions/v1/ev-link', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: data.session.access_token, store: S.store.id, invite: false }) }))
+    .then(r => { if (r?.ok) try { localStorage.setItem(k, '1') } catch { } }).catch(() => { }); }; }
 document.addEventListener('click', e => {
   const b = e.target.closest('[data-tab],[data-act]'); if (!b) return; const d = b.dataset;
   if (d.tab) { S.tab = d.tab; S.sub = null; closeSheet(); render(); scrollTo(0, 0); return; }
