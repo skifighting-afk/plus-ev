@@ -131,7 +131,7 @@ async function boot() {
   on('#gen', async () => { try { const g = await read('generate_from_templates', { p_store_id: store.store_id, p_days: 7 }); toast(`${g.created}개 생성 (이미 있는 날은 건너뜀)`); boot(); } catch (err) { toast(errText(err)); } });
   on('[data-tact]', async (b) => { try { await read('set_template_active', { p_template_id: b.dataset.tact, p_active: b.dataset.on === 'true' }); boot(); } catch (err) { toast(errText(err)); } });
   on('[data-inv]', async (b) => {
-    try { const r = await read('create_staff_invite', { p_store_id: store.store_id, p_role: b.dataset.inv }); const link = `${location.origin}/staff?invite=${encodeURIComponent(r.token)}`;
+    try { const r = await read('create_staff_invite', { p_store_id: store.store_id, p_role: b.dataset.inv }); const link = `${location.origin}/table/staff?invite=${encodeURIComponent(r.token)}`;
       $('#invBox').innerHTML = `<div class="row"><input readonly value="${esc(link)}" id="invLink" aria-label="초대 링크"><button class="small" id="invCopy">복사</button></div><span class="sub">${b.dataset.inv === 'manager' ? '매니저' : '직원'} · ${dt(r.expires_at)}까지</span>`;
       $('#invCopy').onclick = async () => { try { await navigator.clipboard.writeText(link); toast('복사됨'); } catch { $('#invLink').select(); } };
     } catch (err) { toast(errText(err)); } });

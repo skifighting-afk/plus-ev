@@ -107,7 +107,7 @@ if (!tid) {
   const wake = async () => { try { await navigator.wakeLock?.request('screen'); } catch {} };
   wake(); document.addEventListener('visibilitychange', () => document.visibilityState === 'visible' && wake());
 
-  const appUrl = `${location.origin}/app#/t/${tid}`;
+  const appUrl = `${location.origin}/table/app#/t/${tid}`;
   const drawQR = () => { if (window.QRCode) { $('qr').innerHTML = ''; new window.QRCode($('qr'), { text: appUrl, width: 160, height: 160 }); } else $('qr').innerHTML = '<span style="color:#000;font-size:1.4vh">QR</span>'; };
   setTimeout(drawQR, 800);
 

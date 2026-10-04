@@ -35,7 +35,7 @@
 <script type="module">
 import { read, dt } from '/table/common.js';
 const tid = new URLSearchParams(location.search).get('t');
-const link = `${location.origin}/app#/t/${tid}`;
+const link = `${location.origin}/table/app#/t/${tid}`;
 document.getElementById('url').textContent = link;
 try {
   const t = await read('tournament_summary', { p_tournament_id: tid });

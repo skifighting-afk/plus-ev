@@ -431,7 +431,7 @@ async function my() {
   bindInstall();
   if (plat) $('#newStore').onsubmit = async (e) => { e.preventDefault(); const f = Object.fromEntries(new FormData(e.target));
     try { const r = await read('create_store', { p_name: f.name, p_slug: f.slug, p_region: f.region, p_address: f.address });
-      const link = `${location.origin}/staff?invite=${encodeURIComponent(r.owner_invite)}`;
+      const link = `${location.origin}/table/staff?invite=${encodeURIComponent(r.owner_invite)}`;
       $('#nsOut').innerHTML = `<label>점주 초대 링크<input readonly id="nsLink" value="${esc(link)}"></label>`; toast('매장 등록 완료 · 링크를 점주에게 보내세요'); }
     catch (err) { toast(err.detail === 'slug taken' ? '이미 쓰는 영문 주소예요' : errText(err)); } };
   bindCards();
