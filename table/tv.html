@@ -111,10 +111,15 @@ if (!tid) {
   const drawQR = () => { if (window.QRCode) { $('qr').innerHTML = ''; new window.QRCode($('qr'), { text: appUrl, width: 160, height: 160 }); } else $('qr').innerHTML = '<span style="color:#000;font-size:1.4vh">QR</span>'; };
   setTimeout(drawQR, 800);
 
+  let themed = false;
   async function refresh() {
     try {
       [T, C] = await Promise.all([read('tournament_summary', { p_tournament_id: tid }), fetchClock(tid)]);
       failAt = 0; $('net').hidden = true; paintStatic();
+      if (!themed) { themed = true; read('store_extras', { p_store_id: T.store.id }).then((x) => { const p = x?.profile || {};   // 매장 TV 테마
+        if (p.tv_accent) document.documentElement.style.setProperty('--blue', p.tv_accent);
+        if (p.tv_logo) $('store').insertAdjacentHTML('afterbegin', `<img src="${esc(p.tv_logo)}" alt="" style="height:4vh;vertical-align:middle;margin-right:1vh" referrerpolicy="no-referrer">`);
+        if (p.notice) $('title').insertAdjacentHTML('afterend', `<div style="font-size:2vh;opacity:.8">📢 ${esc(p.notice)}</div>`); }).catch(() => {}); }
     } catch (e) {
       if (e.code === 'NOT_FOUND_OR_FORBIDDEN') { root.innerHTML = '<div class="pick">대회를 찾을 수 없어요 · <a href="/table/tv" style="color:var(--blue)">다시 고르기</a></div>'; return; }
       failAt ||= Date.now(); $('net').hidden = Date.now() - failAt < 15000;

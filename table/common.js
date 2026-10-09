@@ -207,5 +207,31 @@ if (LIVE) {
     post('ensure_profile', { p_nickname: session.nick }).catch(() => {});   // 첫 로그인 = 프로필 생성
   };
   sync((await sb.auth.getSession()).data.session);
+  if (session.user) post('claim_ev_me', {}).catch(() => {});   // +EV 사장·직원이면 손님앱 점주·직원 권한 자동 부여
   sb.auth.onAuthStateChange((_e, s) => setTimeout(() => sync(s)));
 }
+
+// ── 화면 설정: 라이트 테마 · 큰 글씨 · 영어(메뉴·주요 문구) ──
+export const prefs = {
+  get(k) { return store.get('tl.' + k); },
+  set(k, v) { store.set('tl.' + k, v); applyPrefs(); },
+};
+const EN = { '홈': 'Home', '라이브': 'Live', '입장 QR': 'Entry QR', '내 게임': 'My games', '마이': 'Me', '로그인': 'Log in', '지금 등록 가능': 'Open now', '오늘 핫한 게임': 'Hot today',
+  '내 스탬프': 'My stamps', '전체 →': 'All →', '참가 신청': 'Register', '대기 등록': 'Join waitlist', '바로 신청': 'Quick join', '메인': 'Main', '블라인드': 'Blinds', '시상': 'Prizes',
+  '포스터': 'Poster', '매장정보': 'Store', '알림': 'Notifications', '즐겨찾기 매장': 'Favorite stores', '이번 달 랭킹': 'Monthly ranking', '내 전적': 'My record', '이번 주 대회': 'This week',
+  '전체': 'All', '등록 가능': 'Open', '♥ 즐겨찾기': '♥ Favorites', '내 주변': 'Near me', '🗓 주간': '🗓 Week', '🗺 매장': '🗺 Stores', '화면 설정': 'Display', '프로필': 'Profile', '저장': 'Save' };
+let tx = null;
+function translate(root) {
+  const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT); let n;
+  while ((n = w.nextNode())) { const t = n.nodeValue.trim(); if (EN[t]) n.nodeValue = n.nodeValue.replace(t, EN[t]); }
+}
+export function applyPrefs() {
+  const d = document.documentElement;
+  const th = store.get('tl.theme'); if (th) d.dataset.theme = th; else delete d.dataset.theme;
+  d.classList.toggle('big', store.get('tl.big') === '1');
+  d.lang = store.get('tl.lang') === 'en' ? 'en' : 'ko';
+  if (d.lang === 'en') { if (!tx) { tx = new MutationObserver(() => translate(document.body)); tx.observe(document.body, { childList: true, subtree: true }); } translate(document.body); }
+  else if (tx) { tx.disconnect(); tx = null; }
+}
+if (document.body) applyPrefs(); else addEventListener('DOMContentLoaded', applyPrefs);
+export const call = post;

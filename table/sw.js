@@ -1,5 +1,5 @@
 // 설치용 서비스워커: 화면 파일만 네트워크 우선 + 오프라인 시 마지막 사본. RPC(데이터)는 절대 캐시하지 않음.
-const C = 'tl-shell-v3';
+const C = 'tl-shell-v4';
 const SHELL = ['/table/app', '/table/staff', '/table/owner', '/table/tv', '/table/style.css', '/table/common.js', '/table/icon.svg', '/table/icon-192.png', '/table/icon-512.png', '/table/manifest.webmanifest'];
 self.addEventListener('install', (e) => e.waitUntil(caches.open(C).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting())));
 self.addEventListener('activate', (e) => e.waitUntil(caches.keys().then((ks) => Promise.all(ks.filter((k) => k !== C).map((k) => caches.delete(k)))).then(() => self.clients.claim())));

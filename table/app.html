@@ -11,6 +11,12 @@
 <link rel="apple-touch-icon" href="/table/icon.svg">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <title>+EV TABLE</title>
+<meta name="description" content="홀덤펍 대회 신청 · 대기 · 내 자리까지 한 번에">
+<meta property="og:title" content="+EV TABLE · 홀덤 대회 신청·대기·내 자리">
+<meta property="og:description" content="근처 홀덤펍 대회를 보고 바로 신청하세요. 대기 호출·좌석 안내까지.">
+<meta property="og:image" content="https://plusevapp.kr/table/icon-512.png">
+<meta property="og:url" content="https://plusevapp.kr/table/app">
+<meta property="og:type" content="website">
 <link rel="stylesheet" href="/table/style.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js" async onerror="window.__noQR=true"></script>
 </head>
@@ -32,7 +38,8 @@
 </nav>
 
 <script type="module">
-import { LIVE, LOGIN_READY, installCard, bindInstall, $, esc, badge, dt, hm, mmss, toast, read, mutate, errText, session, devLogin, logout, poll, segText, conn, connStale } from '/table/common.js';
+import { LIVE, LOGIN_READY, installCard, bindInstall, $, esc, badge, dt, hm, mmss, toast, read, mutate, errText, session, devLogin, logout, poll, segText, conn, connStale, prefs, call } from '/table/common.js';
+const rpc = (fn, b) => call(fn, b || {});   // 멱등키 없는 단순 호출
 
 const view = $('#view');
 const S = { list: [], at: 0, mine: [], favs: new Set(), filter: 'all', region: '', geo: null, openTab: 'main', detail: null };
@@ -91,6 +98,7 @@ async function load() {
   const called = new Set(mine.filter((m) => m.reservation?.status === 'called').map((m) => m.reservation.id));
   if (S.called && [...called].some((id) => !S.called.has(id))) alertCalled();
   S.called = called;
+  if (session.user && !S.rated) S.rated = await rpc('my_ratings').catch(() => ({}));
   S.list = list; S.mine = mine; S.favs = new Set(favs); S.at = performance.now(); syncOffset(list[0]);
   const n = list.filter((t) => t.lifecycle === 'running').length; $('#liveN').hidden = !n; $('#liveN').textContent = n;
   if (session.user) read('my_notifications').then((ns) => { const u = ns.filter((x) => !x.read_at).length; $('#notiN').hidden = !u; $('#notiN').textContent = u; }).catch(() => {});
@@ -185,6 +193,7 @@ async function home() {
     ${stamps.length ? `<div class="sec-h"><h2>내 스탬프</h2></div>${stamps.map((st) => `<div class="card" style="padding:12px 14px"><div class="row between"><b>${esc(st.store)}</b><span class="sub">🎁 ${esc(st.reward)}</span></div>
       <div class="stamps" aria-label="${st.available}/${st.goal}">${Array.from({ length: st.goal }, (_, i) => `<span class="st ${i < Math.min(st.available, st.goal) ? 'on' : ''}">${i < st.available ? '♠' : ''}</span>`).join('')}</div>
       <div class="sub">${st.available >= st.goal ? '보상 받을 수 있어요! 카운터에 말해주세요' : `${st.goal - st.available}번 더 오면 보상`}</div></div>`).join('')}` : ''}
+    ${rankTop(await rpc('season_ranking', {}).catch(() => null))}
     ${hot.length ? `<div class="sec-h"><h2>오늘 핫한 게임</h2><a href="#/live">전체 →</a></div><div class="hscroll">${hot.map(hotCard).join('')}</div>` : ''}
     <div class="sec-h"><h2>지금 등록 가능 <span class="sub">${openNow.length}</span></h2><a href="#/live">전체 →</a></div>
     ${openNow.length ? openNow.map(gcard).join('') : '<div class="empty">지금 등록 가능한 게임이 없어요</div>'}`;
@@ -198,12 +207,14 @@ async function live() {
   if (S.filter === 'fav') L = L.filter((t) => S.favs.has(t.store.id));
   if (S.filter === 'open') L = L.filter((t) => t.registration === 'open');
   if (S.region) L = L.filter((t) => t.store.region === S.region);
+  if (S.filter === 'week') return weekView(regions);
+  if (S.filter === 'stores') return storesView();
   if (S.filter === 'near' && S.geo) L = L.filter((t) => km(t) != null).sort((a, b) => km(a) - km(b));
   else L.sort((a, b) => Date.parse(a.reg_deadline_estimate || '9999-01-01') - Date.parse(b.reg_deadline_estimate || '9999-01-01')).sort(adFirst('top'));   // 광고 → 마감 임박 순
   const chip = (k, t) => `<button class="chip-btn" aria-pressed="${S.filter === k}" data-f="${k}">${t}</button>`;
   view.innerHTML = `${myBar()}
     <div class="row between"><h1>라이브</h1><span class="sub">${hm(S.list[0]?.server_now)} 갱신</span></div>
-    <div class="filters">${chip('all', '전체')}${chip('open', '등록 가능')}${chip('fav', '♥ 즐겨찾기')}${chip('near', '내 주변')}
+    <div class="filters">${chip('all', '전체')}${chip('open', '등록 가능')}${chip('fav', '♥ 즐겨찾기')}${chip('near', '내 주변')}${chip('week', '🗓 주간')}${chip('stores', '🗺 매장')}
       <select id="region" aria-label="지역" style="min-height:36px;width:auto;padding:4px 10px"><option value="">지역 전체</option>${regions.map((r) => `<option ${r === S.region ? 'selected' : ''}>${esc(r)}</option>`).join('')}</select></div>
     ${L.length ? L.map(gcard).join('') : `<div class="empty">${S.filter === 'fav' ? '즐겨찾기한 매장의 게임이 없어요. ♡를 눌러 담아보세요' : '조건에 맞는 게임이 없어요'}</div>`}`;
   view.querySelectorAll('[data-f]').forEach((b) => (b.onclick = async () => {
@@ -258,20 +269,22 @@ async function detail(id) {
     prize: `<div class="card"><h3>시상 안내</h3><div>${esc(t.prize_note || '매장 안내를 확인해주세요')}</div><div class="sub">매장이 작성한 안내예요. +EV TABLE는 상금·결제를 다루지 않아요.</div></div>`,
     poster: t.poster_url ? `<img src="${esc(t.poster_url)}" alt="${esc(t.title)} 포스터" style="width:100%;border-radius:14px" referrerpolicy="no-referrer">` : '<div class="empty">포스터가 없어요</div>',
     store: `<div class="card"><h3>${esc(t.store.name)}</h3><div>${esc(t.store.address || '')}</div>
-        <a class="btn" href="https://map.naver.com/p/search/${encodeURIComponent(t.store.address || t.store.name)}" target="_blank" rel="noopener">길 찾기</a></div>`,
+        <a class="btn" href="https://map.naver.com/p/search/${encodeURIComponent(t.store.address || t.store.name)}" target="_blank" rel="noopener">길 찾기</a></div><div id="xStore"><div class="muted">불러오는 중…</div></div>`,
   };
   view.innerHTML = `${myBar()}
     <div class="row" style="flex-wrap:nowrap"><a href="#/" aria-label="뒤로" style="font-size:24px;text-decoration:none">‹</a>
       <div style="flex:1;min-width:0"><h1 style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(t.title)}</h1><div class="sub">${esc(t.store.name)} · ${esc(t.store.region || '')} ${lightTag(t)}${t.sponsor ? ` · 협찬 ${esc(t.sponsor.name)}` : ''}</div></div>
       <button class="heart" aria-pressed="${fav}" aria-label="매장 즐겨찾기" data-fav="${esc(t.store.id)}">${fav ? '♥' : '♡'}</button>
       <button class="heart" id="share" aria-label="공유">↗</button></div>
+    <div id="xNotice"></div>
     <div class="dtabs" role="tablist">${tabs.map(([k, n]) => `<button role="tab" aria-selected="${k === tab}" data-tab="${k}">${n}</button>`).join('')}</div>
     ${my ? partCard(my) : ''}
     ${body[tab]}
     ${canReserve ? `<div class="sticky-cta"><button class="primary" style="width:100%" id="reserveBtn">${session.user ? (t.policy.approval_mode === 'manual' ? '참가 신청 (승인 필요)' : t.slots_used >= t.admission_capacity || t.waiting ? '대기 등록' : '참가 신청') : '로그인 후 신청'}</button></div>` : ''}`;
   view.querySelectorAll('[data-tab]').forEach((b) => (b.onclick = () => { S.openTab = b.dataset.tab; detail(id); }));
   // 공유는 미리보기 카드가 뜨는 /s/t/ 주소로 (카톡·SNS)
-  $('#share').onclick = async () => { const u = `${location.origin}/table/app#/t/${id}`; try { if (navigator.share) await navigator.share({ title: t.title, url: u }); else { await navigator.clipboard.writeText(u); toast('링크 복사됨 — 카톡에 붙여넣으면 미리보기가 떠요'); } } catch {} };
+  storeExtras(t, tab);
+  $('#share').onclick = async () => { const u = `${location.origin}/table/app#/t/${id}`; try { if (navigator.share) await navigator.share({ title: t.title, text: `${t.store.name} ${t.title} 같이 가요! ${dt(t.starts_at)}`, url: u }); else { await navigator.clipboard.writeText(u); toast('링크 복사됨 — 카톡에 붙여넣으면 미리보기가 떠요'); } } catch {} };
   bindCards();
   const rb = $('#reserveBtn');
   if (rb) rb.onclick = async () => {
@@ -310,6 +323,7 @@ function partCard(m) {
   if (done.length) body += `<div class="muted">${done.map((e) => `#${e.entry_no} ${e.final_place ? `<b style="color:var(--text)">최종 ${e.final_place}위</b>` : e.status === 'eliminated' ? '중간 탈락 (최종 순위는 결과 공개 후)' : badge(e.status)}`).join(' · ')}</div>`;
   const best = done.filter((e) => e.final_place).sort((a, b) => a.final_place - b.final_place)[0];
   if (best) body += `<button class="small" data-card="${esc(t.id)}" data-place="${best.final_place}" data-total="${t.entries_total}">🏆 인증 카드 만들기</button>`;
+  if (t.lifecycle === 'finished' && es.length) body += S.rated?.[t.id] ? `<div class="sub">만족도 ${'★'.repeat(S.rated[t.id])} 고마워요</div>` : `<div class="stars" aria-label="대회 만족도">오늘 대회 어땠나요? ${[1, 2, 3, 4, 5].map((n) => `<button data-rate="${esc(t.id)}" data-v="${n}" aria-label="${n}점">☆</button>`).join('')}</div>`;
   if (m.can_reenter) body += `<button class="primary" data-reentry="${esc(t.id)}">재참가 신청 (최대 ${t.reentry.max}회)</button>`;
   if (r && ['expired', 'no_show', 'rejected'].includes(r.status) && !es.length) body += `<div class="muted">${badge(r.status)} ${r.end_reason === 'call_expired' ? '호출 시간 초과' : r.end_reason === 'registration_closed' ? '등록 마감' : ''}</div>`;
   if (t.lifecycle === 'cancelled') body += `<div class="banner bad">대회 취소: ${esc(t.cancel_reason || '')}</div>`;
@@ -325,6 +339,7 @@ function bindPart() {
   view.querySelectorAll('[data-card]').forEach((b) => (b.onclick = () => resultCard(S.mine.find((m) => m.tournament.id === b.dataset.card)?.tournament || S.detail, +b.dataset.place, +b.dataset.total)));
   view.querySelectorAll('[data-cancel]').forEach((b) => (b.onclick = () => confirm('정말 취소할까요?') && act(b, 'cancel_reservation', { p_reservation_id: b.dataset.cancel }, '취소됐어요')));
   view.querySelectorAll('[data-reentry]').forEach((b) => (b.onclick = () => act(b, 'request_reentry', { p_tournament_id: b.dataset.reentry }, '재참가 신청 완료')));
+  view.querySelectorAll('[data-rate]').forEach((b) => (b.onclick = async () => { try { await rpc('rate_tournament', { p_tournament_id: b.dataset.rate, p_score: +b.dataset.v }); (S.rated ||= {})[b.dataset.rate] = +b.dataset.v; toast('고마워요! 매장에 전달할게요'); route(); } catch (e) { toast(errText(e)); } }));
 }
 // 입상 인증 카드: 기기 안에서 그림을 만들어 공유/저장 (서버로 보내는 것 없음)
 async function resultCard(t, place, total) {
@@ -367,12 +382,14 @@ let qrTimer;
 async function qr() {
   if (!session.user) { view.innerHTML = `<div class="empty">로그인하면 입장 QR이 보여요</div>`; return; }
   const draw = async () => {
-    let q; try { q = await mutate('issue_member_qr'); } catch (e) { view.innerHTML = `<div class="banner bad">${esc(errText(e))}</div>`; return; }
+    if (!S.shortId) S.shortId = (await rpc('my_profile').catch(() => null))?.short_id;
+    let q; try { q = await mutate('issue_member_qr'); } catch (e) { view.innerHTML = `<div class="banner bad">${esc(errText(e))}</div><div class="card" style="text-align:center"><div class="muted">오프라인 입장 · 직원에게 보여주세요</div><b style="font-size:30px">${esc(session.nick)} · ${esc(S.shortId || '')}</b></div>`; return; }
     serverOffset = 0;
     view.innerHTML = `<div class="card hl"><h1>입장 QR</h1>
       <div class="qr-box"><div id="qrimg" aria-label="입장 QR 코드"></div><div class="qr-code">${esc(q.token)}</div></div>
       <div class="row between"><span class="muted">자동 갱신 · 유효 <b data-countdown="${esc(q.expires_at)}">--:--</b></span><button class="small" id="qrRefresh">새로 받기</button></div>
-      <div class="muted">직원에게 보여주세요. 화면 캡처는 60초 뒤 무효예요. QR이 안 되면 닉네임으로 찾아드려요.</div></div>`;
+      <div class="muted">직원에게 보여주세요. 화면 캡처는 60초 뒤 무효예요. QR이 안 되면 아래 닉네임·번호로 찾아드려요.</div>
+      <div class="stat" style="text-align:center"><b style="font-size:26px">${esc(session.nick)} · ${esc(S.shortId || '')}</b><span>인터넷이 안 될 때 직원에게 보여주세요</span></div></div>`;
     if (window.QRCode) new window.QRCode($('#qrimg'), { text: q.token, width: 220, height: 220 });
     else $('#qrimg').innerHTML = '<span class="muted">(QR 이미지 라이브러리를 불러오지 못해 코드로 표시)</span>';
     $('#qrRefresh').onclick = draw;
@@ -384,12 +401,13 @@ async function qr() {
 async function me() {
   if (!session.user) { view.innerHTML = `<div class="empty">로그인하면 내 참가 현황이 보여요</div>`; return; }
   await load();
-  view.innerHTML = `${myBar()}<h1>내 게임</h1>${S.mine.length ? S.mine.map(partCard).join('') : '<div class="empty">참가 기록이 없어요</div>'}`;
+  const st = await rpc('my_stats').catch(() => null);
+  view.innerHTML = `${myBar()}<h1>내 게임</h1>${statsCard(st)}${S.mine.length ? S.mine.map(partCard).join('') : '<div class="empty">참가 기록이 없어요</div>'}`;
   bindPart();
 }
 
 const NOTI = { new_game: '♥ 즐겨찾기 매장 새 게임', called: '🔔 대기 호출', admitted: '입장 완료', seated: '좌석 배정', move_planned: '좌석 이동 예정', move_completed: '좌석 이동 완료',
-  eliminated: '탈락 기록', results_published: '결과 공개', results_corrected: '결과 정정', tournament_cancelled: '대회 취소', reservation_confirmed: '예약 확정', reservation_waitlisted: '대기 등록', starting_soon: '⏰ 30분 뒤 시작', almost_up: '🚶 곧 호출 — 지금 출발하세요', stamp_reward: '🎁 스탬프 보상 지급' };
+  eliminated: '탈락 기록', results_published: '결과 공개', results_corrected: '결과 정정', tournament_cancelled: '대회 취소', reservation_confirmed: '예약 확정', reservation_waitlisted: '대기 등록', starting_soon: '⏰ 30분 뒤 시작', almost_up: '🚶 곧 호출 — 지금 출발하세요', stamp_reward: '🎁 스탬프 보상 지급', store_reply: '💬 매장 답변' };
 async function my() {
   if (!session.user) {
     view.innerHTML = `<div class="card"><h1>반갑습니다</h1><div class="sub">로그인하고 내 게임을 모아보세요</div>
@@ -400,7 +418,17 @@ async function my() {
   const [stores, favs, notis, , plat] = await Promise.all([read('public_stores'), read('my_favorites'), read('my_notifications'), storeMode(), read('am_platform_admin').catch(() => false)]);
   S.favs = new Set(favs);
   const owner = (S.stores || []).some((s) => s.role !== 'staff');
-  view.innerHTML = `<div class="card"><h1>${esc(session.nick)}님</h1><div class="sub">즐겨찾기 매장에 새 게임이 열리면 알려드려요</div></div>
+  const pf = await rpc('my_profile').catch(() => null); S.shortId = pf?.short_id;
+  view.innerHTML = `<div class="card"><h1>${esc(pf?.avatar || '')} ${esc(session.nick)}님</h1><div class="sub">즐겨찾기 매장에 새 게임이 열리면 알려드려요 · 내 번호 ${esc(pf?.short_id || '')}</div></div>
+    <details class="card"><summary><b>프로필</b> <span class="sub">닉네임 · 아이콘 · 알림 동의</span></summary><form id="pf" style="display:grid;gap:8px;margin-top:8px">
+      <label>닉네임<input name="n" maxlength="20" required value="${esc(pf?.nickname || session.nick)}"></label>
+      <div class="row">${['', '♠', '♥', '♦', '♣', '🃏', '👑', '🦊', '🐯', '🔥'].map((a) => `<label class="row" style="color:var(--text)"><input type="radio" name="a" value="${a}" ${a === (pf?.avatar || '') ? 'checked' : ''} style="width:18px;min-height:18px">${a || '없음'}</label>`).join('')}</div>
+      <label class="row" style="color:var(--text)"><input type="checkbox" name="mk" ${pf?.marketing_ok ? 'checked' : ''} style="width:22px;min-height:22px"> 이벤트·혜택 소식 받기 (선택 · 언제든 끌 수 있어요)</label>
+      <button class="primary">저장</button></form></details>
+    <div class="card"><h2>화면 설정</h2><div class="row" style="flex-wrap:wrap;gap:8px">
+      <button class="small" data-pref="theme" aria-pressed="${prefs.get('theme') === 'light'}">☀ 밝은 화면</button>
+      <button class="small" data-pref="big" aria-pressed="${prefs.get('big') === '1'}">🔍 큰 글씨</button>
+      <button class="small" data-pref="lang" aria-pressed="${prefs.get('lang') === 'en'}">🌐 English</button></div></div>
     ${installCard()}
     ${S.stores?.length ? `<div class="card"><h2>🏪 매장 모드</h2><div class="sub">${S.stores.map((s) => esc(s.name)).join(' · ')}</div>
       <div class="row" style="flex-wrap:wrap;gap:8px"><a class="btn" href="/table/staff">직원 화면</a>${owner ? '<a class="btn" href="/table/owner">점주 화면</a>' : ''}<a class="btn" href="/table/staff#clock">시계·TV</a></div></div>` : ''}
@@ -414,13 +442,13 @@ async function my() {
     ${notis.length ? notis.map((n) => `<a class="card" style="padding:10px 14px;color:inherit;text-decoration:none;${n.read_at ? 'opacity:.6' : ''}" href="${n.tournament_id ? '#/t/' + esc(n.tournament_id) : '#/my'}" data-read="${esc(n.id)}">
       <div class="row between"><b>${esc(NOTI[n.kind] || n.kind)}</b><span class="sub">${hm(n.created_at)}</span></div><div class="sub">${esc(n.title || n.body?.title || '')}</div></a>`).join('') : '<div class="empty">알림이 없어요</div>'}
     <div class="sec-h"><h2>불편한 점 알려주기</h2></div>
-    <form class="card" id="fb" style="padding:12px"><label for="fbText">매장·앱 불편, 원하는 기능 무엇이든</label>
+    <form class="card" id="fb" style="padding:12px"><label for="fbKind">종류</label><select id="fbKind"><option value="">의견·불편</option><option value="[신고] ">신고 (매장·다른 손님)</option></select><label for="fbText">매장·앱 불편, 원하는 기능 무엇이든</label>
       <textarea id="fbText" rows="3" maxlength="1000" required minlength="2"></textarea><button class="primary">보내기</button></form>
-    <div class="row" style="justify-content:space-between"><a href="/table/legal" class="sub">약관 · 개인정보처리방침</a>
+    <div class="row" style="justify-content:space-between"><a href="/table/about" class="sub">+EV TABLE 소개</a><a href="/table/legal" class="sub">약관 · 개인정보처리방침</a>
       <button class="small danger" id="delAcc">탈퇴하기</button></div>
     <div id="delBox"></div>`;
   $('#fb').onsubmit = async (e) => { e.preventDefault();
-    try { await mutate('submit_feedback', { p_body: $('#fbText').value, p_page: '/table/app', p_store_id: S.mine[0]?.tournament?.store?.id ?? null }); $('#fbText').value = ''; toast('고마워요! 매장·운영팀에 전달했어요'); }
+    try { await mutate('submit_feedback', { p_body: $('#fbKind').value + $('#fbText').value, p_page: '/table/app', p_store_id: S.mine[0]?.tournament?.store?.id ?? null }); $('#fbText').value = ''; toast('고마워요! 매장·운영팀에 전달했어요'); }
     catch (err) { toast(errText(err)); } };
   // 탈퇴: 확인 단계를 화면 안에 (참가 기록은 익명으로 남음)
   $('#delAcc').onclick = () => { $('#delBox').innerHTML = `<div class="card" style="border-color:var(--bad)"><b>정말 탈퇴할까요?</b>
@@ -429,6 +457,13 @@ async function my() {
     $('#delGo').onclick = async () => { try { await mutate('delete_my_account', { p_confirm: $('#delConfirm').value.trim() }); logout(); renderLogin(); toast('탈퇴 처리됐어요'); location.hash = '#/'; }
       catch (err) { toast(err.code === 'STATE_CHANGED' ? '진행 중인 대회가 끝난 뒤 탈퇴할 수 있어요' : errText(err)); } }; };
   bindInstall();
+  $('#pf').onsubmit = async (e) => { e.preventDefault(); const f = new FormData(e.target);
+    try { await rpc('set_profile', { p_nickname: f.get('n'), p_avatar: f.get('a') || '', p_marketing: !!f.get('mk') }); session.nick = String(f.get('n')).trim(); renderLogin(); toast('저장됐어요'); my(); } catch (err) { toast(errText(err)); } };
+  view.querySelectorAll('[data-pref]').forEach((b) => (b.onclick = () => { const k = b.dataset.pref;
+    if (k === 'theme') prefs.set('theme', prefs.get('theme') === 'light' ? null : 'light');
+    if (k === 'big') prefs.set('big', prefs.get('big') === '1' ? null : '1');
+    if (k === 'lang') prefs.set('lang', prefs.get('lang') === 'en' ? null : 'en');
+    my(); }));
   if (plat) $('#newStore').onsubmit = async (e) => { e.preventDefault(); const f = Object.fromEntries(new FormData(e.target));
     try { const r = await read('create_store', { p_name: f.name, p_slug: f.slug, p_region: f.region, p_address: f.address });
       const link = `${location.origin}/table/staff?invite=${encodeURIComponent(r.owner_invite)}`;
@@ -436,6 +471,70 @@ async function my() {
     catch (err) { toast(err.detail === 'slug taken' ? '이미 쓰는 영문 주소예요' : errText(err)); } };
   bindCards();
   view.querySelectorAll('[data-read]').forEach((a) => a.addEventListener('click', () => mutate('mark_notification_read', { p_notification_id: a.dataset.read }).catch(() => {})));
+}
+
+// ── 시즌 랭킹 (포인트만 · 금전 없음) ──
+function rankTop(r) {
+  if (!r?.rows?.length) return '';
+  const row = (x) => `<div class="rank ${x.me ? 'me' : ''}"><b>${x.rank}</b><span>${esc(x.avatar || '')} ${esc(x.nick)} <span class="sub">${x.games}게임</span></span><b>${x.pts}점</b></div>`;
+  return `<div class="sec-h"><h2>이번 달 랭킹</h2><span class="sub">참가 1 · 1위 10 · 2위 7 · 3위 5 · 입상 3점</span></div>
+    <div class="card" style="padding:8px 14px">${r.rows.slice(0, 5).map(row).join('')}
+    ${r.rows.length > 5 ? `<details><summary class="sub">전체 ${r.rows.length}명</summary>${r.rows.slice(5).map(row).join('')}</details>` : ''}</div>`;
+}
+// ── 내 전적 ──
+function statsCard(st) {
+  if (!st || !st.entries) return '';
+  return `<div class="card"><h2>내 전적</h2><div class="stat-grid">
+    ${[['참가 대회', st.tournaments], ['방문 매장', st.stores], ['최고 순위', st.best ? st.best + '위' : '-'], ['TOP3', st.top3], ['입상', st.itm], ['이번 달', st.this_month]].map(([k, v]) => `<div class="stat"><b>${v}</b><span>${k}</span></div>`).join('')}</div>
+    ${st.week_streak > 1 ? `<div class="banner info">🔥 ${st.week_streak}주 연속 출석 중!</div>` : ''}</div>`;
+}
+// ── 주간 캘린더 ──
+function weekView() {
+  const days = {}; S.list.filter((t) => ['open', 'running', 'scheduled'].includes(t.lifecycle) || Date.parse(t.starts_at) > nowServer() - 864e5)
+    .filter((t) => Date.parse(t.starts_at) < nowServer() + 7 * 864e5).sort((a, b) => Date.parse(a.starts_at) - Date.parse(b.starts_at))
+    .forEach((t) => { const k = new Date(t.starts_at).toLocaleDateString('ko-KR', { timeZone: 'Asia/Seoul', month: 'numeric', day: 'numeric', weekday: 'short' }); (days[k] ||= []).push(t); });
+  const chip = (k, t) => `<button class="chip-btn" aria-pressed="${S.filter === k}" data-f="${k}">${t}</button>`;
+  view.innerHTML = `${myBar()}<h1>이번 주 대회</h1><div class="filters">${chip('all', '전체')}${chip('week', '🗓 주간')}${chip('stores', '🗺 매장')}</div>
+    ${Object.keys(days).length ? Object.entries(days).map(([d, ts]) => `<div class="sec-h"><h2>${esc(d)}</h2><span class="sub">${ts.length}개</span></div>${ts.map(gcard).join('')}`).join('') : '<div class="empty">이번 주 예정된 대회가 없어요</div>'}`;
+  view.querySelectorAll('[data-f]').forEach((b) => (b.onclick = () => { S.filter = b.dataset.f; pref.set('tl.filter', S.filter); live(); }));
+  bindCards();
+}
+// ── 매장 목록 (거리순 · 지도 링크) ──
+async function storesView() {
+  const stores = await read('public_stores');
+  if (!S.geo) { try { const p = await new Promise((ok, no) => (navigator.geolocation ? navigator.geolocation.getCurrentPosition(ok, no, { timeout: 6000, maximumAge: 600000 }) : no())); S.geo = { lat: p.coords.latitude, lng: p.coords.longitude }; } catch {} }
+  const d = (s) => km({ store: s });
+  stores.sort((a, b) => (d(a) ?? 1e9) - (d(b) ?? 1e9));
+  const chip = (k, t) => `<button class="chip-btn" aria-pressed="${S.filter === k}" data-f="${k}">${t}</button>`;
+  view.innerHTML = `${myBar()}<h1>홀덤펍 지도</h1><div class="filters">${chip('all', '전체')}${chip('week', '🗓 주간')}${chip('stores', '🗺 매장')}</div>
+    <a class="btn" href="https://map.kakao.com/?q=${encodeURIComponent('홀덤펍')}" target="_blank" rel="noopener">카카오맵에서 주변 홀덤펍 보기</a>
+    ${stores.map((s) => `<div class="card row between" style="padding:10px 14px"><span><b>${esc(s.name)}</b> <span class="sub">${esc(s.region || '')}${d(s) != null ? ` · ${d(s).toFixed(1)}km` : ''}</span><br><span class="sub">${esc(s.address || '')}</span></span>
+      <a class="btn small" href="https://map.kakao.com/?q=${encodeURIComponent(s.address || s.name)}" target="_blank" rel="noopener">지도</a></div>`).join('') || '<div class="empty">아직 등록된 매장이 없어요</div>'}`;
+  view.querySelectorAll('[data-f]').forEach((b) => (b.onclick = () => { S.filter = b.dataset.f; pref.set('tl.filter', S.filter); live(); }));
+}
+// ── 매장 부가정보: 공지 · 영업시간 · 사진 · 첫방문 혜택 · 리뷰 · 1:1 문의 ──
+async function storeExtras(t, tab) {
+  const x = await rpc('store_extras', { p_store_id: t.store.id }).catch(() => null); if (!x) return;
+  const p = x.profile || {};
+  if (p.notice && $('#xNotice')) $('#xNotice').innerHTML = `<div class="banner info">📢 ${esc(p.notice)}</div>`;
+  const box = $('#xStore'); if (!box || tab !== 'store') return;
+  const stars = (n) => '★'.repeat(n) + '☆'.repeat(5 - n);
+  const msgs = session.user ? await rpc('my_store_messages', { p_store_id: t.store.id }).catch(() => []) : [];
+  box.innerHTML = `${p.first_visit ? `<div class="banner info">🎁 첫 방문 혜택 · ${esc(p.first_visit)}</div>` : ''}
+    ${p.hours || p.closed_days ? `<div class="card"><h3>영업시간</h3><div>${esc(p.hours || '')}</div>${p.closed_days ? `<div class="sub">휴무 ${esc(p.closed_days)}</div>` : ''}</div>` : ''}
+    ${p.photos?.length ? `<div class="photos">${p.photos.map((u) => `<img src="${esc(u)}" alt="${esc(t.store.name)} 사진" loading="lazy" referrerpolicy="no-referrer">`).join('')}</div>` : ''}
+    <div class="card"><div class="row between"><h3>리뷰 ${x.rating.n ? `<span style="color:var(--amber)">★ ${x.rating.avg}</span> <span class="sub">${x.rating.n}개</span>` : ''}</h3></div>
+      ${x.reviews.map((r) => `<div style="border-top:1px dashed var(--line);padding:6px 0"><span style="color:var(--amber)">${stars(r.rating)}</span> <b>${esc(r.avatar || '')} ${esc(r.nick)}</b> <span class="sub">${dt(r.at)}</span>${r.body ? `<div>${esc(r.body)}</div>` : ''}</div>`).join('') || '<div class="muted">첫 리뷰를 남겨주세요</div>'}
+      ${session.user ? x.visited ? `<form id="rv" style="display:grid;gap:6px;margin-top:8px"><div class="stars">${[1, 2, 3, 4, 5].map((n) => `<button type="button" data-st="${n}" aria-label="${n}점">${n <= (x.mine?.rating || 0) ? '★' : '☆'}</button>`).join('')}</div>
+        <input name="b" maxlength="300" placeholder="한 줄 리뷰 (선택)" value="${esc(x.mine?.body || '')}"><button class="primary">${x.mine ? '리뷰 수정' : '리뷰 남기기'}</button></form>` : '<div class="sub">방문(입장)한 손님만 리뷰를 쓸 수 있어요</div>' : ''}</div>
+    <div class="card"><h3>매장에 문의</h3>${session.user ? `<div class="thread">${msgs.map((m) => `<div class="m ${m.staff ? 'staff' : ''}">${esc(m.body)}<div class="sub">${m.staff ? '매장' : '나'} · ${hm(m.at)}</div></div>`).join('')}</div>
+      <form id="msg" class="row" style="margin-top:8px"><input name="b" maxlength="500" required placeholder="대회·주차·좌석 등 무엇이든" style="flex:1"><button>보내기</button></form>` : '<div class="sub">로그인하면 매장에 1:1로 물어볼 수 있어요</div>'}</div>`;
+  let pick = x.mine?.rating || 0;
+  box.querySelectorAll('[data-st]').forEach((b) => (b.onclick = () => { pick = +b.dataset.st; box.querySelectorAll('[data-st]').forEach((c) => (c.textContent = +c.dataset.st <= pick ? '★' : '☆')); }));
+  const rv = $('#rv'); if (rv) rv.onsubmit = async (e) => { e.preventDefault(); if (!pick) return toast('별점을 골라주세요');
+    try { await rpc('submit_review', { p_store_id: t.store.id, p_rating: pick, p_body: new FormData(rv).get('b') }); toast('리뷰 고마워요!'); storeExtras(t, tab); } catch (err) { toast(errText(err)); } };
+  const mf = $('#msg'); if (mf) mf.onsubmit = async (e) => { e.preventDefault();
+    try { await rpc('send_store_message', { p_store_id: t.store.id, p_body: new FormData(mf).get('b') }); toast('보냈어요 · 답변 오면 알림으로 알려드려요'); storeExtras(t, tab); } catch (err) { toast(errText(err)); } };
 }
 
 async function route() {
