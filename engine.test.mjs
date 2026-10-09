@@ -1,5 +1,8 @@
 import assert from 'node:assert';
 import * as E from './engine.js';
+import { PRICING } from './pricing.js';
+// 요금 계산식 검사용 고정값 (실제 요금은 서버 pricing 테이블 값을 씀)
+Object.assign(PRICING.jobs, { base: { 1: 4400, 3: 8800, 5: 12100, 14: 19800, 30: 33000 }, urgent: 10000, matchPct: 5 });
 const p={id:'b',hourly_rate:14000,contract:'4대',night_pay:true,labor_law:null};
 const tpl=[0,1,2,3].map(w=>({member_id:'b',weekday:w,start_t:'18:00',end_t:'02:30',break_min:null}));
 const r=E.payroll(p,2026,9,tpl,[],0,'2026-09-26',['22:00','06:00']);
