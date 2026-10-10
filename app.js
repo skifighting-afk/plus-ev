@@ -2097,7 +2097,7 @@ function menuSheet() {
   <label class="mn-tog"><span><b>폰 설정 따라 밝게·어둡게</b><small>낮엔 밝은 화면, 밤엔 어두운 화면 자동</small></span><input type="checkbox" data-act="theme" data-v="${lsGet('ev_theme') === 'auto' ? 'mint' : 'auto'}" ${lsGet('ev_theme') === 'auto' ? 'checked' : ''}></label>
   ${S.user ? `<div class="mn-lb">알림·보안</div><div class="mn-list"><button data-act="dnd"><span class="mn-ic">🌙</span>방해 금지 시간 <small class="mut" style="margin-left:4px">${S.prof?.dnd?.f ? `${S.prof.dnd.f}~${S.prof.dnd.t}` : '꺼짐'}</small><i>›</i></button><button data-act="pin-set"><span class="mn-ic">🔒</span>앱 잠금 (PIN) <small class="mut" style="margin-left:4px">${lsGet('ev_pin') ? '켜짐 · 이 폰' : '꺼짐'}</small><i>›</i></button><button data-act="logout-all"><span class="mn-ic">📱</span>모든 기기에서 로그아웃<i>›</i></button></div>` : ''}
   <label class="mn-tog"><span><b>글자 크게</b><small>모든 화면 글자를 조금 크게</small></span><input type="checkbox" data-act="big" ${lsGet('ev_big') === '1' ? 'checked' : ''}></label>
-  <div class="mn-lb">기타 <small class="mut" style="font-weight:400">v0.82 · 매장 준비 10단계 · 기능 켜기/끄기 · 근무 일괄 확정 · 가져오기 · 화면 정리: 홈 접기 · 경고 요약 · 직원 카드 접기 · 출퇴근 고치기 안내</small></div>
+  <div class="mn-lb">기타 <small class="mut" style="font-weight:400">v0.83 · 매장 키우기 퀘스트 · 매장 준비 10단계 · 기능 켜기/끄기 · 근무 일괄 확정 · 가져오기 · 화면 정리: 홈 접기 · 경고 요약 · 직원 카드 접기 · 출퇴근 고치기 안내</small></div>
   <div class="mn-list"><a href="guide.html#${S.mode === 'store' ? 'owner' : S.mode}" target="_blank" rel="noopener"><span class="mn-ic"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2zM4 21V5M8 7h7"/></svg></span>사용법 보기<i>›</i></a>
   ${S.user && (S.user.app_metadata?.provider || 'email') === 'email' ? `<button data-act="pw-change"><span class="mn-ic"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg></span>비밀번호 바꾸기<i>›</i></button>` : ''}
   ${S.user ? '<button data-act="myset"><span class="mn-ic">🧩</span>내 화면 · 기기 · 단축키<i>›</i></button>' : ''}
@@ -3521,12 +3521,20 @@ function setupSteps() {
     ['pay', '급여', staff.length > 0 && !noRate.length, !staff.length ? '직원 등록 후' : noRate.length ? `시급 미설정 ${noRate.length}명` : '시급 설정 완료'],
     ['done', '점검', !!c.done, c.done ? '운영 시작' : '사용 가능한 기능 확인']];
 }
+// 게임식: 스테이지 클리어마다 +100 XP, 클리어 수로 홀덤 랭크 (보상은 레벨·칭호뿐 — 요금 혜택 없음)
+const RANK = ['입장', '입장', '프리플랍', '프리플랍', '플랍', '플랍', '턴', '턴', '리버', '리버', '쇼다운'];
+const SICON = ['👤', '🏪', '🕐', '🧩', '💳', '🧾', '👥', '📅', '💰', '🏆'];
+const cleared = () => setupSteps().filter(x => x[2]).length;
+function questMap(L, cur) {
+  return `<div class="qmap" role="list">${L.map((x, j) => `<button type="button" role="listitem" class="qn ${x[2] ? 'ok' : ''} ${j === cur ? 'cur' : ''}" data-act="wz" data-v="${j}" ${j < 2 ? 'disabled' : ''} aria-label="스테이지 ${j + 1} ${x[1]}${x[2] ? ' 클리어' : ''}"><i>${x[2] ? '✓' : SICON[j]}</i><small>${x[1]}</small></button>`).join('<span class="ql" aria-hidden="true"></span>')}</div>`;
+}
+const xpBar = n => `<div class="xp" aria-label="경험치 ${n * 100} / 1000"><i style="width:${n * 10}%"></i><span>${n * 100} / 1,000 XP</span></div>`;
 function setupCard() {
   if (S.mode !== 'store' || !isOwner() || CFG().done) return '';
-  const L = setupSteps(), n = L.filter(x => x[2]).length, next = L.findIndex(x => !x[2]);
-  return `<div class="card su"><div class="row between"><h3 style="margin:0">매장 준비 <small>${n}/${L.length}</small></h3><button class="btn sm pri" data-act="wz" data-v="${Math.max(2, next)}">${n > 2 ? '이어서 하기' : '시작하기'}</button></div>
-  <div class="su-bar">${L.map(x => `<i class="${x[2] ? 'on' : ''}" title="${x[1]}"></i>`).join('')}</div>
-  <p class="note" style="margin:6px 0 0"><b>마감·매출 입력은 지금 바로 쓸 수 있어요.</b> 나머지는 필요할 때 해도 돼요${L[next] ? ` · 다음: ${L[next][1]}` : ''}</p></div>`;
+  const L = setupSteps(), n = L.filter(x => x[2]).length, next = Math.max(2, L.findIndex(x => !x[2]));
+  return `<div class="card qcard"><div class="qh"><div><small class="qk">매장 키우기 퀘스트</small><b>Lv.${n} · ${RANK[n]}</b></div><button class="btn sm pri" data-act="wz" data-v="${next}">${n > 2 ? '다음 스테이지 ▶' : '게임 시작 ▶'}</button></div>
+  ${xpBar(n)}${questMap(L, next)}
+  <p class="note" style="margin:8px 0 0">다음: <b>${SICON[next]} ${L[next][1]}</b> · 클리어하면 +100 XP · <span class="mut">마감·매출 입력은 지금 바로 돼요</span></p></div>`;
 }
 // 한 줄 문장 → 설정 제안 (규칙 기반, 프로 AI 없이 무료). 못 읽은 값은 비워 둠
 function sayParse(t) {
@@ -3548,7 +3556,7 @@ function wzOpen(i) {
   if (!isOwner()) return toast('매장 설정은 대표만 바꿀 수 있어요');
   const L = setupSteps(); i = Math.max(2, Math.min(L.length - 1, +i)); S.wz = i;
   const [k, name] = L[i], c = CFG(), say = S.wzSay || {}, staff = S.members.filter(p => p.role !== 'owner');
-  const nav = `<div class="su-steps">${L.map((x, j) => `<button type="button" class="${j === i ? 'cur' : x[2] ? 'on' : ''}" data-act="wz" data-v="${j}" ${j < 2 ? 'disabled' : ''} aria-label="${j + 1}단계 ${x[1]}">${j + 1}</button>`).join('')}</div>`;
+  const n = L.filter(x => x[2]).length, nav = `<div class="qtop"><span class="qstage">STAGE ${i + 1} / 10</span><span class="qrank">Lv.${n} ${RANK[n]}</span><span class="qxp">${L[i][2] ? '클리어함' : '+100 XP'}</span></div>${xpBar(n)}${questMap(L, i)}`;
   const foot = `<div class="row" style="margin-top:12px">${i > 2 ? `<button type="button" class="btn" data-act="wz" data-v="${i - 1}">뒤로</button>` : ''}${k !== 'done' ? `<button type="button" class="btn" data-act="wz" data-v="${i + 1}">건너뛰기</button><button class="btn pri" style="flex:1">저장하고 다음</button>` : ''}</div>`;
   let body = '';
   if (k === 'hours') {
@@ -3601,18 +3609,27 @@ function wzOpen(i) {
     ${todo.length ? `<div class="card"><h3>추가 설정이 필요해요</h3>${todo.map(x => `<div class="li"><span class="mut">${x}</span><small class="mut">나중에 해도 돼요</small></div>`).join('')}</div>` : ''}
     <button type="button" class="btn pri full" data-act="wz-done">매장 대시보드로 이동</button><p class="note" style="text-align:center">설정은 오른쪽 위 메뉴 → 매장 준비·기능에서 다시 열 수 있어요</p>`;
   }
-  openSheet(`<h2>${i + 1}. ${name}</h2>${nav}<form class="f" id="wz-form" data-k="${k}">${body}${foot}</form>`);
+  openSheet(`${nav}<h2 class="qtitle">${SICON[i]} ${name}</h2><form class="f" id="wz-form" data-k="${k}">${body}${foot}</form>`);
+  document.querySelector('#sheet .qn.cur')?.scrollIntoView({ inline: 'center', block: 'nearest' });
 }
 F68['wz-form'] = async (f) => {
-  const k = f.dataset.k, el = n => f.elements[n], ck = n => !!el(n)?.checked;
+  S.wzBefore = cleared(); const k = f.dataset.k, el = n => f.elements[n], ck = n => !!el(n)?.checked;
   if (k === 'hours') await cfgSave({ open: el('open').value, close: el('close').value, cut: +el('cut').value, offwd: E.WD.map((_, j) => j).filter(j => ck('off_' + j)) });
   if (k === 'feat') await cfgSave({ feat: 1, off: FEAT.map(([x]) => x).filter(x => !ck('f_' + x)) });
   if (k === 'sales') await cfgSave({ sales: f.querySelector('[name=sales]:checked')?.value || 'manual' });
   if (k === 'close') await cfgSave({ cash0: Math.max(0, +el('cash0').value || 0), carry: ck('carry'), split: ck('split') });
   if (k === 'staff') await cfgSave({ att: ATT.map(([x]) => x).filter(x => ck('a_' + x)), skip_staff: ck('skip_staff') });
   if (k === 'sched') await cfgSave({ sched: f.querySelector('[name=sched]:checked')?.value || 'mix' });
-  render(); wzOpen(S.wz + 1);
+  const after = cleared(); render(); if (after > (S.wzBefore ?? after)) await stageClear(after); wzOpen(S.wz + 1);
 };
+// 스테이지 클리어 연출 — 탭하거나 1.6초 뒤 닫힘
+function stageClear(n, fin) {
+  const up = RANK[n] !== RANK[n - 1], el = document.createElement('div'); el.className = 'qclear' + (fin ? ' fin' : ''); el.setAttribute('role', 'status');
+  el.innerHTML = `<div class="qc-in">${Array.from({ length: 14 }, (_, j) => `<i class="chip-p" style="--a:${j * 360 / 14}deg;--d:${90 + (j % 3) * 40}px;--c:${['#3ddc84', '#f5b942', '#ff6b6b', '#7aa7ff'][j % 4]}"></i>`).join('')}
+    <b class="qc-t">${fin ? 'SHOWDOWN!' : 'STAGE CLEAR!'}</b><span class="qc-x">+100 XP</span>${fin ? '<span class="qc-r">🏆 매장 오픈 준비 완료 · Lv.10 쇼다운</span>' : up ? `<span class="qc-r">랭크 업! ${RANK[n - 1]} → <b>${RANK[n]}</b></span>` : `<span class="qc-r">Lv.${n} · ${RANK[n]}</span>`}</div>`;
+  document.body.appendChild(el); try { navigator.vibrate?.(fin ? [40, 60, 80] : 30); } catch { }
+  return new Promise(r => { const end = () => { el.remove(); r(); }; el.addEventListener('click', end, { once: true }); setTimeout(end, fin ? 2400 : 1600); });
+}
 // 근무 일괄 확정: 스케줄은 '예정'일 뿐, 확정해야 출퇴근 기록이 생김 (method 'mgr')
 function mgrRows(k) {
   const [y, m, d] = k.split('-').map(Number);
@@ -3713,7 +3730,7 @@ document.addEventListener('click', e => {
   if (a === 'wz') return wzOpen(b.dataset.v);
   if (a === 'wz-say') { const f = $('#wz-form'), t = f.elements.say.value; S.wzSayT = t; S.wzSay = sayParse(t); const r = S.wzSay; if (!r.open && !r.close && !r.offwd) return toast('시간을 못 읽었어요. 아래 칸에 직접 넣어주세요'); return wzOpen(S.wz), toast('채웠어요. 맞는지 확인하고 저장하세요'); }
   if (a === 'wz-go') { closeSheet(); S.tab = b.dataset.v; S.sub = null; return render(); }
-  if (a === 'wz-done') return busy(async () => { await cfgSave({ done: 1 }); closeSheet(); S.tab = 'home'; S.sub = null; render(); toast('매장 운영을 시작해요'); });
+  if (a === 'wz-done') return busy(async () => { await cfgSave({ done: 1 }); closeSheet(); await stageClear(10, true); closeSheet(); S.tab = 'home'; S.sub = null; render(); toast('매장 운영을 시작해요'); });
   if (a === 'mgr-day') { const k = addDay(S.mgrDay || addDay(bizDay(), -1), +b.dataset.v); if (k > bizDay()) return; S.mgrDay = k; return render(); }
   if (a === 'sched-import') return openSheet(`<h2>고정 근무 가져오기</h2><p class="sub">한 줄에 한 명: <b>이름 · 요일 · 시작 · 끝</b> (휴게는 '휴게 30'). 매일·평일·주말도 돼요. 사진은 프로 요금제에서 읽어요.</p>
     <form class="f" id="simp-form">${impFile('sched', '.csv,.xlsx,.xls,.txt,image/*')}<textarea name="t" rows="7" style="width:100%" placeholder="에이스 월화수 19:00 04:00&#10;민지 주말 18:00 02:00 휴게 30"></textarea><div id="simp-pv"><p class="note">붙여넣으면 미리보기가 나와요</p></div><button class="btn pri full">확인한 줄 저장</button></form>`);

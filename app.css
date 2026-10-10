@@ -834,3 +834,29 @@ details.warnc>summary,details.card>summary,.ltmore>summary,.empd>summary{cursor:
 #wz-form .choice{gap:6px;margin-top:8px}#wz-form .choice b{font-size:15px}
 .itbl{min-width:0;margin:8px 0;font-size:13px}.itbl th,.itbl td{padding:5px 6px}
 #simp-pv,#sales-pv{max-height:260px;overflow:auto}
+/* v0.83 매장 키우기 퀘스트 (게임식 10단계) */
+.qcard{background:radial-gradient(120% 140% at 0% 0%,rgba(var(--brand-rgb),.16),transparent 55%),var(--card);border-color:rgba(var(--brand-rgb),.35)}
+.qh{display:flex;justify-content:space-between;align-items:center;gap:10px}.qh b{font-size:19px;letter-spacing:-.01em}.qk{display:block;font-size:11px;letter-spacing:.08em;color:var(--brand-2);font-weight:800;text-transform:uppercase}
+.xp{position:relative;height:16px;border-radius:9px;background:var(--line);overflow:hidden;margin:10px 0 4px}.xp i{position:absolute;inset:0 auto 0 0;background:linear-gradient(90deg,var(--brand-2),#f5b942);border-radius:9px;transition:width .6s cubic-bezier(.2,.9,.3,1.2)}
+.xp span{position:relative;display:block;text-align:center;font-size:11px;font-weight:800;line-height:16px;color:var(--text);font-variant-numeric:tabular-nums;text-shadow:0 1px 2px rgba(0,0,0,.45)}
+.qmap{display:flex;align-items:center;overflow-x:auto;padding:10px 2px 4px;scrollbar-width:none}.qmap::-webkit-scrollbar{display:none}
+.qn{flex:none;display:flex;flex-direction:column;align-items:center;gap:4px;background:none;border:0;padding:0;cursor:pointer;color:var(--muted);width:52px}
+.qn i{font-style:normal;width:38px;height:38px;border-radius:50%;display:grid;place-items:center;font-size:17px;background:var(--card2);border:2px dashed var(--line2)}
+.qn small{font-size:10.5px;white-space:nowrap;max-width:52px;overflow:hidden;text-overflow:ellipsis}
+.qn.ok i{background:var(--brand-2);border:2px solid var(--brand-2);color:#0b1210;font-weight:900;box-shadow:0 0 0 3px rgba(var(--brand-rgb),.18)}.qn.ok small{color:var(--text)}
+.qn.cur i{border:2px solid #f5b942;background:rgba(245,185,66,.14);animation:qpulse 1.6s infinite}.qn.cur small{color:#f5b942;font-weight:800}
+.qn:disabled{cursor:default}.qn:focus-visible i{outline:2px solid #f5b942;outline-offset:2px}
+.ql{flex:none;width:14px;height:3px;border-radius:2px;background:var(--line2);margin-bottom:18px}
+@keyframes qpulse{0%,100%{box-shadow:0 0 0 0 rgba(245,185,66,.45)}50%{box-shadow:0 0 0 7px rgba(245,185,66,0)}}
+.qtop{display:flex;gap:6px;align-items:center;flex-wrap:wrap}.qtop span{font-size:11.5px;font-weight:800;padding:3px 9px;border-radius:999px;background:var(--card2);border:1px solid var(--line2)}
+.qstage{color:var(--brand-2)}.qxp{margin-left:auto;color:#f5b942;border-color:rgba(245,185,66,.4)!important}
+.qtitle{font-size:22px;margin:10px 0 2px}
+.qclear{position:fixed;inset:0;z-index:60;display:grid;place-items:center;background:rgba(5,8,10,.62);backdrop-filter:blur(2px);cursor:pointer}
+.qc-in{position:relative;display:grid;justify-items:center;gap:6px;padding:26px 30px;border-radius:20px;background:var(--card);border:2px solid #f5b942;box-shadow:0 0 40px rgba(245,185,66,.35);animation:qpop .45s cubic-bezier(.2,1.4,.4,1)}
+.qc-t{font-family:Archivo,var(--font,system-ui),sans-serif;font-size:30px;font-weight:900;letter-spacing:.02em;background:linear-gradient(90deg,#f5b942,#fff3c4,#f5b942);-webkit-background-clip:text;background-clip:text;color:transparent}
+.qc-x{font-size:20px;font-weight:900;color:var(--brand-2)}.qc-r{font-size:13.5px;color:var(--text)}.qc-r b{color:#f5b942}
+.qclear.fin .qc-t{font-size:34px}
+.chip-p{position:absolute;left:50%;top:50%;width:14px;height:14px;margin:-7px;border-radius:50%;background:var(--c);border:3px dashed rgba(255,255,255,.7);animation:qburst .9s ease-out forwards}
+@keyframes qpop{from{transform:scale(.5);opacity:0}to{transform:scale(1);opacity:1}}
+@keyframes qburst{from{transform:rotate(var(--a)) translateY(0) scale(.4);opacity:1}to{transform:rotate(var(--a)) translateY(calc(-1 * var(--d))) scale(1);opacity:0}}
+@media (prefers-reduced-motion:reduce){.qn.cur i,.qc-in,.chip-p,.xp i{animation:none;transition:none}.chip-p{display:none}}
