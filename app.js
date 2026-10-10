@@ -351,7 +351,7 @@ ICON.lounge = ICON.market; ICON.rep = '<path d="M12 3l8 3v6c0 4.5-3.4 8.3-8 9-4.
 function render() {
   clearInterval(S.qrTimer);
   { const vk = TODAY + (S.mode || 'guest'); if (S.vk !== vk && !location.pathname.includes('/demo')) { S.vk = vk; let vid = lsGet('ev_vid'); if (!vid) { vid = Math.random().toString(36).slice(2) + Date.now().toString(36); lsSet('ev_vid', vid); } let rf = ''; try { rf = document.referrer && !document.referrer.includes(location.host) ? new URL(document.referrer).host : ''; } catch { } sb.rpc('log_visit', { p_vid: vid, p_mode: S.mode || 'guest', p_path: location.pathname, p_ref: rf, p_ua: /Mobi|Android|iPhone/i.test(navigator.userAgent) ? (matchMedia('(display-mode: standalone)').matches ? 'app' : 'mobile') : 'pc' }).then(() => { }, () => { }); } }
-  const tabs = TABS[S.mode]?.filter(([k]) => !hideTab(k)), nav = $('#tabs'); if (tabs && hideTab(S.tab)) S.tab = tabs[0]?.[0] || 'home'; nav.hidden = !tabs;
+  const tabs = uiTabs(TABS[S.mode])?.filter(([k]) => !hideTab(k)), nav = $('#tabs'); if (tabs && hideTab(S.tab)) S.tab = tabs[0]?.[0] || 'home'; nav.hidden = !tabs;
   const g = S.mode === 'store' ? groupOf() : S.tab;
   if (tabs) nav.innerHTML = tabs.map(([k, i, l]) => `<button ${k === 'market' ? 'data-act="sub" data-v="used"' : `data-tab="${k}"`} ${g === k ? 'aria-current="page"' : ''}><span>${ICON[k] ? svg(k) : i}</span>${l}</button>`).join('');
   ($('#top-r') || {}).innerHTML = S.user ? `${S.mode === 'store' ? `<button class="btn sm icon ${S.sub === 'notice' ? 'on' : ''}" data-act="sub" data-v="notice" title="운영사 공지" aria-label="운영사 공지">${svg('notice')}<i class="il">공지</i></button><button class="btn sm icon ${S.sub === 'inq' ? 'on' : ''}" data-act="sub" data-v="inq" title="운영사 문의" aria-label="운영사 문의">${svg('inq')}<i class="il">문의</i></button><button class="btn sm icon ${S.sub === 'settings' ? 'on' : ''}" data-act="sub" data-v="settings" title="매장 설정" aria-label="매장 설정">${svg('settings')}<i class="il">설정</i></button>` : ''}<button class="btn sm icon bell" data-act="notis" title="알림" aria-label="알림${(S.notis || []).filter(x => !x.read).length ? ` ${(S.notis || []).filter(x => !x.read).length}개 안 읽음` : ''}"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 16V11a6 6 0 0 1 12 0v5l2 2H4zM10 20a2 2 0 0 0 4 0"/></svg><i class="il">알림</i>${(S.notis || []).filter(x => !x.read).length ? `<b class="nbdg">${Math.min(99, (S.notis || []).filter(x => !x.read).length)}</b>` : ''}</button><button class="btn sm icon" data-act="refresh" title="새로고침" aria-label="새로고침">${svg('refresh')}<i class="il">새로고침</i></button><button class="btn sm icon" data-act="menu" title="메뉴 · 화면 색" aria-label="메뉴 · 화면 색">${svg('menu')}<i class="il">메뉴</i></button>` : '';
@@ -2102,7 +2102,7 @@ function menuSheet() {
   <label class="mn-tog"><span><b>폰 설정 따라 밝게·어둡게</b><small>낮엔 밝은 화면, 밤엔 어두운 화면 자동</small></span><input type="checkbox" data-act="theme" data-v="${lsGet('ev_theme') === 'auto' ? 'mint' : 'auto'}" ${lsGet('ev_theme') === 'auto' ? 'checked' : ''}></label>
   ${S.user ? `<div class="mn-lb">알림·보안</div><div class="mn-list"><button data-act="dnd"><span class="mn-ic">🌙</span>방해 금지 시간 <small class="mut" style="margin-left:4px">${S.prof?.dnd?.f ? `${S.prof.dnd.f}~${S.prof.dnd.t}` : '꺼짐'}</small><i>›</i></button><button data-act="pin-set"><span class="mn-ic">🔒</span>앱 잠금 (PIN) <small class="mut" style="margin-left:4px">${lsGet('ev_pin') ? '켜짐 · 이 폰' : '꺼짐'}</small><i>›</i></button><button data-act="logout-all"><span class="mn-ic">📱</span>모든 기기에서 로그아웃<i>›</i></button></div>` : ''}
   <label class="mn-tog"><span><b>글자 크게</b><small>모든 화면 글자를 조금 크게</small></span><input type="checkbox" data-act="big" ${lsGet('ev_big') === '1' ? 'checked' : ''}></label>
-  <div class="mn-lb">기타 <small class="mut" style="font-weight:400">v0.88 · 가입 없이 둘러보기·운영 깔때기·오류 보기·약한 와이파이 대비 · 한 번에 세팅 · 매장 키우기 퀘스트 · 매장 준비 10단계 · 기능 켜기/끄기 · 근무 일괄 확정 · 가져오기 · 화면 정리: 홈 접기 · 경고 요약 · 직원 카드 접기 · 출퇴근 고치기 안내</small></div>
+  <div class="mn-lb">기타 <small class="mut" style="font-weight:400">v0.89 · 맞춤 설정 20가지 (탭·홈·마감·근무표 틀·빠른 실행) · 한 번에 세팅 · 매장 키우기 퀘스트 · 매장 준비 10단계 · 기능 켜기/끄기 · 근무 일괄 확정 · 가져오기 · 화면 정리: 홈 접기 · 경고 요약 · 직원 카드 접기 · 출퇴근 고치기 안내</small></div>
   <div class="mn-list"><a href="guide.html#${S.mode === 'store' ? 'owner' : S.mode}" target="_blank" rel="noopener"><span class="mn-ic"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2zM4 21V5M8 7h7"/></svg></span>사용법 보기<i>›</i></a>
   ${S.user && (S.user.app_metadata?.provider || 'email') === 'email' ? `<button data-act="pw-change"><span class="mn-ic"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg></span>비밀번호 바꾸기<i>›</i></button>` : ''}
   ${S.user ? '<button data-act="myset"><span class="mn-ic">🧩</span>내 화면 · 기기 · 단축키<i>›</i></button>' : ''}
@@ -2561,7 +2561,7 @@ function reportSheet() {
 // ===== 사용성: 오프라인 마감 · 홈 꾸미기 · 즐겨찾기 · 색약 · 첫 화면 · 단축키 · 기기 목록 · 지난해 =====
 const FAVS = [['sales', '마감', 'tab'], ['sched', '스케줄', 'tab'], ['staff', '직원·급여', 'tab'], ['jobs', '구인', 'tab'], ['ops', '매장 노트', 'ops-open'], ['order', '발주', 'sub'], ['qr', '출퇴근 QR', 'sub'], ['daily', '일 매출', 'sub']];
 const favs = () => (lsGet('ev_favs') || 'sales,sched,ops').split(',').filter(Boolean);
-function favBar() { if (S.mode !== 'store') return ''; const F = FAVS.filter(([k]) => favs().includes(k)); return `<div class="favbar">${F.map(([k, l, t]) => t === 'tab' ? `<button class="fchip" data-tab="${k}">${l}</button>` : t === 'sub' ? `<button class="fchip" data-act="sub" data-v="${k}">${l}</button>` : `<button class="fchip" data-act="${t}">${l}</button>`).join('')}<button class="fchip" data-act="fav-set" aria-label="바로가기 고르기">＋</button><button class="fchip" data-act="home-edit">${S.homeEdit ? '✓ 다 꾸몄어요' : '홈 꾸미기'}</button>${new Date().getDate() <= 7 ? '<button class="fchip" data-act="mrep">지난달 리포트</button>' : ''}</div>`; }
+function favBar() { if (S.mode !== 'store') return ''; const F = FAVS.filter(([k]) => favs().includes(k)); return `<div class="favbar">${F.map(([k, l, t]) => t === 'tab' ? `<button class="fchip" data-tab="${k}">${l}</button>` : t === 'sub' ? `<button class="fchip" data-act="sub" data-v="${k}">${l}</button>` : `<button class="fchip" data-act="${t}">${l}</button>`).join('')}<button class="fchip" data-act="fav-set" aria-label="바로가기 고르기">＋</button><button class="fchip" data-act="home-edit">${S.homeEdit ? '✓ 다 꾸몄어요' : '홈 꾸미기'}</button><button class="fchip" data-act="u-set">🎛 맞춤 설정</button>${new Date().getDate() <= 7 ? '<button class="fchip" data-act="mrep">지난달 리포트</button>' : ''}</div>`; }
 const hideL = () => (lsGet('ev_hide') || '').split('|').filter(Boolean), pinL = () => (lsGet('ev_pin2') || '').split('|').filter(Boolean);
 const cardKey = c => (c.querySelector('h3,b')?.firstChild?.textContent || c.querySelector('h3,b')?.textContent || '').replace(/[\d,.₩%()·:/~+−-]|월|일|개|명|건|원|만/g, '').replace(/\s+/g, '').slice(0, 12);
 function homeTune() {
@@ -2586,7 +2586,7 @@ function setSheet() {
   const OPT = { store: [['home', '홈'], ['sales', '매출'], ['sched', '스케줄'], ['staff', '직원']], staff: [['work', '내 근무'], ['attend', '출퇴근'], ['jobs', '구인'], ['me', '내 정보']], dealer: [['jobs', '구인'], ['mywork', '내 근무'], ['wallet', '지갑'], ['me', '내 정보']] }[S.mode] || [], st = lsGet('ev_start_' + S.mode) || (S.mode === 'store' ? lsGet('ev_start') : '') || OPT[0]?.[0];
   openSheet(`<h2>내 화면 설정</h2><div class="fl"><span>앱 열면 첫 화면</span><div class="seg brk">${OPT.map(([k, l]) => `<label><input type="radio" name="st" value="${k}" data-act="start-set" ${st === k ? 'checked' : ''}><span>${l}</span></label>`).join('')}</div></div>
   <label class="tog"><span><b>색약 모드</b><small>빨강·초록 대신 파랑·주황으로 구분</small></span><input type="checkbox" data-act="cvd" ${lsGet('ev_cvd') === '1' ? 'checked' : ''}></label>
-  <div class="mn-list"><button data-act="fav-set">⭐ 바로가기 고르기<i>›</i></button><button data-act="devices">📱 로그인한 기기<i>›</i></button><button data-act="lastyear">🗂 지난해 보관함<i>›</i></button><button data-act="keys">⌨️ PC 단축키<i>›</i></button></div>`);
+  <div class="mn-list"><button data-act="u-set">🎛 맞춤 설정 · 탭·홈·마감·알림<i>›</i></button><button data-act="fav-set">⭐ 바로가기 고르기<i>›</i></button><button data-act="devices">📱 로그인한 기기<i>›</i></button><button data-act="lastyear">🗂 지난해 보관함<i>›</i></button><button data-act="keys">⌨️ PC 단축키<i>›</i></button></div>`);
 }
 const KEYS = [['1~6', '아래 탭 이동'], ['/', '검색'], ['N', '매장 노트 쓰기'], ['M', '마감 화면'], ['Esc', '창 닫기'], ['?', '단축키 보기']];
 addEventListener('keydown', e => {
@@ -4079,3 +4079,161 @@ function hqFunCard() {
   <div class="card ${D.err24 >= 5 ? 'warnc' : ''}"><h3>앱 오류 <small>24시간 ${D.err24 || 0}건 · 5건 넘으면 매일 아침 운영 점검 알림</small></h3>${er.map(e => `<div class="li"><span style="min-width:0;overflow-wrap:anywhere"><small class="mut">${fmtDT(e.created_at)} · ${esc(e.mode || '')}</small><br>${esc(e.msg || '')}</span></div>`).join('') || '<div class="empty">오류 없음</div>'}</div>`;
 }
 { const o = vHqDash; vHqDash = () => { if (!S.hqFun && !S.hqFunBusy) { S.hqFunBusy = 1; sb.rpc('hq_funnel').then(({ data }) => { S.hqFun = data || {}; S.hqFunBusy = 0; if (S.mode === 'hq' && (!S.tab || S.tab === 'dash')) render(); }, () => { S.hqFunBusy = 0; }); } return hqFunCard() + o(); }; }
+
+// ===== v0.89 맞춤 설정 20가지: 탭·홈·마감·근무표·알림·보기 — 내 설정(이 기기) 위에 회사 기본(대표가 배포)을 깔고 씀 =====
+const uiLocal = () => { try { return JSON.parse(lsGet('ev_ui_' + S.mode) || '{}'); } catch { return {}; } };
+const uiRole = () => S.mode === 'staff' ? (S.my?.[S.mi || 0]?.job_role || '') : '';
+function UI() { const C = CFG().ui || {}; return { ...(C[S.mode] || {}), ...(uiRole() && C['staff:' + uiRole()] || {}), ...uiLocal() }; }
+function uiSet(p) { const L = { ...uiLocal(), ...p }; Object.keys(L).forEach(k => L[k] == null && delete L[k]); lsSet('ev_ui_' + S.mode, JSON.stringify(L)); }
+// 1·2·4 하단 탭: 순서·숨기기·이름 — 숨긴 탭은 '더보기'로
+function uiTabs(T) {
+  if (!T) return T; const U = UI(), ord = U.tabs || [], hid = U.hid || [], nm = U.names || {};
+  const L = [...T].sort((a, b) => (ord.indexOf(a[0]) + 1 || 99) - (ord.indexOf(b[0]) + 1 || 99)).map(([k, i, l]) => [k, i, nm[k] || l]);
+  S.uiMore = L.filter(([k]) => hid.includes(k) && !hideTab(k)); return L.filter(([k]) => !hid.includes(k));
+}
+// 4 용어 바꾸기 (예: 엔트리 → 바인) — 화면 글자만 바꿈, 데이터는 그대로
+function uiTerms(root) {
+  const T = (UI().terms || []).filter(t => t[0] && t[1]); if (!T.length || !root) return;
+  const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, { acceptNode: n => n.parentElement?.closest('input,textarea,select,script,style') ? 2 : 1 });
+  for (let n; (n = w.nextNode());) { let v = n.nodeValue; for (const [a, b] of T) if (v.includes(a)) v = v.split(a).join(b); if (v !== n.nodeValue) n.nodeValue = v; }
+}
+// 6·7 홈 카드 순서 + 시간대별 자동 정렬
+const PHASE_KEY = { pre: ['근무', '발주', '할일', '노쇼', '오늘'], live: ['실시간', '지금', '노쇼', '오늘'], post: ['마감', '어제', '급여', '금고'] };
+function uiPhase() { const c = CFG(), [h, m] = new Date(Date.now() + 9 * 3600e3).toISOString().slice(11, 16).split(':').map(Number), t = h * 60 + m, o = E.toMin(c.open || '20:00'), e = E.toMin(c.close || '05:00'); const inOpen = o < e ? t >= o && t < e : t >= o || t < e; return inOpen ? 'live' : (t >= e && t < Math.min(e + 6 * 60, o)) ? 'post' : 'pre'; }
+{ const o = homeTune; homeTune = function () {
+  const H = $('.home'), U = UI(); if (H) H.querySelectorAll('.hmain, .hside').forEach(box => {
+    const cards = [...box.children].filter(c => c.classList.contains('card')), key = c => cardKey(c);
+    if (U.tod) { const K = PHASE_KEY[uiPhase()]; cards.filter(c => K.some(k => key(c).includes(k))).reverse().forEach(c => box.prepend(c)); }
+    const ord = U.order || []; if (ord.length) [...box.children].filter(c => c.classList.contains('card') && ord.includes(key(c))).sort((a, b) => ord.indexOf(key(b)) - ord.indexOf(key(a))).forEach(c => box.prepend(c));
+  });
+  o();
+  if (S.homeEdit) document.querySelectorAll('.home .ced').forEach(sp => { const k = sp.nextElementSibling?.dataset.ck; if (k && !sp.querySelector('[data-act=u-ord]')) sp.insertAdjacentHTML('beforeend', `<button data-act="u-ord" data-v="${esc(k)}" data-d="-1" aria-label="위로">↑</button><button data-act="u-ord" data-v="${esc(k)}" data-d="1" aria-label="아래로">↓</button>`); });
+}; }
+// 8 숫자 타일 고르기
+const TILES = { today: '오늘 매출', month: '이번 달 매출', proj: '월말 예상 매출', left: '예상 순이익', entries: '이번 달 엔트리', labor: '인건비율', avg: '하루 평균', per: '엔트리당 매출', goal: '목표 달성률', staff: '오늘 근무' };
+function tileVal(k, M) {
+  const ent = (S.reports || []).filter(r => r.report_date?.startsWith(`${S.y}-${String(S.m).padStart(2, '0')}`)).reduce((a, r) => a + (r.entries || 0), 0), g = goalOf(S.y, S.m), r0 = (S.reports || []).find(r => r.report_date === TODAY);
+  const [y, m, d] = TODAY.split('-').map(Number);
+  return { today: r0 ? '₩' + man(r0.sales) : '마감 전', month: '₩' + man(M.sales), proj: '₩' + man(M.proj), left: (M.left < 0 ? '−' : '') + '₩' + man(Math.abs(M.left)), entries: ent + '명', labor: M.sales ? Math.round(M.labor / M.sales * 100) + '%' : '-', avg: M.n ? '₩' + man(M.sales / M.n) : '-', per: ent ? '₩' + man(M.sales / ent) : '-', goal: g ? Math.floor(M.sales / g * 100) + '%' : '목표 없음', staff: S.members.filter(p => p.role !== 'owner' && E.shiftOn(p.id, y, m, d, S.tpl, S.ov)).length + '명' }[k];
+}
+function uiTiles() { const T = UI().tiles, box = $('.home .top3'); if (!T?.length || !box) return; const M = monthSummary(S.y, S.m); box.innerHTML = T.map(k => `<div class="card kpi"><div class="l">${TILES[k]}</div><div class="v num">${tileVal(k, M)}</div></div>`).join(''); box.style.gridTemplateColumns = `repeat(${Math.min(T.length, 4)},minmax(0,1fr))`; }
+// 9 목표를 하루·주 단위로도
+function uiGoal() {
+  const b = UI().goalBy, el = $('.home .card.goal'), g = goalOf(S.y, S.m); if (!b || b === 'month' || !el || !g || el.querySelector('.gby')) return;
+  const M = monthSummary(S.y, S.m), [y, m, d] = TODAY.split('-').map(Number), D = E.daysIn(y, m), left = Math.max(0, g - M.sales);
+  let t; if (b === 'day') t = `오늘부터 하루 <b class="num">₩${man(left / Math.max(1, D - d + 1))}</b>씩이면 목표 달성 · 남은 ${D - d + 1}일`;
+  else { const wd = (new Date(TODAY).getDay() + 6) % 7, mon = addDay(TODAY, -wd), ws = (S.reports || []).filter(r => r.report_date >= mon && r.report_date <= TODAY).reduce((a, r) => a + (r.sales || 0), 0), wg = g / D * 7; t = `이번 주 <b class="num">₩${man(ws)}</b> / 주 목표 ₩${man(wg)} · <b class="num ${ws >= wg * (wd + 1) / 7 ? 'up' : 'warn'}">${Math.floor(ws / wg * 100)}%</b>`; }
+  el.insertAdjacentHTML('beforeend', `<p class="gby note" style="margin:8px 0 0">${t}</p>`);
+}
+// 10 매장 여러 곳 한눈에
+function uiMulti() {
+  const L = S.coMonth || [], H = $('.home .hmain'); if (L.length < 2 || !H || UI().multi === false || H.querySelector('.multi')) return; const mx = Math.max(1, ...L.map(x => +x.sales));
+  H.insertAdjacentHTML('afterbegin', `<div class="card multi"><h3>매장별 이번 달 <small>${L.length}곳</small></h3>${L.map(x => `<div class="cb"><span>${esc(x.name)}${x.store_id === S.store.id ? ' <small class="pill g">지금</small>' : ''}</span><div class="bar"><i style="width:${x.sales / mx * 100}%"></i></div><b class="num">₩${man(+x.sales)} <small class="mut">${x.days}일</small></b></div>`).join('')}</div>`);
+}
+// 11·12·13 마감 양식: 칸 숨기기·펼쳐두기 · 엔트리×단가 · 자주 쓰는 지출 버튼
+const CLOSE_F = [['entries', '엔트리 수'], ['card', '카드'], ['transfer', '계좌이체'], ['dt_refund', '환불·취소'], ['bills', '금고 지폐 세기'], ['dt_rebuy', '리바이'], ['dt_addon', '애드온'], ['dt_tourn', '토너먼트 수'], ['dt_prize', '상금 지급'], ['dt_fnb', '음료·식사'], ['dt_etc', '기타 매출'], ['memo', '메모']];
+function uiClose() {
+  const f = $('#report-form'); if (!f || f.dataset.ui) return; f.dataset.ui = 1; const U = UI(), C = CFG();
+  (U.closeHide || []).forEach(n => { const el = n === 'bills' ? f.querySelector('.bills') : f.querySelector(`[name="${n}"]`)?.closest('label'); if (el) { el.hidden = true; if (n === 'bills') { const s = el.previousElementSibling; if (s?.tagName === 'SMALL') s.hidden = true; } } });
+  if (U.closeOpen) f.querySelectorAll('details.more').forEach(d => d.open = true);
+  if (+C.unit > 0) { const e = f.querySelector('[name=entries]'); e?.closest('label')?.insertAdjacentHTML('afterend', `<button type="button" class="btn sm" id="u-unit" data-act="u-unit" style="grid-column:1/-1">엔트리 × ₩${E.won(C.unit)} → 총매출에 넣기</button>`); e?.addEventListener('input', () => { const b = $('#u-unit'); if (b) b.textContent = `엔트리 ${+e.value || 0} × ₩${E.won(C.unit)} = ₩${E.won((+e.value || 0) * C.unit)} → 총매출에 넣기`; }); }
+  const Q = C.qexp || []; if (Q.length) $('#close-exp')?.insertAdjacentHTML('beforebegin', `<div class="chips" style="margin:4px 0 6px">${Q.map((x, i) => `<button type="button" class="fchip" data-act="u-qexp" data-i="${i}">${esc(x[0])} ₩${man(x[2])}</button>`).join('')}</div>`);
+}
+// 14 근무표 틀 저장·적용
+function uiPat() {
+  if (S.mode !== 'store' || S.tab !== 'sched' || !isOwner() || $('#u-pat')) return; const P = CFG().patterns || {}, v = $('#view'); if (!v) return;
+  const h = v.querySelector('h1, .sh-head, .card'); h?.insertAdjacentHTML(h.tagName === 'H1' ? 'afterend' : 'beforebegin', `<div class="chips" id="u-pat" style="margin:0 0 10px"><span class="mut" style="font-size:12px;align-self:center">📋 근무표 틀</span>${Object.keys(P).map(k => `<button class="fchip" data-act="u-pat-use" data-v="${esc(k)}">${esc(k)}</button>`).join('')}<button class="fchip" data-act="u-pat-save">＋ 지금 근무표를 틀로 저장</button></div>`);
+}
+// 15 어디서나 ＋ 단축 버튼
+const FABA = { close: ['🧾', '마감 하기', 't:sales'], exp: ['💸', '지출 넣기', 't:sales'], note: ['📝', '매장 노트', 'a:ops-open'], poster: ['🎨', '이벤트 포스터', 'a:poster'], sched: ['📅', '근무표', 't:sched'], staff: ['👥', '직원·급여', 't:staff'], photo: ['📸', '사진 마감', 'p:close-photos'], share: ['👀', '보기 전용 링크', 'a:share-open'] };
+function uiFab() {
+  let b = $('#u-fab'); const on = S.mode === 'store' && S.user && UI().fab !== false && !location.search.includes('share=');
+  if (!on) { b?.remove(); return; } if (!b) { document.body.insertAdjacentHTML('beforeend', '<button id="u-fab" data-act="u-fab" aria-label="빠른 실행">＋</button>'); }
+}
+// 19 보기 밀도·글자 크기
+function uiDens() { const d = UI().dens || ''; document.documentElement.classList.toggle('ui-dense', d === 'dense'); document.documentElement.classList.toggle('ui-big', d === 'big'); }
+function after89() {
+  uiDens(); uiFab(); if (!S.user) return;
+  const nav = $('#tabs'); if (nav && S.uiMore?.length && !nav.querySelector('[data-act=u-more]')) nav.insertAdjacentHTML('beforeend', `<button data-act="u-more"><span>${svg('menu')}</span>더보기</button>`);
+  if (S.mode === 'store' && (S.tab === 'home' || !S.tab)) { uiTiles(); uiGoal(); uiMulti(); }
+  if (S.mode === 'store' && S.tab === 'sales') uiClose();
+  uiPat(); uiTerms($('#view')); uiTerms($('#tabs'));
+}
+{ const o = after68; after68 = function () { o(); try { after89(); } catch (e) { console.warn(e); } }; }
+
+// ----- 맞춤 설정 화면 -----
+function uiSheet(sec) {
+  const U = UI(), T = uiTabs(TABS[S.mode]) && [...(TABS[S.mode] || [])].sort((a, b) => ((U.tabs || []).indexOf(a[0]) + 1 || 99) - ((U.tabs || []).indexOf(b[0]) + 1 || 99)), own = isOwner?.() && S.mode === 'store', C = CFG();
+  const st = lsGet('ev_start_' + S.mode) || T?.[0]?.[0];
+  const sec1 = `<h3>📱 아래 탭</h3><p class="note">↑↓로 순서, 체크를 끄면 '더보기'로 들어가요. 이름은 눌러서 바꿔요.</p>${(T || []).map(([k, , l], i) => `<div class="li u-row"><label class="row" style="gap:8px;flex:1;min-width:0"><input type="checkbox" data-act="u-tabhid" data-v="${k}" ${(U.hid || []).includes(k) ? '' : 'checked'}><input class="u-nm" data-k="${k}" value="${esc((U.names || {})[k] || '')}" placeholder="${esc(l)}" style="flex:1;min-width:0"></label><span class="row" style="gap:4px"><button class="btn sm" data-act="u-tab" data-v="${k}" data-d="-1" ${i ? '' : 'disabled'}>↑</button><button class="btn sm" data-act="u-tab" data-v="${k}" data-d="1" ${i < T.length - 1 ? '' : 'disabled'}>↓</button></span></div>`).join('')}
+    <div class="fl"><span>앱 열면 첫 화면</span><div class="chips">${(T || []).map(([k, , l]) => `<button class="fchip ${st === k ? 'on' : ''}" data-act="u-start" data-v="${k}">${esc((U.names || {})[k] || l)}</button>`).join('')}</div></div>
+    <div class="fl"><span>내 용어로 바꾸기 <small class="mut">화면 글자만 바뀌어요</small></span>${[...(U.terms || []), ['', '']].map(([a, b], i) => `<div class="row u-term" style="gap:6px;margin-top:4px"><input data-i="${i}" data-p="0" value="${esc(a)}" placeholder="원래 말 (예: 엔트리)" style="flex:1;min-width:0"><span>→</span><input data-i="${i}" data-p="1" value="${esc(b)}" placeholder="바꿀 말 (예: 바인)" style="flex:1;min-width:0"></div>`).join('')}</div>`;
+  const sec2 = S.mode !== 'store' ? '' : `<h3>🏠 홈 화면</h3>
+    <label class="tog"><span><b>카드 순서·숨기기</b><small>홈에서 '홈 꾸미기'를 누르면 ↑↓·숨기기·맨 위로</small></span><button class="btn sm" data-act="u-homeedit">홈 꾸미기</button></label>
+    <label class="tog"><span><b>시간대별 자동 정렬</b><small>오픈 전 = 근무·발주 · 영업 중 = 실시간 · 마감 후 = 마감·급여 카드가 위로</small></span><input type="checkbox" data-act="u-bool" data-v="tod" ${U.tod ? 'checked' : ''}></label>
+    <div class="fl"><span>위에 띄울 숫자 <small class="mut">최대 4개 · 안 고르면 기본 3칸</small></span><div class="chips">${Object.entries(TILES).map(([k, l]) => `<button class="fchip ${(U.tiles || []).includes(k) ? 'on' : ''}" data-act="u-tile" data-v="${k}">${l}</button>`).join('')}</div></div>
+    <div class="fl"><span>목표 보는 단위</span><div class="seg">${[['month', '월'], ['week', '주'], ['day', '하루']].map(([k, l]) => `<button data-act="u-goalby" data-v="${k}" aria-pressed="${(U.goalBy || 'month') === k}">${l}</button>`).join('')}</div></div>
+    ${(S.coMonth || []).length > 1 ? `<label class="tog"><span><b>매장별 한눈에</b><small>홈 맨 위에 매장마다 이번 달 매출 막대</small></span><input type="checkbox" data-act="u-bool" data-v="multi" data-def="1" ${U.multi === false ? '' : 'checked'}></label>` : ''}
+    <label class="tog"><span><b>＋ 빠른 실행 버튼</b><small>화면 오른쪽 아래, 어느 탭에서나</small></span><input type="checkbox" data-act="u-bool" data-v="fab" data-def="1" ${U.fab === false ? '' : 'checked'}></label>
+    <div class="chips">${Object.entries(FABA).map(([k, [i, l]]) => `<button class="fchip ${(U.fabs || ['close', 'note', 'poster']).includes(k) ? 'on' : ''}" data-act="u-fabs" data-v="${k}">${i} ${l}</button>`).join('')}</div>`;
+  const sec3 = S.mode !== 'store' ? '' : `<h3>🧾 마감 양식</h3><p class="note">끈 칸은 마감 화면에서 안 보여요 (값은 그대로).</p><div class="chips">${CLOSE_F.map(([k, l]) => `<button class="fchip ${(U.closeHide || []).includes(k) ? '' : 'on'}" data-act="u-cf" data-v="${k}">${l}</button>`).join('')}</div>
+    <label class="tog"><span><b>상세 칸 항상 펼치기</b><small>결제수단·금고·토너먼트를 접지 않고</small></span><input type="checkbox" data-act="u-bool" data-v="closeOpen" ${U.closeOpen ? 'checked' : ''}></label>
+    ${own ? `<label class="fl">엔트리 1명 단가 <small class="mut">넣으면 '엔트리 × 단가' 버튼이 생겨요 · 매장 공통</small><input type="number" inputmode="numeric" id="u-unit-in" value="${C.unit || ''}" placeholder="예: 30000"></label>
+    <div class="fl"><span>자주 쓰는 지출 버튼 <small class="mut">매장 공통</small></span>${(C.qexp || []).map((x, i) => `<div class="li"><span>${esc(x[0])} · ${CAT[x[1]] || x[1]} · ₩${E.won(x[2])}</span><button class="btn sm" data-act="u-qexp-del" data-i="${i}">✕</button></div>`).join('')}<div class="row" style="gap:6px;margin-top:6px"><input id="u-qe-n" placeholder="이름 (얼음)" style="flex:1;min-width:0"><select id="u-qe-c">${Object.entries(CAT).filter(([k]) => k !== 'card').map(([v, l]) => `<option value="${v}">${l}</option>`).join('')}</select><input id="u-qe-a" type="number" inputmode="numeric" placeholder="금액" style="width:90px"><button class="btn sm pri" data-act="u-qexp-add">추가</button></div></div>` : ''}`;
+  const sec4 = `<h3>🔔 알림·보기</h3><div class="mn-list"><button data-act="dnd">🌙 방해 금지 시간 <i>›</i></button></div>${typeof notiCats === 'function' ? notiCats() : ''}
+    ${own ? `<div class="fl"><span>아침 브리핑에 넣을 것 <small class="mut">아침 7시 · 매장 공통 · 다 끄면 안 보내요</small></span><div class="chips">${[['sales', '어제 매출'], ['staff', '오늘 근무'], ['miss', '마감 안 한 날']].map(([k, l]) => `<button class="fchip ${(C.brief || ['sales', 'staff', 'miss']).includes(k) ? 'on' : ''}" data-act="u-brief" data-v="${k}">${l}</button>`).join('')}</div></div>` : ''}
+    <div class="fl"><span>보기</span><div class="seg">${[['', '보통'], ['dense', '촘촘하게'], ['big', '큰 글씨']].map(([k, l]) => `<button data-act="u-dens" data-v="${k}" aria-pressed="${(U.dens || '') === k}">${l}</button>`).join('')}</div></div>`;
+  const sec5 = `<h3>🏢 회사 기본 배치</h3><p class="note">${own ? '지금 내 설정을 새 직원·다른 관리자 화면의 기본으로 줘요. 각자 바꾼 건 그대로 둬요.' : '대표님이 정한 기본 배치를 쓰고 있어요.'}</p><div class="row" style="gap:6px;flex-wrap:wrap">${own ? `<button class="btn sm pri" data-act="u-deploy" data-v="store">관리자 화면 기본으로</button><button class="btn sm" data-act="u-staffdef">직원 화면 기본 탭 정하기</button>` : ''}<button class="btn sm" data-act="u-reset">원래대로</button></div>`;
+  openSheet(`<h2>🎛 맞춤 설정</h2><div class="u-set">${[sec1, sec2, sec3, sec4, sec5].filter(Boolean).map(x => `<section class="u-sec">${x}</section>`).join('')}</div><button class="btn full" data-act="close" style="margin-top:12px">다 했어요</button>`);
+  if (sec) setTimeout(() => document.querySelectorAll('.u-sec')[sec]?.scrollIntoView(), 50);
+}
+function uiRe(sec) { render(); uiSheet(sec); }
+async function uiPatApply(name) {
+  const P = (CFG().patterns || {})[name]; if (!P) return; const ids = S.members.filter(p => p.role !== 'owner').map(p => p.id), rows = P.filter(r => ids.includes(r.member_id));
+  const prev = (S.tpl || []).map(({ member_id, weekday, start_t, end_t, break_min }) => ({ member_id, weekday, start_t, end_t, break_min }));
+  await q(sb.from('shift_templates').delete().in('member_id', ids)); if (rows.length) await q(sb.from('shift_templates').insert(rows)); await reload(); render();
+  undoToast(`'${name}' 근무표 틀을 적용했어요`, () => busy(async () => { await q(sb.from('shift_templates').delete().in('member_id', ids)); if (prev.length) await q(sb.from('shift_templates').insert(prev)); await reload(); render(); toast('되돌렸어요'); }));
+}
+document.addEventListener('click', e => {
+  const b = e.target.closest?.('[data-act^="u-"]'); if (!b) return; const a = b.dataset.act, v = b.dataset.v, U = UI();
+  const tog = (k, x) => { const L = new Set(U[k] || []); L.has(x) ? L.delete(x) : L.add(x); return [...L]; };
+  if (a === 'u-set') return uiSheet();
+  if (a === 'u-more') return openSheet(`<h2>더보기</h2><div class="mn-list">${(S.uiMore || []).map(([k, , l]) => `<button data-act="u-go" data-v="${k}">${esc(l)}<i>›</i></button>`).join('')}<button data-act="u-set">🎛 맞춤 설정<i>›</i></button></div>`);
+  if (a === 'u-go') { closeSheet(); S.tab = v; S.sub = null; return render(); }
+  if (a === 'u-tab') { const T = [...(TABS[S.mode] || [])].sort((x, y) => ((U.tabs || []).indexOf(x[0]) + 1 || 99) - ((U.tabs || []).indexOf(y[0]) + 1 || 99)).map(x => x[0]), i = T.indexOf(v), j = i + +b.dataset.d; if (j < 0 || j >= T.length) return; [T[i], T[j]] = [T[j], T[i]]; uiSet({ tabs: T }); return uiRe(0); }
+  if (a === 'u-tabhid') { const vis = (TABS[S.mode] || []).filter(([k]) => !(U.hid || []).includes(k)).length; if (!b.checked && vis <= 2) { b.checked = true; return toast('탭은 2개 이상 남겨 주세요'); } uiSet({ hid: tog('hid', v) }); return render(); }
+  if (a === 'u-start') { lsSet('ev_start_' + S.mode, v); return uiRe(0); }
+  if (a === 'u-bool') { const k = v, cur = b.dataset.def ? U[k] !== false : !!U[k]; uiSet({ [k]: b.dataset.def ? (cur ? false : null) : (cur ? null : true) }); return render(); }
+  if (a === 'u-tile') { let L = tog('tiles', v); if (L.length > 4) return toast('숫자는 4개까지예요'); uiSet({ tiles: L.length ? L : null }); return uiRe(1); }
+  if (a === 'u-goalby') { uiSet({ goalBy: v === 'month' ? null : v }); return uiRe(1); }
+  if (a === 'u-fabs') { const L = tog('fabs', v); uiSet({ fabs: L.length ? L : null }); return uiRe(1); }
+  if (a === 'u-cf') { uiSet({ closeHide: tog('closeHide', v) }); return uiRe(2); }
+  if (a === 'u-dens') { uiSet({ dens: v || null }); return uiRe(3); }
+  if (a === 'u-homeedit') { closeSheet(); S.tab = 'home'; S.homeEdit = 1; return render(); }
+  if (a === 'u-ord') { const box = b.closest('.hmain, .hside'), keys = [...box.querySelectorAll(':scope > .card')].map(c => c.dataset.ck).filter(Boolean), i = keys.indexOf(v), j = i + +b.dataset.d; if (i < 0 || j < 0 || j >= keys.length) return; [keys[i], keys[j]] = [keys[j], keys[i]]; uiSet({ order: [...keys, ...(U.order || []).filter(k => !keys.includes(k))] }); return render(); }
+  if (a === 'u-fab') { const L = U.fabs || ['close', 'note', 'poster']; return openSheet(`<h2>빠른 실행</h2><div class="u-fabs">${L.filter(k => FABA[k]).map(k => `<button class="btn" data-act="u-fabgo" data-v="${k}"><b style="font-size:22px">${FABA[k][0]}</b><span>${FABA[k][1]}</span></button>`).join('')}</div><p class="note"><button class="tlink" data-act="u-set">버튼 고르기 ›</button></p>`); }
+  if (a === 'u-fabgo') { const [t, x] = FABA[v][2].split(':'); closeSheet(); if (t === 't') { S.tab = x; S.sub = null; render(); if (v === 'exp') setTimeout(() => { const d = $('#report-form details.more'); if (d) { d.open = true; d.scrollIntoView({ block: 'center' }); $('[data-act=xrow-add]')?.click(); } }, 80); return; }
+    if (t === 'p') { S.tab = 'sales'; render(); return setTimeout(() => $('#' + x)?.click(), 80); }
+    const k = document.createElement('button'); k.dataset.act = x; k.hidden = true; document.body.append(k); k.click(); k.remove(); return; }
+  if (a === 'u-unit') { const n = +$('#report-form [name=entries]')?.value || 0, s = $('#report-form [name=sales]'); if (!n) return toast('엔트리 수를 먼저 넣어주세요'); if (s) { s.value = n * CFG().unit; s.dispatchEvent(new Event('input', { bubbles: true })); } return toast('총매출에 넣었어요 · 음료 매출이 있으면 더해 주세요'); }
+  if (a === 'u-qexp') { const x = (CFG().qexp || [])[+b.dataset.i]; if (!x) return; const d = b.closest('details'); if (d) d.open = true; $('#close-exp')?.insertAdjacentHTML('beforeend', xrowHtml(x[1], x[2])); return toast(`${x[0]} ₩${E.won(x[2])} 넣었어요`); }
+  if (a === 'u-qexp-add') { const n = $('#u-qe-n').value.trim(), c = $('#u-qe-c').value, am = +$('#u-qe-a').value; if (!n || !am) return toast('이름과 금액을 넣어주세요'); return busy(async () => { await cfgSave({ qexp: [...(CFG().qexp || []), [n, c, am]].slice(0, 12) }); uiRe(2); }); }
+  if (a === 'u-qexp-del') return busy(async () => { const L = [...(CFG().qexp || [])]; L.splice(+b.dataset.i, 1); await cfgSave({ qexp: L }); uiRe(2); });
+  if (a === 'u-brief') return busy(async () => { const L = new Set(CFG().brief || ['sales', 'staff', 'miss']); L.has(v) ? L.delete(v) : L.add(v); await cfgSave({ brief: [...L] }); uiRe(3); });
+  if (a === 'u-pat-save') return openSheet(`<h2>근무표 틀 저장</h2><p class="sub">지금 요일별 근무표를 이름 붙여 저장해요. 나중에 버튼 하나로 다시 적용해요.</p><label class="fl">이름<input id="u-pat-n" placeholder="예: 평일 A조, 주말 풀가동, 시즌"></label><button class="btn pri full" data-act="u-pat-ok">저장</button>${Object.keys(CFG().patterns || {}).map(k => `<div class="li"><span>${esc(k)}</span><button class="btn sm" data-act="u-pat-del" data-v="${esc(k)}">지우기</button></div>`).join('')}`);
+  if (a === 'u-pat-ok') { const n = $('#u-pat-n').value.trim(); if (!n) return toast('이름을 넣어주세요'); const rows = (S.tpl || []).map(({ member_id, weekday, start_t, end_t, break_min }) => ({ member_id, weekday, start_t, end_t, break_min })); if (!rows.length) return toast('저장할 근무표가 없어요'); return busy(async () => { await cfgSave({ patterns: { ...(CFG().patterns || {}), [n]: rows } }); closeSheet(); render(); toast(`'${n}' 틀을 저장했어요`); }); }
+  if (a === 'u-pat-del') return busy(async () => { const P = { ...(CFG().patterns || {}) }; delete P[v]; await cfgSave({ patterns: P }); closeSheet(); render(); });
+  if (a === 'u-pat-use') return openSheet(`<h2>'${esc(v)}' 적용</h2><p class="sub">직원들의 요일별 근무표가 이 틀로 바뀌어요. 날짜별로 따로 바꾼 근무는 그대로예요. 적용 뒤 10초 안에 되돌릴 수 있어요.</p><button class="btn pri full" data-act="u-pat-go" data-v="${esc(v)}">적용하기</button><button class="btn full" data-act="close">그만두기</button>`);
+  if (a === 'u-pat-go') { closeSheet(); return busy(() => uiPatApply(v)); }
+  if (a === 'u-deploy') return busy(async () => { const C = { ...(CFG().ui || {}) }; C.store = uiLocal(); await cfgSave({ ui: C }); toast('관리자 화면 기본 배치로 저장했어요'); });
+  if (a === 'u-staffdef') { const T = TABS.staff, cur = (CFG().ui || {}).staff || {}; return openSheet(`<h2>직원 화면 기본 탭</h2><p class="sub">끈 탭은 직원 화면에서 '더보기'로 들어가요. 직책별로 다르게 하려면 직책을 고르세요.</p><div class="seg" style="margin-bottom:8px">${[['', '전체'], ['딜러', '딜러'], ['플로어', '플로어'], ['매니저', '매니저']].map(([k, l]) => `<button data-act="u-sdrole" data-v="${k}" aria-pressed="${(S.sdRole || '') === k}">${l}</button>`).join('')}</div><div class="chips">${T.map(([k, , l]) => `<button class="fchip ${(((CFG().ui || {})[S.sdRole ? 'staff:' + S.sdRole : 'staff'] || {}).hid || []).includes(k) ? '' : 'on'}" data-act="u-sdtab" data-v="${k}">${l}</button>`).join('')}</div><button class="btn full" data-act="u-set" style="margin-top:12px">맞춤 설정으로</button>`); }
+  if (a === 'u-sdrole') { S.sdRole = v; b.dataset.act = 'u-staffdef'; const k = document.createElement('button'); k.dataset.act = 'u-staffdef'; document.body.append(k); k.click(); k.remove(); return; }
+  if (a === 'u-sdtab') return busy(async () => { const C = { ...(CFG().ui || {}) }, key = S.sdRole ? 'staff:' + S.sdRole : 'staff', cur = { ...(C[key] || {}) }, H = new Set(cur.hid || []); H.has(v) ? H.delete(v) : H.add(v); if (TABS.staff.length - H.size < 2) return toast('탭은 2개 이상 남겨 주세요'); cur.hid = [...H]; C[key] = cur; await cfgSave({ ui: C }); const k = document.createElement('button'); k.dataset.act = 'u-staffdef'; document.body.append(k); k.click(); k.remove(); });
+  if (a === 'u-reset') { lsSet('ev_ui_' + S.mode, ''); toast((CFG().ui || {})[S.mode] ? '회사 기본 배치로 돌렸어요' : '처음 상태로 돌렸어요'); return uiRe(4); }
+});
+// 이름·용어 입력은 입력하는 대로 저장
+document.addEventListener('change', e => {
+  const t = e.target; if (t.classList?.contains('u-nm')) { const N = { ...(UI().names || {}) }; t.value.trim() ? N[t.dataset.k] = t.value.trim() : delete N[t.dataset.k]; uiSet({ names: N }); render(); }
+  if (t.closest?.('.u-term')) { const R = [...document.querySelectorAll('.u-term')].map(r => [...r.querySelectorAll('input')].map(i => i.value.trim())).filter(([a, b]) => a && b); uiSet({ terms: R.length ? R : null }); render(); }
+  if (t.id === 'u-unit-in') busy(async () => { await cfgSave({ unit: +t.value || null }); toast('단가를 저장했어요'); });
+});

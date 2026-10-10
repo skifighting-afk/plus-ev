@@ -883,3 +883,11 @@ details.warnc>summary,details.card>summary,.ltmore>summary,.empd>summary{cursor:
 .sh-bar{height:6px;border-radius:3px;background:var(--line);margin:6px 0 4px;overflow:hidden}.sh-bar i{display:block;height:100%;background:var(--brand-2);border-radius:3px}
 /* v0.87 포스터 배경 */
 .pbg-row{display:grid;grid-template-columns:repeat(6,1fr);gap:6px}.pbg{aspect-ratio:1;border-radius:8px;border:1.5px solid var(--line2);background:linear-gradient(160deg,var(--a),var(--b));cursor:pointer;padding:0}
+/* v0.89 맞춤 설정 */
+#u-fab{position:fixed;right:16px;bottom:calc(76px + env(safe-area-inset-bottom,0px));z-index:30;width:52px;height:52px;border-radius:50%;border:0;background:var(--brand-2,#3ddc84);color:#06130c;font-size:28px;font-weight:800;box-shadow:0 6px 18px rgba(0,0,0,.35);cursor:pointer}
+.u-fabs{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}.u-fabs .btn{display:grid;gap:4px;justify-items:center;padding:14px 8px}
+.u-sec{border-top:1px solid var(--line2);padding-top:12px;margin-top:12px}.u-sec:first-child{border-top:0;margin-top:0;padding-top:0}.u-sec h3{margin:0 0 6px}
+.u-row{gap:8px}.u-row input[type=checkbox]{width:18px;height:18px;flex:none}
+html.ui-big #view,html.ui-big #sheet{zoom:1.12}html.ui-big #tabs{font-size:13px}
+html.ui-dense .card{padding:10px 12px;margin-bottom:8px}html.ui-dense .li{padding-block:6px}html.ui-dense #view{font-size:13.5px}
+#tabs:has(button:nth-child(6)) button{font-size:10.5px}
