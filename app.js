@@ -639,7 +639,7 @@ function vHome() {
   // 주 컬럼: 오늘·이번 달 판단에 필요한 것 / 보조 컬럼: 참고 정보 (모바일에선 같은 순서로 세로)
   return `<div class="home">${setupCard()}<div class="hhead">${storeHead('브리핑')}${newN ? `<button class="card nbanner" data-act="sub" data-v="notice"><span class="ntag">공지</span><div><small>운영사에서 새 소식이 왔어요</small><b>${esc(nt.title)}</b></div><span class="mut">›</span></button>` : ''}</div>
   <div class="hmain">${coCard()}
-  ${cur ? liveCard() + iosCard() + startCard() + todoCard() + upcomingCard() : ''}${cur && isOwner() ? `<div class="card"><h3>AI 비서 <span class="pill g">PRO</span> <small>우리 매장 숫자로 답하고, 글도 써요</small></h3><div class="row" style="gap:6px"><input id="ai-q" placeholder="질문, 또는 공지·홍보할 내용 (예: 토요일 8시 토너먼트 바인 3만)" style="flex:1;min-width:0"><button class="btn sm pri" data-act="ai-ask">묻기</button></div><div class="row" style="gap:6px;flex-wrap:wrap;margin-top:8px"><button class="chip" data-act="ai-ask" data-q="1">📊 이번 달 총평</button><button class="chip" data-act="ai-write" data-k="notice">📢 직원 공지 쓰기</button><button class="chip" data-act="ai-write" data-k="promo">🎉 손님 홍보글 쓰기</button></div><p class="note" id="ai-a" style="white-space:pre-wrap"></p><button class="btn sm" id="ai-copy" data-act="ai-copy" hidden>복사</button></div>` : ''}${cur ? topStrip(M) : ''}
+  ${cur ? noShowCard() + liveCard() + forecastCard() + payDayCard() + iosCard() + startCard() + todoCard() + upcomingCard() + laborCard() + `<button class="card nowline" data-act="poster"><small>홍보</small><b>🎨 이벤트 포스터 만들기</b><span class="mut">›</span></button>` : ''}${cur && isOwner() ? `<div class="card"><h3>AI 비서 <span class="pill g">PRO</span> <small>우리 매장 숫자로 답하고, 글도 써요</small></h3><div class="row" style="gap:6px"><input id="ai-q" placeholder="질문, 또는 공지·홍보할 내용 (예: 토요일 8시 토너먼트 바인 3만)" style="flex:1;min-width:0"><button class="btn sm pri" data-act="ai-ask">묻기</button></div><div class="row" style="gap:6px;flex-wrap:wrap;margin-top:8px"><button class="chip" data-act="ai-ask" data-q="1">📊 이번 달 총평</button><button class="chip" data-act="ai-write" data-k="notice">📢 직원 공지 쓰기</button><button class="chip" data-act="ai-write" data-k="promo">🎉 손님 홍보글 쓰기</button></div><p class="note" id="ai-a" style="white-space:pre-wrap"></p><button class="btn sm" id="ai-copy" data-act="ai-copy" hidden>복사</button></div>` : ''}${cur ? topStrip(M) : ''}
   ${(() => { const g = goalOf(S.y, S.m), T = cur && g ? todayTodo(M, g) : []; return T.length ? `<button class="card nowline" ${T[0][3] ? `data-act="goto" data-t="${T[0][3] === 'order' ? 'more' : T[0][3]}" ${T[0][3] === 'order' ? 'data-s="order"' : ''}` : ''}><small>지금 할 일</small><b>${T[0][1]}</b><span class="mut">›</span></button>` : ''; })()}
   ${rankBar()}
   <div class="sech"><h2>${S.m}월 손익</h2>${monthNav()}</div>
@@ -1234,6 +1234,7 @@ function vSales() {
     <details class="more" ${r0.detail || CFG().split ? 'open' : ''}><summary>토너먼트·음료 <small class="mut">(선택) 넣으면 무엇으로 벌었는지 보여요</small></summary><div class="grid2">${[['rebuy', '리바이 수'], ['addon', '애드온 수'], ['tourn', '토너먼트 수'], ['prize', '상금 지급 (원)'], ['fnb', '음료·식사 매출 (원)'], ['etc', '기타 매출 (원)']].map(([k, l]) => `<label class="fl">${l}<input name="dt_${k}" type="number" inputmode="numeric" value="${r0.detail?.[k] ?? ''}"></label>`).join('')}</div><label class="fl">오늘 한 이벤트 <small class="mut">넣으면 이벤트한 날과 평소 매출을 비교해줘요</small><input name="dt_event" value="${esc(r0.detail?.event || '')}" placeholder="예: 주말 GTD 토너, 생일 이벤트"></label></details>
     <label class="fl">메모<input name="memo" value="${esc(r0.memo || '')}" placeholder="특이사항·차액 이유"></label><button class="btn pri full">마감하기</button>
     <p class="note">임대료·전기세 같은 고정비는 <button type="button" class="btn sm" data-tab="home">홈</button>에서 넣어요.</p></form>
+  ${cashWatchCard()}
   ${stockCard()}
   ${dailyCal()}
   ${eventCard()}`;
@@ -2097,7 +2098,7 @@ function menuSheet() {
   <label class="mn-tog"><span><b>폰 설정 따라 밝게·어둡게</b><small>낮엔 밝은 화면, 밤엔 어두운 화면 자동</small></span><input type="checkbox" data-act="theme" data-v="${lsGet('ev_theme') === 'auto' ? 'mint' : 'auto'}" ${lsGet('ev_theme') === 'auto' ? 'checked' : ''}></label>
   ${S.user ? `<div class="mn-lb">알림·보안</div><div class="mn-list"><button data-act="dnd"><span class="mn-ic">🌙</span>방해 금지 시간 <small class="mut" style="margin-left:4px">${S.prof?.dnd?.f ? `${S.prof.dnd.f}~${S.prof.dnd.t}` : '꺼짐'}</small><i>›</i></button><button data-act="pin-set"><span class="mn-ic">🔒</span>앱 잠금 (PIN) <small class="mut" style="margin-left:4px">${lsGet('ev_pin') ? '켜짐 · 이 폰' : '꺼짐'}</small><i>›</i></button><button data-act="logout-all"><span class="mn-ic">📱</span>모든 기기에서 로그아웃<i>›</i></button></div>` : ''}
   <label class="mn-tog"><span><b>글자 크게</b><small>모든 화면 글자를 조금 크게</small></span><input type="checkbox" data-act="big" ${lsGet('ev_big') === '1' ? 'checked' : ''}></label>
-  <div class="mn-lb">기타 <small class="mut" style="font-weight:400">v0.84 · 자료 끌어다 놓고 한 번에 세팅 · 매장 키우기 퀘스트 · 매장 준비 10단계 · 기능 켜기/끄기 · 근무 일괄 확정 · 가져오기 · 화면 정리: 홈 접기 · 경고 요약 · 직원 카드 접기 · 출퇴근 고치기 안내</small></div>
+  <div class="mn-lb">기타 <small class="mut" style="font-weight:400">v0.85 · 펑크 대타·오늘 예측·시재 감시·노무 점검·포스터 · 한 번에 세팅 · 매장 키우기 퀘스트 · 매장 준비 10단계 · 기능 켜기/끄기 · 근무 일괄 확정 · 가져오기 · 화면 정리: 홈 접기 · 경고 요약 · 직원 카드 접기 · 출퇴근 고치기 안내</small></div>
   <div class="mn-list"><a href="guide.html#${S.mode === 'store' ? 'owner' : S.mode}" target="_blank" rel="noopener"><span class="mn-ic"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2zM4 21V5M8 7h7"/></svg></span>사용법 보기<i>›</i></a>
   ${S.user && (S.user.app_metadata?.provider || 'email') === 'email' ? `<button data-act="pw-change"><span class="mn-ic"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg></span>비밀번호 바꾸기<i>›</i></button>` : ''}
   ${S.user ? '<button data-act="myset"><span class="mn-ic">🧩</span>내 화면 · 기기 · 단축키<i>›</i></button>' : ''}
@@ -3829,4 +3830,97 @@ document.addEventListener('click', e => {
   if (a === 'ob-edit') { const it = ob().items[+b.dataset.v]; it.open = !it.open; return obOpen(); }
   if (a === 'ob-del') { ob().items.splice(+b.dataset.v, 1); return obOpen(); }
   if (a === 'ob-apply') return busy(obApply);
+});
+
+// ===== v0.85 계속 쓰게 만드는 기능: 펑크 대타 · 오늘 예측 · 시재 감시 · 노무 위험 · 급여일 · 포스터 =====
+// 1) 펑크 1분 대타: 시작 15분 지나도 출근 기록이 없으면 홈 맨 위에 → 누르면 긴급 공고가 채워진 채로 열림
+function noShowCard() {
+  if (!isOwner() && S.myRole !== 'manager') return '';
+  const k = bizDay(), [y, m, d] = k.split('-').map(Number), nowMs = Date.now();
+  const L = S.members.filter(p => p.role !== 'owner').map(p => ({ p, t: E.shiftOn(p.id, y, m, d, S.tpl, S.ov) })).filter(x => x.t).map(x => { let a = +new Date(`${k}T${t5(x.t.s)}:00+09:00`); if (E.toMin(t5(x.t.s)) < (CFG().cut ?? 6) * 60) a += 864e5; return { ...x, a }; }) // 새벽 시작은 다음 날
+    .filter(x => x.a + 15 * 6e4 < nowMs && nowMs - x.a < 3 * 36e5 && !(S.attStore || []).some(a => a.member_id === x.p.id && a.kind === 'in' && Math.abs(new Date(a.at) - x.a) < 5 * 36e5));
+  if (!L.length) return '';
+  return `<div class="card warnc noshow"><b>🚨 아직 출근 안 한 사람 ${L.length}명</b>${L.map(x => `<div class="li"><span>${esc(x.p.nick)} <small class="mut">${t5(x.t.s)}–${t5(x.t.e)}</small></span><button class="btn sm pri" data-act="sub-now" data-s="${t5(x.t.s)}" data-e="${t5(x.t.e)}" data-r="${esc(x.p.job_role || '딜러')}">대타 구하기</button></div>`).join('')}<small class="mut">누르면 긴급 공고가 채워져 있어요 · 올리면 대타 알림 받는 딜러에게 바로 가요</small></div>`;
+}
+// 3) 오늘 예측: 최근 8주 같은 요일 매출 평균 ÷ 그날들의 '1인당 매출' 중간값 → 필요한 인원
+function forecastCard() {
+  if (!isOwner()) return '';
+  const k = bizDay(), [y, m, d] = k.split('-').map(Number), w = E.wdOf(y, m, d), staff = S.members.filter(p => p.role !== 'owner');
+  const H = (S.hist || []).filter(r => r.sales > 0 && r.report_date < k && r.report_date >= addDay(k, -56) && E.wdOf(...r.report_date.split('-').map(Number)) === w);
+  if (H.length < 3) return '';
+  const avg = H.reduce((a, r) => a + r.sales, 0) / H.length;
+  const sps = H.map(r => { const [yy, mm, dd] = r.report_date.split('-').map(Number), n = staff.filter(p => E.shiftOn(p.id, yy, mm, dd, S.tpl, S.ov)).length; return n ? r.sales / n : 0; }).filter(Boolean).sort((a, b) => a - b);
+  const now = staff.filter(p => E.shiftOn(p.id, y, m, d, S.tpl, S.ov)).length, need = sps.length ? Math.max(1, Math.round(avg / sps[sps.length >> 1])) : null, gap = need ? need - now : 0;
+  return `<div class="card fc"><div class="row between"><h3 style="margin:0">오늘 예상 <small>${E.WD[w]}요일 · 최근 ${H.length}주 기준</small></h3>${gap > 0 ? `<button class="btn sm pri" data-act="sub-now" data-s="${CFG().open || '19:00'}" data-e="${CFG().close || '04:00'}" data-r="딜러" data-n="${gap}">${gap}명 구하기</button>` : ''}</div>
+    <div class="fc-row"><div><small>예상 매출</small><b class="num">₩${man(avg)}</b></div><div><small>근무표</small><b class="num">${now}명</b></div><div><small>필요 인원</small><b class="num ${gap > 0 ? 'down' : 'up'}">${need ?? '–'}명</b></div></div>
+    <small class="mut">${gap > 0 ? `${gap}명 부족해 보여요` : gap < 0 ? `${-gap}명 여유 · 인건비를 줄일 수 있어요` : '딱 맞아요'} · 예측이라 실제와 다를 수 있어요</small></div>`;
+}
+// 5) 시재 구멍 감시: 최근 30일 금고 차액을 마감한 사람·요일별로
+function cashWatchCard() {
+  const R = (S.hist || []).filter(r => r.report_date >= addDay(TODAY, -30) && r.cash_diff);
+  if (!R.length) return '';
+  const by = {}; R.forEach(r => { const n = S.members.find(p => p.user_id === r.reported_by)?.nick || '대표'; (by[n] = by[n] || { n: 0, sum: 0, minus: 0 }); by[n].n++; by[n].sum += r.cash_diff; if (r.cash_diff < 0) by[n].minus++; });
+  const tot = R.reduce((a, r) => a + r.cash_diff, 0), minus = R.filter(r => r.cash_diff < 0).length, warn = Object.entries(by).filter(([, v]) => v.minus >= 3);
+  return `<div class="card ${warn.length ? 'warnc' : ''}"><h3>시재 감시 <small>최근 30일 · 금고 차액</small></h3>
+    <div class="fc-row"><div><small>차액 합계</small><b class="num ${tot < 0 ? 'down' : ''}">${tot < 0 ? '−' : '+'}₩${E.won(Math.abs(tot))}</b></div><div><small>모자란 날</small><b class="num">${minus}일</b></div><div><small>차액 난 날</small><b class="num">${R.length}일</b></div></div>
+    ${Object.entries(by).sort((a, b) => a[1].sum - b[1].sum).map(([n, v]) => `<div class="li"><span>${esc(n)} <small class="mut">마감 ${v.n}번 중 모자람 ${v.minus}번</small></span><span class="num ${v.sum < 0 ? 'down' : ''}">${v.sum < 0 ? '−' : '+'}₩${E.won(Math.abs(v.sum))}</span></div>`).join('')}
+    ${warn.length ? `<small class="down">${warn.map(([n]) => esc(n)).join(', ')} 마감 때 3번 이상 모자랐어요 · 같이 세 보세요</small>` : '<small class="mut">반복되는 패턴은 아직 없어요</small>'}</div>`;
+}
+// 7) 노무 위험 한눈에: 최저임금 · 근로계약서 · 보건증 · 주 52시간
+function laborCard() {
+  if (!isOwner()) return '';
+  const st = S.members.filter(p => p.role !== 'owner'), [y, m, d] = TODAY.split('-').map(Number), k0 = addDay(TODAY, -E.wdOf(y, m, d));
+  const I = [
+    ['최저임금 미만 시급', st.filter(p => p.hourly_rate && p.hourly_rate < minWage() && (p.labor_law ?? p.contract === '4대')), '과태료·체불 위험'],
+    ['근로계약서 안 보냄', needContract(), '미작성 시 500만 원 이하 벌금'],
+    ['보건증 만료·30일 내 만료', st.filter(p => p.health_exp && p.health_exp <= addDay(TODAY, 30)), '위생 점검 때 걸려요'],
+    ['이번 주 52시간 넘음', st.filter(p => weekHours(p.id, k0) > 52), '연장근로 한도 초과']].filter(x => x[1].length);
+  if (!I.length) return `<div class="card"><h3>노무 점검 <span class="pill g">이상 없음</span></h3><small class="mut">최저임금 · 근로계약서 · 보건증 · 주 52시간</small></div>`;
+  return `<div class="card warnc"><h3>노무 위험 ${I.reduce((a, x) => a + x[1].length, 0)}건 <small>미리 막으세요</small></h3>${I.map(([t, L, why]) => `<div class="li"><span><b>${t}</b> <small class="mut">${why}</small><br><small>${L.slice(0, 5).map(p => esc(p.nick)).join(', ')}${L.length > 5 ? ` 외 ${L.length - 5}명` : ''}</small></span><button class="btn sm" data-tab="staff">고치기</button></div>`).join('')}</div>`;
+}
+// 6) 급여일 3일 전부터: 총액 + 이체 목록 복사 + 명세서 한 번에
+function payDayCard() {
+  if (!isOwner()) return '';
+  const pd = +(S.store.contract_tpl?.payday || 10), [y, m, d] = TODAY.split('-').map(Number); let due = new Date(y, m - 1, pd); if (d > pd) due = new Date(y, m, pd);
+  const left = Math.round((due - new Date(y, m - 1, d)) / 864e5); if (left > 3) return '';
+  const L = S.members.filter(p => p.role !== 'owner').map(p => payOf(p).xfer || 0), tot = L.reduce((a, b) => a + b, 0); if (!tot) return '';
+  return `<div class="card"><h3>💸 급여일 ${left ? `D-${left}` : '오늘'} <small>${due.getMonth() + 1}월 ${pd}일</small></h3><p class="sub" style="margin:4px 0 10px">총 이체액 <b class="num">₩${E.won(tot)}</b> · ${L.filter(Boolean).length}명</p><div class="row" style="gap:6px;flex-wrap:wrap"><button class="btn sm pri" data-act="pay-copy">① 이체 목록 복사</button><button class="btn sm" data-act="slip-bulk">② 명세서 한 번에 보내기</button></div><small class="mut">복사한 목록을 은행 앱 '대량이체'에 붙여넣으면 끝나요</small></div>`;
+}
+// 10) 이벤트 포스터: 입력하면 1080×1350 인스타용 이미지로 저장·공유
+function posterOpen() {
+  openSheet(`<h2>🎨 이벤트 포스터</h2><p class="sub">적으면 인스타·카톡에 바로 올릴 이미지가 만들어져요.</p><form class="f" id="poster-form">
+    <label class="fl">이벤트 이름<input name="t" required placeholder="예: 토요 데일리 토너먼트"></label>
+    <div class="grid2"><label class="fl">날짜<input type="date" name="d" value="${TODAY}" required></label><label class="fl">시작<input type="time" name="s" value="${CFG().open || '20:00'}"></label></div>
+    <label class="fl">참가비 <small class="mut">(선택)</small><input name="fee" placeholder="예: 3만 원"></label>
+    <label class="fl">한 줄 소개 <small class="mut">(선택)</small><input name="sub" maxlength="40" placeholder="예: 초보 환영 · 룰 설명해 드려요"></label>
+    <p class="note">현금 상금·환전처럼 사행성으로 보일 수 있는 문구는 넣지 마세요.</p>
+    <canvas id="poster-cv" width="1080" height="1350" style="width:100%;border-radius:12px;margin:8px 0;background:#0e1316"></canvas>
+    <div class="row" style="gap:6px"><button type="button" class="btn" data-act="poster-draw">미리보기</button><button class="btn pri" style="flex:1">이미지 저장·공유</button></div></form>`);
+  posterDraw();
+}
+function posterDraw() {
+  const f = $('#poster-form'), c = $('#poster-cv'); if (!f || !c) return; const v = formVals(f), x = c.getContext('2d'), W = 1080, Hh = 1350;
+  const g = x.createLinearGradient(0, 0, W, Hh); g.addColorStop(0, '#0b1210'); g.addColorStop(1, '#16241d'); x.fillStyle = g; x.fillRect(0, 0, W, Hh);
+  x.fillStyle = 'rgba(61,220,132,.12)'; [[880, 220, 260], [180, 1180, 200]].forEach(([cx, cy, r]) => { x.beginPath(); x.arc(cx, cy, r, 0, 7); x.fill(); });
+  x.strokeStyle = '#3ddc84'; x.lineWidth = 6; x.strokeRect(60, 60, W - 120, Hh - 120);
+  const F = (s, w = 800) => `${w} ${s}px "Noto Sans KR", "Apple SD Gothic Neo", sans-serif`, wrap = (t, mx) => { const o = []; let l = ''; for (const w of String(t).split(' ')) { const c = l ? l + ' ' + w : w; if (x.measureText(c).width > mx && l) { o.push(l); l = w; } else l = c; } if (l) o.push(l); return o; }; // 단어 단위 줄바꿈
+  x.textAlign = 'left'; x.fillStyle = '#3ddc84'; x.font = F(40, 800); x.fillText((S.store.name || '').toUpperCase(), 120, 190);
+  x.fillStyle = '#ffffff'; x.font = F(108, 900); const T = wrap(v.t || '이벤트 이름', W - 240); T.slice(0, 3).forEach((l, i) => x.fillText(l, 120, 380 + i * 130));
+  const [, mm, dd] = (v.d || TODAY).split('-').map(Number), wd = E.WD[E.wdOf(...(v.d || TODAY).split('-').map(Number))], top = 380 + Math.min(3, T.length) * 130 + 60;
+  x.fillStyle = '#f5b942'; x.font = F(76, 900); x.fillText(`${mm}/${dd} (${wd}) ${v.s || ''}`, 120, top);
+  if (v.fee) { x.fillStyle = '#e8ecea'; x.font = F(52, 700); x.fillText(`참가비 ${v.fee}`, 120, top + 100); }
+  if (v.sub) { x.fillStyle = '#9fb3aa'; x.font = F(44, 500); x.fillText(v.sub, 120, top + (v.fee ? 180 : 100)); }
+  x.fillStyle = '#e8ecea'; x.font = F(40, 600); x.fillText(`📍 ${S.store.name || ''}${S.store.area ? ' · ' + S.store.area : ''}`, 120, Hh - 150);
+}
+F68['poster-form'] = async () => {
+  posterDraw(); const c = $('#poster-cv'), blob = await new Promise(r => c.toBlob(r, 'image/png')), file = new File([blob], 'event-poster.png', { type: 'image/png' });
+  if (navigator.canShare?.({ files: [file] })) { try { await navigator.share({ files: [file], title: '이벤트 포스터' }); return; } catch { } }
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'event-poster.png'; a.click(); toast('이미지를 저장했어요');
+};
+document.addEventListener('input', e => { if (e.target.closest?.('#poster-form')) posterDraw(); });
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-act]'); if (!b) return; const a = b.dataset.act;
+  if (a === 'sub-now') { const n = +(b.dataset.n || 1); S.postKind = 'urgent'; S.pre = { heads: n, title: `오늘 ${b.dataset.s}~${b.dataset.e} ${b.dataset.r} ${n > 1 ? n + '명 ' : ''}급구`, s: b.dataset.s, e: b.dataset.e }; S.tab = 'jobs'; S.sub = null; render(); scrollTo(0, 0); return toast('내용 확인하고 올리기만 누르세요'); }
+  if (a === 'poster') return posterOpen();
+  if (a === 'poster-draw') return posterDraw();
 });
