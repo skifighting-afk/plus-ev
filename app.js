@@ -207,7 +207,8 @@ sb.auth.onAuthStateChange((_e, session) => { if (_e === 'SIGNED_OUT' && S.user &
 async function boot() {
   try {
     if (!S.pricingLoaded) { applyPricing(await q(sb.from('pricing').select('key,amount'))); S.pricingLoaded = true; pushState(); } // 가격은 서버 한 곳
-    const pr = new URLSearchParams(location.search); if (S.user && pr.get('pay')) { history.replaceState(null, '', location.pathname); await payReturn(pr); } if (S.user && pr.get('altpay')) { history.replaceState(null, '', location.pathname); await altpayReturn(pr); }
+    const pr = new URLSearchParams(location.search); if (pr.get('share')) return shareView(pr.get('share'));
+    if (S.user && pr.get('pay')) { history.replaceState(null, '', location.pathname); await payReturn(pr); } if (S.user && pr.get('altpay')) { history.replaceState(null, '', location.pathname); await altpayReturn(pr); }
     if (!S.user) { Object.assign(S, { mode: 'auth', onb: null, tab: null, sub: null, company: null, stores: [], store: null }); return render(); }
     S.prof = (await q(sb.from('profiles').select('*').eq('id', S.user.id).maybeSingle())) || { name: '' };
     const mem = await q(sb.from('members').select('*').eq('user_id', S.user.id).eq('active', true));
@@ -356,7 +357,7 @@ function render() {
   ($('#top-r') || {}).innerHTML = S.user ? `${S.mode === 'store' ? `<button class="btn sm icon ${S.sub === 'notice' ? 'on' : ''}" data-act="sub" data-v="notice" title="운영사 공지" aria-label="운영사 공지">${svg('notice')}<i class="il">공지</i></button><button class="btn sm icon ${S.sub === 'inq' ? 'on' : ''}" data-act="sub" data-v="inq" title="운영사 문의" aria-label="운영사 문의">${svg('inq')}<i class="il">문의</i></button><button class="btn sm icon ${S.sub === 'settings' ? 'on' : ''}" data-act="sub" data-v="settings" title="매장 설정" aria-label="매장 설정">${svg('settings')}<i class="il">설정</i></button>` : ''}<button class="btn sm icon bell" data-act="notis" title="알림" aria-label="알림${(S.notis || []).filter(x => !x.read).length ? ` ${(S.notis || []).filter(x => !x.read).length}개 안 읽음` : ''}"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 16V11a6 6 0 0 1 12 0v5l2 2H4zM10 20a2 2 0 0 0 4 0"/></svg><i class="il">알림</i>${(S.notis || []).filter(x => !x.read).length ? `<b class="nbdg">${Math.min(99, (S.notis || []).filter(x => !x.read).length)}</b>` : ''}</button><button class="btn sm icon" data-act="refresh" title="새로고침" aria-label="새로고침">${svg('refresh')}<i class="il">새로고침</i></button><button class="btn sm icon" data-act="menu" title="메뉴 · 화면 색" aria-label="메뉴 · 화면 색">${svg('menu')}<i class="il">메뉴</i></button>` : '';
   const V = { auth: vAuth, onboard: vOnboard,
     store: () => ((S.tab === 'more' && S.sub === 'daily' ? vDaily : 0) || ({ improve: vImprove, home: vHome, sched: vSched, sales: vSales, staff: vStaff, jobs: vJobs, more: vMore }[S.tab] || vHome))(),
-    staff: () => ({ learn: vLearn, work: vWork, attend: vAttend, jobs: vBoard, wallet: vWallet, me: vMe }[S.tab] || vWork)(),
+    staff: () => staffNotice() + ({ learn: vLearn, work: vWork, attend: vAttend, jobs: vBoard, wallet: vWallet, me: vMe }[S.tab] || vWork)(),
     dealer: () => ({ jobs: vBoard, mywork: vMyWork, lounge: vLounge, wallet: vWallet, me: vMe }[S.tab] || vBoard)(),
     hq: () => ({ dash: vHqDash, goods: vHqGoods, stores: vHqStores, data: vHqData, inq: vHqInq, notice: vHqNotice, fr: vHqFr, rep: vHqRep }[S.tab] || vHqDash)() };
   const lock = S.mode === 'store' && S.company && !S.active ? `<div class="lockbar"><div><b>무료 체험이 끝났어요.</b> 지금은 보기만 돼요 — 입력한 데이터는 그대로 있어요.</div>${isOwner() ? `<span class="row"><button class="btn sm" data-act="plan" data-v="basic">베이직 ₩${E.won(PRICE.basic)}</button><button class="btn sm gold" data-act="plan" data-v="pro">프로 ₩${E.won(PRICE.pro)}</button></span>` : '<button class="btn sm" data-act="ask-owner" data-v="요금제">대표님께 요청</button>'}</div>` : '';
@@ -370,6 +371,7 @@ function render() {
   if (S.mode === 'dealer' && S.tab === 'lounge') loungeLoad();
   if (S.mode === 'hq' && S.tab === 'rep') hqRepLoad();
   if (S.mode === 'store' && (S.tab === 'sales' || S.tab === 'home') && S.store) tossLoad();
+  if ((S.mode === 'store' && (S.tab === 'home' || !S.tab)) || S.mode === 'staff') noticesLoad();
   moneyPop(); basicsCheck(); draftRestore(); if (S.user && !S.pinChecked) { S.pinChecked = 1; pinLock(); }
   if (lock && !S.lockAsked) { S.lockAsked = 1; openSheet(`<h2>무료 체험 한 달이 끝났어요</h2><p class="sub">매출·직원·스케줄 등 입력하신 내용은 <b>모두 저장돼 있어요.</b> 지금은 보기만 돼요. 연장하시겠어요?</p>
     ${isOwner() ? `<div class="plans"><div class="plan"><b>베이직</b><b class="num">월 ₩${E.won(PRICE.basic)}</b><button class="btn sm" data-act="plan" data-v="basic">베이직으로 연장</button></div><div class="plan cur"><span class="pill y">추천</span><b>프로</b><b class="num">월 ₩${E.won(PRICE.pro)}</b><button class="btn sm gold" data-act="plan" data-v="pro">프로로 연장</button></div></div>` : '<p class="note">요금제는 대표님만 바꿀 수 있어요.</p><button class="btn full" data-act="ask-owner" data-v="요금제">대표님께 요청</button>'}
@@ -639,7 +641,7 @@ function vHome() {
   // 주 컬럼: 오늘·이번 달 판단에 필요한 것 / 보조 컬럼: 참고 정보 (모바일에선 같은 순서로 세로)
   return `<div class="home">${setupCard()}<div class="hhead">${storeHead('브리핑')}${newN ? `<button class="card nbanner" data-act="sub" data-v="notice"><span class="ntag">공지</span><div><small>운영사에서 새 소식이 왔어요</small><b>${esc(nt.title)}</b></div><span class="mut">›</span></button>` : ''}</div>
   <div class="hmain">${coCard()}
-  ${cur ? noShowCard() + liveCard() + forecastCard() + payDayCard() + iosCard() + startCard() + todoCard() + upcomingCard() + laborCard() + `<button class="card nowline" data-act="poster"><small>홍보</small><b>🎨 이벤트 포스터 만들기</b><span class="mut">›</span></button>` : ''}${cur && isOwner() ? `<div class="card"><h3>AI 비서 <span class="pill g">PRO</span> <small>우리 매장 숫자로 답하고, 글도 써요</small></h3><div class="row" style="gap:6px"><input id="ai-q" placeholder="질문, 또는 공지·홍보할 내용 (예: 토요일 8시 토너먼트 바인 3만)" style="flex:1;min-width:0"><button class="btn sm pri" data-act="ai-ask">묻기</button></div><div class="row" style="gap:6px;flex-wrap:wrap;margin-top:8px"><button class="chip" data-act="ai-ask" data-q="1">📊 이번 달 총평</button><button class="chip" data-act="ai-write" data-k="notice">📢 직원 공지 쓰기</button><button class="chip" data-act="ai-write" data-k="promo">🎉 손님 홍보글 쓰기</button></div><p class="note" id="ai-a" style="white-space:pre-wrap"></p><button class="btn sm" id="ai-copy" data-act="ai-copy" hidden>복사</button></div>` : ''}${cur ? topStrip(M) : ''}
+  ${cur ? noShowCard() + liveCard() + forecastCard() + payDayCard() + iosCard() + startCard() + todoCard() + upcomingCard() + laborCard() + noticeCard() + `<button class="card nowline" data-act="poster"><small>홍보</small><b>🎨 포스터 스튜디오 · 템플릿 6종</b><span class="mut">›</span></button>` : ''}${cur && isOwner() ? `<div class="card"><h3>AI 비서 <span class="pill g">PRO</span> <small>우리 매장 숫자로 답하고, 글도 써요</small></h3><div class="row" style="gap:6px"><input id="ai-q" placeholder="질문, 또는 공지·홍보할 내용 (예: 토요일 8시 토너먼트 바인 3만)" style="flex:1;min-width:0"><button class="btn sm pri" data-act="ai-ask">묻기</button></div><div class="row" style="gap:6px;flex-wrap:wrap;margin-top:8px"><button class="chip" data-act="ai-ask" data-q="1">📊 이번 달 총평</button><button class="chip" data-act="ai-write" data-k="notice">📢 직원 공지 쓰기</button><button class="chip" data-act="ai-write" data-k="promo">🎉 손님 홍보글 쓰기</button></div><p class="note" id="ai-a" style="white-space:pre-wrap"></p><button class="btn sm" id="ai-copy" data-act="ai-copy" hidden>복사</button></div>` : ''}${cur ? topStrip(M) : ''}
   ${(() => { const g = goalOf(S.y, S.m), T = cur && g ? todayTodo(M, g) : []; return T.length ? `<button class="card nowline" ${T[0][3] ? `data-act="goto" data-t="${T[0][3] === 'order' ? 'more' : T[0][3]}" ${T[0][3] === 'order' ? 'data-s="order"' : ''}` : ''}><small>지금 할 일</small><b>${T[0][1]}</b><span class="mut">›</span></button>` : ''; })()}
   ${rankBar()}
   <div class="sech"><h2>${S.m}월 손익</h2>${monthNav()}</div>
@@ -903,6 +905,7 @@ function vOrder() {
   const freq = {}; S.orders.forEach(o => o.items.forEach(i => freq[i.id] = (freq[i.id] || 0) + 1)); const fav = Object.entries(freq).sort((a, b) => b[1] - a[1]).slice(0, 4).map(([id]) => item(id)).filter(Boolean);
   return `${storeHead('발주')}
   <div class="card"><label class="tog"><span><b>세금계산서 발행</b><small>사업자 번호로 전자세금계산서를 발행해 드려요</small></span><input type="checkbox" id="tax-inv" ${S.taxInv !== false ? 'checked' : ''}></label></div>
+  ${S.orders?.[0] ? `<button class="card nowline" data-act="reorder"><small>원클릭</small><b>↻ 지난 주문 그대로 담기 · ${S.orders[0].items.length}개</b><span class="mut">›</span></button>` : ''}
   ${fav.length ? `<div class="card"><h3>자주 주문한 상품</h3><div class="row">${fav.map(p => `<button class="btn sm" data-act="cart" data-v="${p.id}">↻ ${esc(p.n)}</button>`).join('')}</div></div>` : ''}
   <div class="card"><h3>상품</h3><div class="seg" style="margin-bottom:10px">${Object.entries(SHOP_CAT).map(([k, l]) => `<button data-act="scat" data-v="${k}" aria-pressed="${(S.shopCat || 'drink') === k}">${l}</button>`).join('')}</div>
     <div class="shop">${SHOP.filter(p => p.active !== false && p.c === (S.shopCat || 'drink')).map(p => `<div class="sitem"><button class="simg" data-act="prod" data-v="${p.id}" aria-label="${esc(p.n)} 자세히">${prodImg(p)}</button><b>${esc(p.n)}</b><small class="mut">${esc(p.u)}</small><div><s class="mut num" style="font-size:12px">₩${E.won(p.p)}</s> <b class="num up">₩${E.won(p.sp)}</b></div><button class="btn sm" data-act="cart" data-v="${p.id}">담기${S.cart[p.id] ? ` (${S.cart[p.id]})` : ''}</button></div>`).join('')}</div>
@@ -1224,7 +1227,7 @@ function vSales() {
   <p class="note" style="margin:-4px 0 10px"><button type="button" class="tlink" data-act="sales-csv">지난 매출 엑셀·CSV로 가져오기</button></p>
   ${S.open ? `<div class="card openbar"><span><b>${fmtDT(S.open.opened_at).split(' ').slice(-2).join(' ')} 오픈</b> · 시작 시재 ₩${E.won(S.open.start_cash)}</span><button class="btn sm" data-act="open-edit">수정</button></div>`
     : `<form class="f card openbar" id="open-form"><div><b>오늘 오픈</b><small class="mut" style="display:block">영업 전 금고에 있는 돈을 넣고 오픈하세요</small></div><div class="row" style="flex-wrap:nowrap"><input name="start_cash" aria-label="시작 현금" type="number" inputmode="numeric" value="${S.lastStart ?? (CFG().carry !== false ? carryCash()?.v : null) ?? CFG().cash0 ?? 300000}" style="width:140px"><button class="btn pri">오픈</button></div></form>`}
-  <form class="f card" id="report-form"><div class="row between"><h3 style="margin:0">마감 <button type="button" class="btn sm" data-act="rcpt" title="포스 마감영수증 사진으로 자동 입력">📷 사진으로 입력</button><input type="file" accept="image/*" capture="environment" id="rcpt-file" hidden></h3><label class="fl" style="margin:0"><input type="date" name="date" value="${bizDay()}" max="${TODAY}" style="width:auto"></label></div>
+  <form class="f card" id="report-form"><div class="row between"><h3 style="margin:0">마감 <button type="button" class="btn sm" data-act="rcpt" title="포스 마감영수증 사진으로 자동 입력">📷 사진으로 입력</button><input type="file" accept="image/*" capture="environment" id="rcpt-file" hidden><label class="btn sm" style="cursor:pointer" title="POS 영수증·금고·장부 사진 여러 장">📸 여러 장 마감<input type="file" accept="image/*" multiple id="close-photos" hidden></label></h3><label class="fl" style="margin:0"><input type="date" name="date" value="${bizDay()}" max="${TODAY}" style="width:auto"></label></div>
     <div class="grid2 big"><label class="fl">총매출 (원)<input name="sales" type="number" inputmode="numeric" required value="${r0.sales ?? ''}" placeholder="0"></label><label class="fl">엔트리 수<input name="entries" type="number" inputmode="numeric" value="${r0.entries ?? ''}" placeholder="0"></label></div>
     <details class="more" ${r0.card ? 'open' : ''}><summary>결제수단 · 금고 정산 <small class="mut">금고 차액을 잡아줘요</small></summary>
       <div class="grid2"><label class="fl">카드<input name="card" type="number" inputmode="numeric" value="${r0.card ?? ''}"></label><label class="fl">계좌이체·간편결제<input name="transfer" type="number" inputmode="numeric" value="${r0.transfer ?? ''}"></label><label class="fl">손님 환불·카드 취소 <small class="mut">매출에서 빠진 돈</small><input name="dt_refund" type="number" inputmode="numeric" value="${r0.detail?.refund ?? ''}" placeholder="0"></label>
@@ -2093,12 +2096,12 @@ function menuSheet() {
     <b>${t.name}</b><small>${t.sub}</small></button>`; };
   openSheet(`<div class="mn"><div class="mn-hd"><b>설정</b><button class="mn-x" data-act="close" aria-label="닫기"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
   ${S.user ? `<label class="mn-srch"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg><input id="srch" type="search" placeholder="메뉴·직원·공고 찾기" autocomplete="off" aria-label="앱 안 검색"></label><div id="srch-out" class="srch-out"></div>` : ''}
-  ${S.mode === 'store' && isOwner() ? `<div class="mn-lb">매장</div><div class="mn-list"><button data-act="wz" data-v="2"><span class="mn-ic">🏪</span>매장 준비·기능 켜기/끄기<i>›</i></button></div>` : ''}<div class="mn-lb">화면 색 <span>이 폰에만 저장돼요</span></div>
+  ${S.mode === 'store' && isOwner() ? `<div class="mn-lb">매장</div><div class="mn-list"><button data-act="wz" data-v="2"><span class="mn-ic">🏪</span>매장 준비·기능 켜기/끄기<i>›</i></button><button data-act="share-open"><span class="mn-ic">👀</span>동업자·투자자 보기 전용 링크<i>›</i></button></div>` : ''}<div class="mn-lb">화면 색 <span>이 폰에만 저장돼요</span></div>
   <div class="thm2">${Object.entries(THEMES).map(([k, t]) => tile(k, t)).join('')}</div>
   <label class="mn-tog"><span><b>폰 설정 따라 밝게·어둡게</b><small>낮엔 밝은 화면, 밤엔 어두운 화면 자동</small></span><input type="checkbox" data-act="theme" data-v="${lsGet('ev_theme') === 'auto' ? 'mint' : 'auto'}" ${lsGet('ev_theme') === 'auto' ? 'checked' : ''}></label>
   ${S.user ? `<div class="mn-lb">알림·보안</div><div class="mn-list"><button data-act="dnd"><span class="mn-ic">🌙</span>방해 금지 시간 <small class="mut" style="margin-left:4px">${S.prof?.dnd?.f ? `${S.prof.dnd.f}~${S.prof.dnd.t}` : '꺼짐'}</small><i>›</i></button><button data-act="pin-set"><span class="mn-ic">🔒</span>앱 잠금 (PIN) <small class="mut" style="margin-left:4px">${lsGet('ev_pin') ? '켜짐 · 이 폰' : '꺼짐'}</small><i>›</i></button><button data-act="logout-all"><span class="mn-ic">📱</span>모든 기기에서 로그아웃<i>›</i></button></div>` : ''}
   <label class="mn-tog"><span><b>글자 크게</b><small>모든 화면 글자를 조금 크게</small></span><input type="checkbox" data-act="big" ${lsGet('ev_big') === '1' ? 'checked' : ''}></label>
-  <div class="mn-lb">기타 <small class="mut" style="font-weight:400">v0.85 · 펑크 대타·오늘 예측·시재 감시·노무 점검·포스터 · 한 번에 세팅 · 매장 키우기 퀘스트 · 매장 준비 10단계 · 기능 켜기/끄기 · 근무 일괄 확정 · 가져오기 · 화면 정리: 홈 접기 · 경고 요약 · 직원 카드 접기 · 출퇴근 고치기 안내</small></div>
+  <div class="mn-lb">기타 <small class="mut" style="font-weight:400">v0.86 · 포스터 스튜디오·사진 마감·매장 공지·지난 주문·보기 전용 링크 · 한 번에 세팅 · 매장 키우기 퀘스트 · 매장 준비 10단계 · 기능 켜기/끄기 · 근무 일괄 확정 · 가져오기 · 화면 정리: 홈 접기 · 경고 요약 · 직원 카드 접기 · 출퇴근 고치기 안내</small></div>
   <div class="mn-list"><a href="guide.html#${S.mode === 'store' ? 'owner' : S.mode}" target="_blank" rel="noopener"><span class="mn-ic"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2zM4 21V5M8 7h7"/></svg></span>사용법 보기<i>›</i></a>
   ${S.user && (S.user.app_metadata?.provider || 'email') === 'email' ? `<button data-act="pw-change"><span class="mn-ic"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg></span>비밀번호 바꾸기<i>›</i></button>` : ''}
   ${S.user ? '<button data-act="myset"><span class="mn-ic">🧩</span>내 화면 · 기기 · 단축키<i>›</i></button>' : ''}
@@ -3886,41 +3889,149 @@ function payDayCard() {
   const L = S.members.filter(p => p.role !== 'owner').map(p => payOf(p).xfer || 0), tot = L.reduce((a, b) => a + b, 0); if (!tot) return '';
   return `<div class="card"><h3>💸 급여일 ${left ? `D-${left}` : '오늘'} <small>${due.getMonth() + 1}월 ${pd}일</small></h3><p class="sub" style="margin:4px 0 10px">총 이체액 <b class="num">₩${E.won(tot)}</b> · ${L.filter(Boolean).length}명</p><div class="row" style="gap:6px;flex-wrap:wrap"><button class="btn sm pri" data-act="pay-copy">① 이체 목록 복사</button><button class="btn sm" data-act="slip-bulk">② 명세서 한 번에 보내기</button></div><small class="mut">복사한 목록을 은행 앱 '대량이체'에 붙여넣으면 끝나요</small></div>`;
 }
-// 10) 이벤트 포스터: 입력하면 1080×1350 인스타용 이미지로 저장·공유
-function posterOpen() {
-  openSheet(`<h2>🎨 이벤트 포스터</h2><p class="sub">적으면 인스타·카톡에 바로 올릴 이미지가 만들어져요.</p><form class="f" id="poster-form">
-    <label class="fl">이벤트 이름<input name="t" required placeholder="예: 토요 데일리 토너먼트"></label>
-    <div class="grid2"><label class="fl">날짜<input type="date" name="d" value="${TODAY}" required></label><label class="fl">시작<input type="time" name="s" value="${CFG().open || '20:00'}"></label></div>
-    <label class="fl">참가비 <small class="mut">(선택)</small><input name="fee" placeholder="예: 3만 원"></label>
-    <label class="fl">한 줄 소개 <small class="mut">(선택)</small><input name="sub" maxlength="40" placeholder="예: 초보 환영 · 룰 설명해 드려요"></label>
-    <p class="note">현금 상금·환전처럼 사행성으로 보일 수 있는 문구는 넣지 마세요.</p>
-    <canvas id="poster-cv" width="1080" height="1350" style="width:100%;border-radius:12px;margin:8px 0;background:#0e1316"></canvas>
-    <div class="row" style="gap:6px"><button type="button" class="btn" data-act="poster-draw">미리보기</button><button class="btn pri" style="flex:1">이미지 저장·공유</button></div></form>`);
-  posterDraw();
-}
-function posterDraw() {
-  const f = $('#poster-form'), c = $('#poster-cv'); if (!f || !c) return; const v = formVals(f), x = c.getContext('2d'), W = 1080, Hh = 1350;
-  const g = x.createLinearGradient(0, 0, W, Hh); g.addColorStop(0, '#0b1210'); g.addColorStop(1, '#16241d'); x.fillStyle = g; x.fillRect(0, 0, W, Hh);
-  x.fillStyle = 'rgba(61,220,132,.12)'; [[880, 220, 260], [180, 1180, 200]].forEach(([cx, cy, r]) => { x.beginPath(); x.arc(cx, cy, r, 0, 7); x.fill(); });
-  x.strokeStyle = '#3ddc84'; x.lineWidth = 6; x.strokeRect(60, 60, W - 120, Hh - 120);
-  const F = (s, w = 800) => `${w} ${s}px "Noto Sans KR", "Apple SD Gothic Neo", sans-serif`, wrap = (t, mx) => { const o = []; let l = ''; for (const w of String(t).split(' ')) { const c = l ? l + ' ' + w : w; if (x.measureText(c).width > mx && l) { o.push(l); l = w; } else l = c; } if (l) o.push(l); return o; }; // 단어 단위 줄바꿈
-  x.textAlign = 'left'; x.fillStyle = '#3ddc84'; x.font = F(40, 800); x.fillText((S.store.name || '').toUpperCase(), 120, 190);
-  x.fillStyle = '#ffffff'; x.font = F(108, 900); const T = wrap(v.t || '이벤트 이름', W - 240); T.slice(0, 3).forEach((l, i) => x.fillText(l, 120, 380 + i * 130));
-  const [, mm, dd] = (v.d || TODAY).split('-').map(Number), wd = E.WD[E.wdOf(...(v.d || TODAY).split('-').map(Number))], top = 380 + Math.min(3, T.length) * 130 + 60;
-  x.fillStyle = '#f5b942'; x.font = F(76, 900); x.fillText(`${mm}/${dd} (${wd}) ${v.s || ''}`, 120, top);
-  if (v.fee) { x.fillStyle = '#e8ecea'; x.font = F(52, 700); x.fillText(`참가비 ${v.fee}`, 120, top + 100); }
-  if (v.sub) { x.fillStyle = '#9fb3aa'; x.font = F(44, 500); x.fillText(v.sub, 120, top + (v.fee ? 180 : 100)); }
-  x.fillStyle = '#e8ecea'; x.font = F(40, 600); x.fillText(`📍 ${S.store.name || ''}${S.store.area ? ' · ' + S.store.area : ''}`, 120, Hh - 150);
-}
-F68['poster-form'] = async () => {
-  posterDraw(); const c = $('#poster-cv'), blob = await new Promise(r => c.toBlob(r, 'image/png')), file = new File([blob], 'event-poster.png', { type: 'image/png' });
-  if (navigator.canShare?.({ files: [file] })) { try { await navigator.share({ files: [file], title: '이벤트 포스터' }); return; } catch { } }
-  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'event-poster.png'; a.click(); toast('이미지를 저장했어요');
-};
-document.addEventListener('input', e => { if (e.target.closest?.('#poster-form')) posterDraw(); });
 document.addEventListener('click', e => {
   const b = e.target.closest('[data-act]'); if (!b) return; const a = b.dataset.act;
   if (a === 'sub-now') { const n = +(b.dataset.n || 1); S.postKind = 'urgent'; S.pre = { heads: n, title: `오늘 ${b.dataset.s}~${b.dataset.e} ${b.dataset.r} ${n > 1 ? n + '명 ' : ''}급구`, s: b.dataset.s, e: b.dataset.e }; S.tab = 'jobs'; S.sub = null; render(); scrollTo(0, 0); return toast('내용 확인하고 올리기만 누르세요'); }
+});
+
+// ===== v0.86 포스터 스튜디오 · 사진 마감 · 매장 공지(읽음) · 지난 주문 다시 · 보기 전용 링크 =====
+// 포스터: 템플릿 6종 × 크기 3종, 배경 사진·어둡게, 색·글꼴·크기·정렬, 끌어서 위치, 내 템플릿 저장
+const PT = {
+  lux: { n: '블랙 럭셔리', bg: ['#0b0d0c', '#1c221f'], fg: '#ffffff', sub: '#b9c2bd', ac: '#d4af37', pos: 'top', al: 'left', deco: 'frame' },
+  neon: { n: '네온 클럽', bg: ['#0a0620', '#24104a'], fg: '#ffffff', sub: '#c9b8ff', ac: '#39ff88', pos: 'center', al: 'center', deco: 'glow' },
+  red: { n: '카지노 레드', bg: ['#2a0303', '#7a0d0d'], fg: '#fff6e5', sub: '#f3c9b8', ac: '#ffd166', pos: 'center', al: 'center', deco: 'suits' },
+  mini: { n: '미니멀 화이트', bg: ['#f6f4ef', '#ece8df'], fg: '#111111', sub: '#555555', ac: '#1fa463', pos: 'top', al: 'left', deco: 'bar' },
+  vip: { n: '골드 VIP', bg: ['#000000', '#141008'], fg: '#f7e7b4', sub: '#cdbb88', ac: '#e9c46a', pos: 'center', al: 'center', deco: 'double' },
+  photo: { n: '사진 풀배경', bg: ['#111', '#222'], fg: '#ffffff', sub: '#e5e5e5', ac: '#3ddc84', pos: 'bottom', al: 'left', deco: 'shade' }
+};
+const PSIZE = { feed: [1080, 1350, '피드 4:5'], story: [1080, 1920, '스토리 9:16'], sq: [1080, 1080, '정사각형'] };
+const PFONT = { 'Noto Sans KR': '기본', 'Black Han Sans': '굵은 제목', 'Do Hyeon': '도현', 'Jua': '주아', 'Gowun Dodum': '부드럽게' };
+function pFontLoad() { if (S.pfLoaded) return; S.pfLoaded = 1; const l = document.createElement('link'); l.rel = 'stylesheet'; l.href = 'https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Do+Hyeon&family=Jua&family=Gowun+Dodum&display=swap'; document.head.appendChild(l); }
+function pState() { return S.pst = S.pst || { tpl: 'lux', size: 'feed', font: 'Black Han Sans', scale: 1, dx: 0, dy: 0, dim: 45, t: '', d: TODAY, s: CFG().open || '20:00', fee: '', sub: '', ...(CFG().poster || (() => { try { return JSON.parse(localStorage.getItem('ev-poster') || 'null'); } catch { return null; } })() || {}) }; }
+function posterOpen() {
+  pFontLoad(); const P = pState(), T = PT[P.tpl];
+  openSheet(`<h2>🎨 포스터 스튜디오</h2><p class="sub">템플릿을 고르고 글자를 적으면 바로 보여요. 미리보기의 글자는 끌어서 옮길 수 있어요.</p>
+  <div class="pt-row">${Object.entries(PT).map(([k, t]) => `<button type="button" class="pt ${P.tpl === k ? 'on' : ''}" data-act="pt" data-v="${k}" style="--a:${t.bg[0]};--b:${t.bg[1]};--c:${t.ac}"><i></i><small>${t.n}</small></button>`).join('')}</div>
+  <canvas id="poster-cv" style="width:100%;max-width:420px;display:block;margin:10px auto;border-radius:12px;touch-action:none;cursor:grab"></canvas>
+  <form class="f" id="poster-form">
+    <div class="seg" style="margin-bottom:8px">${Object.entries(PSIZE).map(([k, v]) => `<button type="button" data-act="psize" data-v="${k}" aria-pressed="${P.size === k}">${v[2]}</button>`).join('')}</div>
+    <label class="fl">이벤트 이름<input name="t" value="${esc(P.t)}" placeholder="예: 토요 데일리 토너먼트" required></label>
+    <div class="grid2"><label class="fl">날짜<input type="date" name="d" value="${P.d}"></label><label class="fl">시작<input type="time" name="s" value="${P.s}"></label></div>
+    <label class="fl">참가비 <small class="mut">(선택)</small><input name="fee" value="${esc(P.fee)}" placeholder="예: 3만 원"></label>
+    <label class="fl">한 줄 소개 <small class="mut">(선택)</small><input name="sub" maxlength="40" value="${esc(P.sub)}" placeholder="예: 초보 환영 · 룰 설명해 드려요"></label>
+    <details class="more" open><summary>디자인 조절</summary>
+      <div class="grid2"><label class="fl">포인트 색<input type="color" name="ac" value="${P.ac || T.ac}"></label><label class="fl">글꼴<select name="font">${Object.entries(PFONT).map(([k, l]) => `<option value="${k}" ${P.font === k ? 'selected' : ''}>${l}</option>`).join('')}</select></label></div>
+      <label class="fl">글자 크기 <small class="mut" id="p-sc">${Math.round(P.scale * 100)}%</small><input type="range" name="scale" min="0.7" max="1.4" step="0.05" value="${P.scale}"></label>
+      <div class="row" style="gap:6px;flex-wrap:wrap"><span class="mut" style="font-size:12px">정렬</span>${[['left', '왼쪽'], ['center', '가운데']].map(([k, l]) => `<button type="button" class="btn sm ${(P.al || T.al) === k ? 'pri' : ''}" data-act="palign" data-v="${k}">${l}</button>`).join('')}<button type="button" class="btn sm" data-act="preset">위치 처음으로</button></div>
+      <div class="fl" style="margin-top:8px"><span>배경 사진 <small class="mut">매장·테이블 사진을 넣으면 고급스러워져요</small></span><div class="row" style="gap:6px"><label class="btn sm" style="cursor:pointer">📷 사진 넣기<input type="file" id="p-bg" accept="image/*" hidden></label>${P.img ? '<button type="button" class="btn sm" data-act="pbg-off">사진 빼기</button>' : ''}</div></div>
+      ${P.img ? `<label class="fl">사진 어둡게 <small class="mut">${P.dim}%</small><input type="range" name="dim" min="0" max="85" step="5" value="${P.dim}"></label>` : ''}
+    </details>
+    <p class="note">현금 상금·환전처럼 사행성으로 보일 수 있는 문구는 넣지 마세요.</p>
+    <div class="row" style="gap:6px"><button type="button" class="btn" data-act="psave">내 템플릿 저장</button><button class="btn pri" style="flex:1">이미지 저장·공유</button></div></form>`);
+  posterDraw(); setTimeout(posterDraw, 600); document.fonts?.ready.then(posterDraw);
+}
+function posterDraw() {
+  const c = $('#poster-cv'); if (!c) return; const P = pState(), T = PT[P.tpl], [W, H] = PSIZE[P.size]; if (c.width !== W || c.height !== H) { c.width = W; c.height = H; }
+  const x = c.getContext('2d'), ac = P.ac || T.ac, al = P.al || T.al, sc = +P.scale || 1, F = (z, w = 900) => `${w} ${Math.round(z * sc)}px "${P.font}", "Noto Sans KR", sans-serif`;
+  const g = x.createLinearGradient(0, 0, W * .4, H); g.addColorStop(0, T.bg[0]); g.addColorStop(1, T.bg[1]); x.fillStyle = g; x.fillRect(0, 0, W, H);
+  if (P.imgEl) { const im = P.imgEl, k = Math.max(W / im.width, H / im.height); x.drawImage(im, (W - im.width * k) / 2, (H - im.height * k) / 2, im.width * k, im.height * k); x.fillStyle = `rgba(0,0,0,${P.dim / 100})`; x.fillRect(0, 0, W, H); }
+  x.save();
+  if (T.deco === 'frame') { x.strokeStyle = ac; x.lineWidth = 3; x.strokeRect(54, 54, W - 108, H - 108); }
+  if (T.deco === 'double') { x.strokeStyle = ac; x.lineWidth = 6; x.strokeRect(48, 48, W - 96, H - 96); x.lineWidth = 2; x.strokeRect(70, 70, W - 140, H - 140); }
+  if (T.deco === 'bar') { x.fillStyle = ac; x.fillRect(0, 0, 24, H); }
+  if (T.deco === 'glow') { const r = x.createRadialGradient(W * .8, H * .2, 10, W * .8, H * .2, W * .7); r.addColorStop(0, ac + '55'); r.addColorStop(1, 'transparent'); x.fillStyle = r; x.fillRect(0, 0, W, H); }
+  if (T.deco === 'suits') { x.fillStyle = 'rgba(255,255,255,.06)'; x.font = '220px serif'; ['♠', '♥', '♦', '♣'].forEach((ch, i) => x.fillText(ch, (i % 2) * W * .62 + 40, i < 2 ? 260 : H - 80)); }
+  if (T.deco === 'shade') { const s2 = x.createLinearGradient(0, H * .35, 0, H); s2.addColorStop(0, 'transparent'); s2.addColorStop(1, 'rgba(0,0,0,.85)'); x.fillStyle = s2; x.fillRect(0, 0, W, H); }
+  x.restore();
+  const pad = 120, mx = W - pad * 2, X = (al === 'center' ? W / 2 : pad) + (P.dx || 0); x.textAlign = al; x.textBaseline = 'alphabetic';
+  const wrap = (t, z) => { x.font = F(z); const o = []; let l = ''; for (const w of String(t).split(' ')) { const cc = l ? l + ' ' + w : w; if (x.measureText(cc).width > mx && l) { o.push(l); l = w; } else l = cc; } if (l) o.push(l); return o.slice(0, 4); };
+  const title = wrap(P.t || '이벤트 이름', 118), [, mm, dd] = (P.d || TODAY).split('-').map(Number), wd = E.WD[E.wdOf(...(P.d || TODAY).split('-').map(Number))];
+  // [글꼴, 색, 글, 글자 크기, 아래 여백] — 글자 크기만큼 내려서 그려야 줄이 안 겹침
+  const lines = [[F(40, 800), ac, (S.store?.name || '').toUpperCase(), 40, 34], ...title.map((l, i) => [F(118), T.fg, l, 118, i === title.length - 1 ? 46 : 14]), [F(76, 900), ac, `${mm}/${dd} (${wd})  ${P.s || ''}`, 76, 40], ...(P.fee ? [[F(52, 700), T.fg, `참가비 ${P.fee}`, 52, 24]] : []), ...(P.sub ? [[F(42, 500), T.sub, P.sub, 42, 0]] : [])];
+  const h = lines.reduce((a, l) => a + (l[3] + l[4]) * sc, 0), y0 = (T.pos === 'top' ? 190 : T.pos === 'bottom' ? H - h - 190 : (H - h) / 2) + (P.dy || 0);
+  let y = y0; lines.forEach(([f, col, t, z, gap], i) => { y += z * sc; x.font = f; x.fillStyle = col; if (T.deco === 'glow' && i > 0) { x.shadowColor = ac; x.shadowBlur = 24; } x.fillText(t, X, y); x.shadowBlur = 0; y += gap * sc; });
+  x.textAlign = 'center'; x.font = F(34, 600); x.fillStyle = T.sub; x.fillText(`📍 ${S.store?.name || ''}${S.store?.area ? ' · ' + S.store.area : ''}`, W / 2, H - 90);
+}
+function pSet(k, v) { pState()[k] = v; posterDraw(); }
+document.addEventListener('input', e => { const f = e.target.closest?.('#poster-form'); if (!f) return; const n = e.target.name; if (!n) return; pSet(n, ['scale', 'dim'].includes(n) ? +e.target.value : e.target.value); if (n === 'scale') { const el = $('#p-sc'); if (el) el.textContent = Math.round(e.target.value * 100) + '%'; } });
+document.addEventListener('change', e => {
+  if (e.target.name === 'font' && e.target.closest?.('#poster-form')) { pSet('font', e.target.value); document.fonts?.load(`40px "${e.target.value}"`).then(posterDraw); }
+  if (e.target.id === 'p-bg' && e.target.files[0]) { const fl = e.target.files[0]; e.target.value = ''; const im = new Image(); im.onload = () => { const P = pState(); P.imgEl = im; P.img = 1; if (P.tpl !== 'photo' && !P.picked) P.tpl = 'photo'; posterOpen(); }; im.src = URL.createObjectURL(fl); }
+});
+{ let drag = null; // 미리보기에서 글자 덩어리 끌어서 옮기기
+  document.addEventListener('pointerdown', e => { if (e.target.id !== 'poster-cv') return; const c = e.target, k = c.width / c.clientWidth, P = pState(); drag = { x: e.clientX, y: e.clientY, k, dx: P.dx || 0, dy: P.dy || 0 }; c.setPointerCapture(e.pointerId); });
+  document.addEventListener('pointermove', e => { if (!drag || e.target.id !== 'poster-cv') return; const P = pState(); P.dx = drag.dx + (e.clientX - drag.x) * drag.k; P.dy = drag.dy + (e.clientY - drag.y) * drag.k; posterDraw(); });
+  document.addEventListener('pointerup', () => { drag = null; }); }
+F68['poster-form'] = async () => {
+  posterDraw(); const c = $('#poster-cv'), blob = await new Promise(r => c.toBlob(r, 'image/png')), file = new File([blob], 'event-poster.png', { type: 'image/png' });
+  if (navigator.canShare?.({ files: [file] })) { try { await navigator.share({ files: [file], title: pState().t || '이벤트 포스터' }); return; } catch { } }
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'event-poster.png'; a.click(); toast('이미지를 저장했어요');
+};
+
+// 사진 마감: POS 영수증·금고·장부 사진 여러 장 → AI가 마감 칸을 채움 (확인은 사장이)
+async function closePhotos(files) {
+  const thumbs = files.map(f => URL.createObjectURL(f));
+  openSheet(`<h2>📸 사진으로 마감</h2><div class="scan-list">${thumbs.map((u, i) => `<div class="scan-it on"><div class="scan-th"><img src="${u}" alt=""><i class="scan-line"></i></div><div class="scan-tx"><b>${esc(files[i].name || '사진 ' + (i + 1))}</b><small class="scan-msg">스캔 중입니다… 조금만 기다려 주세요</small><div class="scan-bar"><i></i></div></div></div>`).join('')}</div><p class="note">POS 마감 영수증 · 금고 현금 · 장부를 같이 읽고 있어요</p>`);
+  const imgs = await Promise.all(files.slice(0, 4).map(async f => { const im = await createImageBitmap(f), z = Math.min(1, 1280 / Math.max(im.width, im.height)), c = document.createElement('canvas'); c.width = im.width * z; c.height = im.height * z; c.getContext('2d').drawImage(im, 0, 0, c.width, c.height); return c.toDataURL('image/jpeg', .82); }));
+  const { data, error } = await sb.functions.invoke('ai', { body: { store_id: S.store.id, mode: 'close', images: imgs } });
+  closeSheet(); if (error || !data?.ok) return toast(data?.msg || '사진을 못 읽었어요. 숫자를 직접 넣어 주세요');
+  const f = $('#report-form'); if (!f) return; const set = (n, v) => { const el = f.elements[n]; if (v != null && el && v !== '') { el.value = el.dataset.fx === 'money' ? fmtMoney(String(v)) : v; el.dispatchEvent(new Event('input', { bubbles: true })); } };
+  set('sales', data.sales); set('card', data.card); set('transfer', data.transfer); set('entries', data.entries); if (data.date && data.date <= TODAY) set('date', data.date);
+  let nb = 0; Object.entries(data.bills || {}).forEach(([b, n]) => { if (+n > 0) { set('b' + b, +n); nb++; } });
+  const memo = [data.memo, data.expense ? `사진 속 현금 지출 ₩${E.won(data.expense)} (항목에 나눠 넣어주세요)` : ''].filter(Boolean).join(' · '); if (memo) set('memo', memo);
+  if (data.card || data.transfer || nb) f.querySelector('details.more')?.setAttribute('open', ''); closeCalc();
+  toast(`사진 ${files.length}장에서 읽었어요${nb ? ' · 지폐 장수도 넣었어요' : ''}. 숫자 확인하고 마감하세요`);
+}
+document.addEventListener('change', e => { if (e.target.id !== 'close-photos' || !e.target.files.length) return; const F = [...e.target.files].slice(0, 4); e.target.value = ''; busy(() => closePhotos(F)); });
+
+// 매장 공지 + 읽음 확인 (직원 단톡방 대신)
+async function noticesLoad(force) {
+  const st = S.store?.id || S.my?.[S.mi || 0]?.store_id; if (!st || S.ntcBusy || (!force && S.ntcAt && Date.now() - S.ntcAt < 60000)) return; S.ntcBusy = 1;
+  try { S.ntc = (await sb.from('staff_notices').select('*').eq('store_id', st).order('created_at', { ascending: false }).limit(10)).data || []; S.ntcAt = Date.now(); } finally { S.ntcBusy = 0; } render();
+}
+function noticeCard() {
+  if (S.mode !== 'store' || !S.ntcAt) return '';
+  const staff = S.members.filter(p => p.role !== 'owner' && p.user_id);
+  return `<div class="card"><h3>📢 매장 공지 <small>직원 앱에 바로 알림 · 누가 읽었는지 보여요</small></h3><form class="f" id="ntc-form"><textarea name="body" rows="2" required maxlength="1000" placeholder="예: 이번 주 토요일 대청소 있어요. 18시까지 와주세요"></textarea><button class="btn sm pri">공지 올리기</button></form>
+  ${(S.ntc || []).slice(0, 3).map(n => { const rd = staff.filter(p => n.reads?.[p.id]), un = staff.filter(p => !n.reads?.[p.id]); return `<div class="li" style="align-items:flex-start"><span style="min-width:0"><small class="mut">${fmtDT(n.created_at)}</small><br>${esc(n.body).slice(0, 80)}${un.length ? `<br><small class="down">안 읽음: ${un.slice(0, 6).map(p => esc(p.nick)).join(', ')}${un.length > 6 ? ` 외 ${un.length - 6}명` : ''}</small>` : ''}</span><b class="num ${un.length ? '' : 'up'}" style="white-space:nowrap">읽음 ${rd.length}/${staff.length}</b></div>`; }).join('')}</div>`;
+}
+function staffNotice() {
+  if (S.mode !== 'staff') return ''; const me = S.my?.[S.mi || 0]; if (!me) return '';
+  const L = (S.ntc || []).filter(n => !n.reads?.[me.id]); if (!L.length) return '';
+  return L.slice(0, 2).map(n => `<div class="card warnc"><small class="mut">📢 매장 공지 · ${fmtDT(n.created_at)}</small><p style="margin:6px 0 10px;white-space:pre-wrap">${esc(n.body)}</p><button class="btn sm pri" data-act="ntc-ok" data-v="${n.id}">확인했어요</button></div>`).join('');
+}
+F68['ntc-form'] = async (f, v) => { await q(sb.rpc('notice_post', { p_store: S.store.id, p_body: v.body })); f.reset(); toast('공지를 올렸어요. 직원들에게 알림이 갔어요'); await noticesLoad(true); };
+
+// 보기 전용 링크: 동업자·투자자가 로그인 없이 숫자만 봄
+async function shareSheet() {
+  const L = (await sb.from('store_shares').select('*').eq('store_id', S.store.id).eq('revoked', false).order('created_at', { ascending: false })).data || [];
+  const url = t => `${location.origin}/?share=${t}`;
+  openSheet(`<h2>👀 보기 전용 링크</h2><p class="sub">동업자·투자자에게 보내면 <b>로그인 없이 월별 매출·인건비·이익만</b> 볼 수 있어요. 직원 정보·급여 명세는 안 보여요. 언제든 끊을 수 있어요.</p>
+  <form class="f" id="share-form"><div class="row" style="gap:6px"><input name="label" placeholder="누구에게? 예: 동업자 김OO" style="flex:1;min-width:0"><button class="btn pri">링크 만들기</button></div></form>
+  ${L.map(x => `<div class="li"><span style="min-width:0"><b>${esc(x.label || '이름 없음')}</b><br><small class="mut" style="word-break:break-all">${url(x.token)}</small></span><span class="row" style="gap:4px"><button class="btn sm" data-act="copy" data-v="${url(x.token)}">복사</button><button class="btn sm" data-act="share-off" data-v="${x.token}">끊기</button></span></div>`).join('') || '<p class="note">아직 만든 링크가 없어요</p>'}`);
+}
+F68['share-form'] = async (f, v) => { const t = await q(sb.rpc('share_create', { p_store: S.store.id, p_label: v.label || '' })); const u = `${location.origin}/?share=${t}`; navigator.clipboard?.writeText(u).then(() => toast('링크를 만들고 복사했어요'), () => toast('링크를 만들었어요')); await shareSheet(); };
+async function shareView(token) {
+  const { data } = await sb.rpc('share_view', { p_token: token }); $('#tabs').hidden = true;
+  const v = $('#view'); if (!data) { v.innerHTML = '<div class="card empty">링크가 끊겼거나 잘못된 주소예요</div>'; return; }
+  const M = data.months || [], mx = Math.max(1, ...M.map(m => m.sales || 0));
+  v.innerHTML = `<h1>${esc(data.store)}</h1><p class="sub">보기 전용 · ${esc(data.label || '')} · +EV에서 자동 집계</p>
+  <div class="card"><h3>이번 달 지금까지</h3><div class="fc-row"><div><small>매출</small><b class="num">₩${man(data.now?.sales || 0)}</b></div><div><small>마감한 날</small><b class="num">${data.now?.days || 0}일</b></div><div><small>하루 평균</small><b class="num">₩${man(data.now?.days ? data.now.sales / data.now.days : 0)}</b></div></div></div>
+  <div class="card"><h3>월별 <small>최근 ${M.length}개월</small></h3>${M.map(m => `<div class="li" style="display:block"><div class="row between"><b>${m.m}</b><span class="num">매출 ₩${man(m.sales || 0)}</span></div><div class="sh-bar"><i style="width:${Math.round((m.sales || 0) / mx * 100)}%"></i></div><small class="mut">인건비 ₩${man(m.labor || 0)} · 이익 ₩${man(m.profit || 0)} · 마감 ${m.days || 0}일</small></div>`).join('') || '<div class="empty">아직 집계된 달이 없어요</div>'}</div>
+  <p class="note">이번 달 이익은 월말 예상치가 섞여 있을 수 있어요.</p>`;
+}
+
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-act]'); if (!b) return; const a = b.dataset.act;
   if (a === 'poster') return posterOpen();
-  if (a === 'poster-draw') return posterDraw();
+  if (a === 'pt') { const P = pState(); P.tpl = b.dataset.v; P.ac = null; P.al = null; P.picked = 1; return posterOpen(); }
+  if (a === 'psize') { pState().size = b.dataset.v; return posterOpen(); }
+  if (a === 'palign') { pState().al = b.dataset.v; pState().dx = 0; return posterOpen(); }
+  if (a === 'preset') { Object.assign(pState(), { dx: 0, dy: 0 }); return posterDraw(); }
+  if (a === 'pbg-off') { Object.assign(pState(), { imgEl: null, img: 0 }); return posterOpen(); }
+  if (a === 'psave') { const { imgEl, img, box, t, d, fee, sub, ...keep } = pState(); try { localStorage.setItem('ev-poster', JSON.stringify(keep)); } catch { } if (isOwner()) busy(() => cfgSave({ poster: keep })); return toast('내 템플릿으로 저장했어요 · 다음엔 글자만 바꾸면 돼요'); }
+  if (a === 'ntc-ok') return busy(async () => { await q(sb.rpc('notice_read', { p_id: +b.dataset.v })); const n = (S.ntc || []).find(x => x.id === +b.dataset.v), me = S.my?.[S.mi || 0]; if (n && me) n.reads = { ...(n.reads || {}), [me.id]: new Date().toISOString() }; render(); toast('확인했어요'); });
+  if (a === 'reorder') { const o = S.orders?.[0]; if (!o) return; S.cart = {}; o.items.forEach(i => { if (item(i.id)) S.cart[i.id] = i.q; }); render(); return toast('지난 주문을 그대로 담았어요. 수량 확인하고 주문하세요'); }
+  if (a === 'share-open') return busy(shareSheet);
+  if (a === 'share-off') return busy(async () => { await q(sb.rpc('share_revoke', { p_token: b.dataset.v })); toast('링크를 끊었어요'); await shareSheet(); });
 });
