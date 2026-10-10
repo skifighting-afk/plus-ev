@@ -2102,7 +2102,7 @@ function menuSheet() {
   <label class="mn-tog"><span><b>폰 설정 따라 밝게·어둡게</b><small>낮엔 밝은 화면, 밤엔 어두운 화면 자동</small></span><input type="checkbox" data-act="theme" data-v="${lsGet('ev_theme') === 'auto' ? 'mint' : 'auto'}" ${lsGet('ev_theme') === 'auto' ? 'checked' : ''}></label>
   ${S.user ? `<div class="mn-lb">알림·보안</div><div class="mn-list"><button data-act="dnd"><span class="mn-ic">🌙</span>방해 금지 시간 <small class="mut" style="margin-left:4px">${S.prof?.dnd?.f ? `${S.prof.dnd.f}~${S.prof.dnd.t}` : '꺼짐'}</small><i>›</i></button><button data-act="pin-set"><span class="mn-ic">🔒</span>앱 잠금 (PIN) <small class="mut" style="margin-left:4px">${lsGet('ev_pin') ? '켜짐 · 이 폰' : '꺼짐'}</small><i>›</i></button><button data-act="logout-all"><span class="mn-ic">📱</span>모든 기기에서 로그아웃<i>›</i></button></div>` : ''}
   <label class="mn-tog"><span><b>글자 크게</b><small>모든 화면 글자를 조금 크게</small></span><input type="checkbox" data-act="big" ${lsGet('ev_big') === '1' ? 'checked' : ''}></label>
-  <div class="mn-lb">기타 <small class="mut" style="font-weight:400">v0.89 · 맞춤 설정 20가지 (탭·홈·마감·근무표 틀·빠른 실행) · 한 번에 세팅 · 매장 키우기 퀘스트 · 매장 준비 10단계 · 기능 켜기/끄기 · 근무 일괄 확정 · 가져오기 · 화면 정리: 홈 접기 · 경고 요약 · 직원 카드 접기 · 출퇴근 고치기 안내</small></div>
+  <div class="mn-lb">기타 <small class="mut" style="font-weight:400">v0.90 · 말로 마감·단골 손님 장부·이상 감지·신고 일정·매장 연혁 · 한 번에 세팅 · 매장 키우기 퀘스트 · 매장 준비 10단계 · 기능 켜기/끄기 · 근무 일괄 확정 · 가져오기 · 화면 정리: 홈 접기 · 경고 요약 · 직원 카드 접기 · 출퇴근 고치기 안내</small></div>
   <div class="mn-list"><a href="guide.html#${S.mode === 'store' ? 'owner' : S.mode}" target="_blank" rel="noopener"><span class="mn-ic"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2zM4 21V5M8 7h7"/></svg></span>사용법 보기<i>›</i></a>
   ${S.user && (S.user.app_metadata?.provider || 'email') === 'email' ? `<button data-act="pw-change"><span class="mn-ic"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg></span>비밀번호 바꾸기<i>›</i></button>` : ''}
   ${S.user ? '<button data-act="myset"><span class="mn-ic">🧩</span>내 화면 · 기기 · 단축키<i>›</i></button>' : ''}
@@ -4175,7 +4175,7 @@ function uiSheet(sec) {
     <div class="fl"><span>목표 보는 단위</span><div class="seg">${[['month', '월'], ['week', '주'], ['day', '하루']].map(([k, l]) => `<button data-act="u-goalby" data-v="${k}" aria-pressed="${(U.goalBy || 'month') === k}">${l}</button>`).join('')}</div></div>
     ${(S.coMonth || []).length > 1 ? `<label class="tog"><span><b>매장별 한눈에</b><small>홈 맨 위에 매장마다 이번 달 매출 막대</small></span><input type="checkbox" data-act="u-bool" data-v="multi" data-def="1" ${U.multi === false ? '' : 'checked'}></label>` : ''}
     <label class="tog"><span><b>＋ 빠른 실행 버튼</b><small>화면 오른쪽 아래, 어느 탭에서나</small></span><input type="checkbox" data-act="u-bool" data-v="fab" data-def="1" ${U.fab === false ? '' : 'checked'}></label>
-    <div class="chips">${Object.entries(FABA).map(([k, [i, l]]) => `<button class="fchip ${(U.fabs || ['close', 'note', 'poster']).includes(k) ? 'on' : ''}" data-act="u-fabs" data-v="${k}">${i} ${l}</button>`).join('')}</div>`;
+    <div class="chips">${Object.entries(FABA).map(([k, [i, l]]) => `<button class="fchip ${(U.fabs || ['say', 'close', 'guest', 'note']).includes(k) ? 'on' : ''}" data-act="u-fabs" data-v="${k}">${i} ${l}</button>`).join('')}</div>`;
   const sec3 = S.mode !== 'store' ? '' : `<h3>🧾 마감 양식</h3><p class="note">끈 칸은 마감 화면에서 안 보여요 (값은 그대로).</p><div class="chips">${CLOSE_F.map(([k, l]) => `<button class="fchip ${(U.closeHide || []).includes(k) ? '' : 'on'}" data-act="u-cf" data-v="${k}">${l}</button>`).join('')}</div>
     <label class="tog"><span><b>상세 칸 항상 펼치기</b><small>결제수단·금고·토너먼트를 접지 않고</small></span><input type="checkbox" data-act="u-bool" data-v="closeOpen" ${U.closeOpen ? 'checked' : ''}></label>
     ${own ? `<label class="fl">엔트리 1명 단가 <small class="mut">넣으면 '엔트리 × 단가' 버튼이 생겨요 · 매장 공통</small><input type="number" inputmode="numeric" id="u-unit-in" value="${C.unit || ''}" placeholder="예: 30000"></label>
@@ -4211,8 +4211,8 @@ document.addEventListener('click', e => {
   if (a === 'u-dens') { uiSet({ dens: v || null }); return uiRe(3); }
   if (a === 'u-homeedit') { closeSheet(); S.tab = 'home'; S.homeEdit = 1; return render(); }
   if (a === 'u-ord') { const box = b.closest('.hmain, .hside'), keys = [...box.querySelectorAll(':scope > .card')].map(c => c.dataset.ck).filter(Boolean), i = keys.indexOf(v), j = i + +b.dataset.d; if (i < 0 || j < 0 || j >= keys.length) return; [keys[i], keys[j]] = [keys[j], keys[i]]; uiSet({ order: [...keys, ...(U.order || []).filter(k => !keys.includes(k))] }); return render(); }
-  if (a === 'u-fab') { const L = U.fabs || ['close', 'note', 'poster']; return openSheet(`<h2>빠른 실행</h2><div class="u-fabs">${L.filter(k => FABA[k]).map(k => `<button class="btn" data-act="u-fabgo" data-v="${k}"><b style="font-size:22px">${FABA[k][0]}</b><span>${FABA[k][1]}</span></button>`).join('')}</div><p class="note"><button class="tlink" data-act="u-set">버튼 고르기 ›</button></p>`); }
-  if (a === 'u-fabgo') { const [t, x] = FABA[v][2].split(':'); closeSheet(); if (t === 't') { S.tab = x; S.sub = null; render(); if (v === 'exp') setTimeout(() => { const d = $('#report-form details.more'); if (d) { d.open = true; d.scrollIntoView({ block: 'center' }); $('[data-act=xrow-add]')?.click(); } }, 80); return; }
+  if (a === 'u-fab') { const L = U.fabs || ['say', 'close', 'guest', 'note']; return openSheet(`<h2>빠른 실행</h2><div class="u-fabs">${L.filter(k => FABA[k]).map(k => `<button class="btn" data-act="u-fabgo" data-v="${k}"><b style="font-size:22px">${FABA[k][0]}</b><span>${FABA[k][1]}</span></button>`).join('')}</div><p class="note"><button class="tlink" data-act="u-set">버튼 고르기 ›</button></p>`); }
+  if (a === 'u-fabgo') { const [t, x] = FABA[v][2].split(':'); if (t === 'x') return; closeSheet(); if (t === 't') { S.tab = x; S.sub = null; render(); if (v === 'exp') setTimeout(() => { const d = $('#report-form details.more'); if (d) { d.open = true; d.scrollIntoView({ block: 'center' }); $('[data-act=xrow-add]')?.click(); } }, 80); return; }
     if (t === 'p') { S.tab = 'sales'; render(); return setTimeout(() => $('#' + x)?.click(), 80); }
     const k = document.createElement('button'); k.dataset.act = x; k.hidden = true; document.body.append(k); k.click(); k.remove(); return; }
   if (a === 'u-unit') { const n = +$('#report-form [name=entries]')?.value || 0, s = $('#report-form [name=sales]'); if (!n) return toast('엔트리 수를 먼저 넣어주세요'); if (s) { s.value = n * CFG().unit; s.dispatchEvent(new Event('input', { bubbles: true })); } return toast('총매출에 넣었어요 · 음료 매출이 있으면 더해 주세요'); }
@@ -4237,3 +4237,100 @@ document.addEventListener('change', e => {
   if (t.closest?.('.u-term')) { const R = [...document.querySelectorAll('.u-term')].map(r => [...r.querySelectorAll('input')].map(i => i.value.trim())).filter(([a, b]) => a && b); uiSet({ terms: R.length ? R : null }); render(); }
   if (t.id === 'u-unit-in') busy(async () => { await cfgSave({ unit: +t.value || null }); toast('단가를 저장했어요'); });
 });
+
+// ===== v0.90 편의 기능: 말로 마감 · 어제 지출 그대로 · 동업자에게 보내기 · 세무사 자료 · 이상 감지 · 검색 확장 · 단골 손님 장부 · 신고 일정 · 매장 연혁 =====
+// 말로 마감: "카드 320 현금 80 바인 42" → 칸별 숫자. 돈 칸에 1만 미만 숫자를 말하면 만 원 단위로 봄 (카드 320 = 320만 원)
+const SAYK = { 총매출: 'sales', 전체매출: 'sales', 매출: 'sales', 카드: 'card', 이체: 'transfer', 계좌: 'transfer', 송금: 'transfer', 간편결제: 'transfer', 현금: 'cash', 바인: 'entries', 엔트리: 'entries', 참가: 'entries', 리바이: 'dt_rebuy', 애드온: 'dt_addon', 토너먼트: 'dt_tourn', 토너: 'dt_tourn', 상금: 'dt_prize', 바매출: 'dt_fnb', 음료: 'dt_fnb', 식사: 'dt_fnb', 환불: 'dt_refund', 취소: 'dt_refund' };
+const SAYN = ['entries', 'dt_rebuy', 'dt_addon', 'dt_tourn'];
+function closeSay(t) {
+  const s = String(t).replace(/\s+/g, ''), re = new RegExp(Object.keys(SAYK).sort((a, b) => b.length - a.length).join('|'), 'g'), M = [...s.matchAll(re)], o = {};
+  M.forEach((m, i) => { const seg = s.slice(m.index + m[0].length, M[i + 1]?.index ?? s.length), num = /^[:,.은는이가]*([0-9영공일이삼사오육칠팔구십백천만억,.]+)/.exec(seg)?.[1]; if (!num) return; let v = koNum(num.replace(/\.\d+$/, '')); if (!v) return; const f = SAYK[m[0]]; if (!SAYN.includes(f) && v < 1e4) v *= 1e4; o[f] = v; });
+  if (!o.sales && (o.card || o.transfer || o.cash)) o.sales = (o.card || 0) + (o.transfer || 0) + (o.cash || 0);
+  return o;
+}
+function sayApply(t) {
+  const o = closeSay(t), f = $('#report-form'); if (!f) return; const got = [];
+  for (const [k, v] of Object.entries(o)) { if (k === 'cash') continue; const el = f.querySelector(`[name="${k}"]`); if (!el) continue; el.closest('details')?.setAttribute('open', ''); el.closest('label')?.removeAttribute('hidden'); el.value = v; el.dispatchEvent(new Event('input', { bubbles: true })); got.push(k); }
+  if (!got.length) return toast(`"${t}" — 숫자를 못 찾았어요. 예: 카드 320 현금 80 바인 42`);
+  const L = { sales: '총매출', card: '카드', transfer: '이체', entries: '엔트리', dt_rebuy: '리바이', dt_addon: '애드온', dt_tourn: '토너먼트', dt_prize: '상금', dt_fnb: '음료', dt_refund: '환불' };
+  toast(got.map(k => `${L[k]} ${['entries', 'dt_rebuy', 'dt_addon', 'dt_tourn'].includes(k) ? o[k] : '₩' + man(o[k])}`).join(' · ') + ' 넣었어요. 확인하고 마감하세요');
+}
+function sayClose() {
+  const R = window.SpeechRecognition || window.webkitSpeechRecognition; if (!R) return toast('이 폰은 음성 입력이 안 돼요. 옆 칸에 한 줄로 적어주세요');
+  const r = new R(); r.lang = 'ko-KR'; r.onresult = e => sayApply(e.results[0][0].transcript); r.onerror = () => toast('마이크를 쓸 수 없어요. 권한을 확인해 주세요'); r.start(); toast('말해 주세요: "카드 320, 현금 80, 바인 42"');
+}
+function after90() {
+  if (S.mode !== 'store' || !S.user) return;
+  if (S.tab === 'sales') {
+    const f = $('#report-form'); if (f && !f.querySelector('.say-bar')) {
+      f.querySelector('.grid2.big')?.insertAdjacentHTML('beforebegin', `<div class="say-bar"><button type="button" class="btn sm pri" data-act="v-say">🎤 말로 마감</button><input id="v-say-t" placeholder="또는 한 줄로: 카드 320 현금 80 바인 42" style="flex:1;min-width:0"><button type="button" class="btn sm" data-act="v-say-t">넣기</button></div>`);
+      const y = addDay(bizDay(), -1), Y = (S.expAll || S.expenses || []).filter(x => x.spent_on === y && x.source === 'close'); if (Y.length) $('[data-act=xrow-add]')?.insertAdjacentHTML('afterend', ` <button type="button" class="btn sm" data-act="v-yexp">↻ 어제 지출 그대로 (${Y.length}건)</button>`);
+      const r0 = (S.reports || []).find(r => r.report_date === bizDay()); if (r0 && !$('#v-send')) f.insertAdjacentHTML('afterend', `<div class="card lbud" id="v-send"><div><b>📤 오늘 마감을 동업자에게</b><small>카톡·문자로 숫자 카드를 보내요</small></div><button class="btn sm pri" data-act="v-send">보내기</button></div>`);
+    }
+  }
+  if (S.tab === 'home' || !S.tab) { const H = $('.home .hmain'); if (H && !H.querySelector('.v90')) H.insertAdjacentHTML('afterbegin', `<div class="v90">${anomalyCard()}${taxCard()}${dueCard()}</div>`); }
+}
+{ const o = after89; after89 = function () { o(); try { after90(); } catch (e) { console.warn(e); } }; }
+// 이상 감지: 같은 요일 평균 대비 ±30% · 금고 차액 연속 · 인건비율 급등
+function anomalyCard() {
+  const H = [...(S.hist || [])].sort((a, b) => b.report_date.localeCompare(a.report_date)), A = [];
+  const last = H[0]; if (last) { const w = new Date(last.report_date).getDay(), same = H.filter(r => r !== last && new Date(r.report_date).getDay() === w).slice(0, 4); if (same.length >= 2) { const avg = same.reduce((a, r) => a + (r.sales || 0), 0) / same.length, g = avg ? (last.sales - avg) / avg : 0; if (Math.abs(g) >= .3) A.push([g < 0 ? 'r' : 'g', `${+last.report_date.slice(5, 7)}/${+last.report_date.slice(8)} (${E.WD[(w + 6) % 7]}) 매출이 평소 ${E.WD[(w + 6) % 7]}요일보다 ${g < 0 ? '−' : '+'}${Math.round(Math.abs(g) * 100)}%`, `평균 ₩${man(avg)} → ₩${man(last.sales)}`]); } }
+  let run = 0; for (const r of H) { if (Math.abs(r.cash_diff || 0) >= 1000) run++; else break; } if (run >= 3) A.push(['r', `금고 차액이 ${run}일 연속 났어요`, '마감 담당·현금 흐름을 확인해 보세요']);
+  const M = monthSummary(S.y, S.m), p = new Date(S.y, S.m - 2, 1), L = monthSummary(p.getFullYear(), p.getMonth() + 1); if (M.n >= 5 && M.sales && L.sales) { const a = M.labor / M.sales, b = L.labor / L.sales; if (a - b >= .05) A.push(['y', `인건비율이 지난달보다 ${Math.round((a - b) * 100)}%p 올랐어요`, `${Math.round(b * 100)}% → ${Math.round(a * 100)}%`]); }
+  return A.length ? `<div class="card warnc"><h3>🚨 이상 감지 <small>평소와 다른 것만 알려요</small></h3>${A.map(([c, t, s]) => `<div class="li"><span><b>${esc(t)}</b><small class="mut" style="display:block">${esc(s)}</small></span><span class="pill ${c}">${c === 'g' ? '좋음' : '확인'}</span></div>`).join('')}</div>` : '';
+}
+// 세무사 자료: 매달 1~10일 지난달 파일을 한 번에
+function taxCard() { const d = +TODAY.slice(8); if (d > 10 || !isOwner()) return ''; const p = new Date(+TODAY.slice(0, 4), +TODAY.slice(5, 7) - 2, 1); return `<div class="card lbud"><div><b>📤 ${p.getMonth() + 1}월 세무사 자료가 준비됐어요</b><small>매출·지출·인건비를 엑셀 한 파일로 · 받아서 세무사에게 보내세요</small></div><button class="btn sm pri" data-act="v-tax">받기</button></div>`; }
+// 신고·납부 일정: 원천세(매월 10일) · 4대보험 입사 신고(14일 안) · 부가세 · 종합소득세
+function dueCard() {
+  if (!isOwner()) return ''; const t = new Date(TODAY), L = [], dd = d => Math.round((new Date(d) - t) / 864e5), y = t.getFullYear(), m = t.getMonth();
+  const staff = S.members.filter(p => p.role !== 'owner'); if (staff.length) { const n = new Date(y, m + (t.getDate() > 10 ? 1 : 0), 10); L.push([E.ymd(n.getFullYear(), n.getMonth() + 1, 10), '원천세 신고·납부', '지난달 급여분 · 홈택스']); }
+  staff.filter(p => p.joined_on && dd(p.joined_on) > -15).forEach(p => { const d = new Date(p.joined_on); d.setDate(d.getDate() + 14); L.push([E.ymd(d.getFullYear(), d.getMonth() + 1, d.getDate()), `${p.nick} 4대보험 취득 신고`, '입사 후 14일 안 · 4대사회보험 정보연계센터']); });
+  [[y, 1, 25, '부가세 확정 신고 (하반기)'], [y, 7, 25, '부가세 확정 신고 (상반기)'], [y, 5, 31, '종합소득세 신고'], [y + 1, 1, 25, '부가세 확정 신고 (하반기)']].forEach(([a, b, c, l]) => L.push([E.ymd(a, b, c), l, '홈택스 · 세무사']));
+  const N = L.map(x => [...x, dd(x[0])]).filter(x => x[3] >= 0 && x[3] <= 30).sort((a, b) => a[3] - b[3]).slice(0, 3); if (!N.length) return '';
+  return `<div class="card"><h3>🗓 신고·납부 일정 <small>30일 안</small></h3>${N.map(([d, l, s, n]) => `<div class="li"><span><b>${esc(l)}</b><small class="mut" style="display:block">${+d.slice(5, 7)}/${+d.slice(8)} · ${esc(s)}</small></span><span class="pill ${n <= 3 ? 'r' : n <= 7 ? 'y' : ''}">${n ? 'D-' + n : '오늘'}</span></div>`).join('')}<small class="mut">일반과세 기준 안내예요. 정확한 기한은 세무사와 확인하세요</small></div>`;
+}
+// 검색 확장: 마감한 날·메모·지출·손님까지
+{ const o = srchIndex; srchIndex = function () { const L = o(); if (S.mode !== 'store') return L; const add = (k, l, t, s, h) => L.push({ k, l, t, s, h });
+  (S.hist || []).forEach(r => add('마감', `${+r.report_date.slice(5, 7)}/${+r.report_date.slice(8)} 매출 ₩${man(r.sales || 0)}`, 'sales', null, [r.report_date, r.memo].filter(Boolean).join(' · ')));
+  (S.expAll || []).forEach(x => add('지출', `${CAT[x.category] || x.category} ₩${man(x.amount || 0)}`, 'home', null, [x.spent_on, x.memo].filter(Boolean).join(' · ')));
+  (S.guests || []).forEach(g => add('손님', g.name, 'home', null, [g.tag, g.phone, g.memo].filter(Boolean).join(' · ')));
+  return L; }; }
+// 단골 손님 장부
+async function guestSheet(f) {
+  if (!S.guests) S.guests = (await q(sb.from('store_guests').select('*').eq('store_id', S.store.id).order('visits', { ascending: false }).limit(500))) || [];
+  const mm = TODAY.slice(5, 7), qv = (f || '').trim(), G = S.guests.filter(g => !qv || [g.name, g.phone, g.tag, g.memo].join(' ').includes(qv)), B = S.guests.filter(g => g.bday?.startsWith(mm));
+  openSheet(`<h2>👥 단골 손님 <small class="mut">${S.guests.length}명</small></h2>
+  ${B.length ? `<div class="promo" style="margin-bottom:8px"><span>🎂 이번 달 생일 ${B.map(g => `<b>${esc(g.name)}</b> ${+g.bday.slice(3)}일`).join(' · ')}</span></div>` : ''}
+  <div class="row" style="gap:6px"><input id="v-gq" placeholder="이름·번호·태그 검색" value="${esc(qv)}" style="flex:1;min-width:0"><button class="btn sm" data-act="v-gq">찾기</button></div>
+  <div style="max-height:46vh;overflow:auto;margin:8px 0">${G.slice(0, 80).map(g => `<div class="li"><span style="min-width:0"><b>${esc(g.name)}</b>${g.tag ? ` <span class="pill">${esc(g.tag)}</span>` : ''}<small class="mut" style="display:block">방문 ${g.visits}회${g.last_at ? ` · 최근 ${+g.last_at.slice(5, 7)}/${+g.last_at.slice(8)}` : ''}${g.bday ? ` · 🎂 ${+g.bday.slice(0, 2)}/${+g.bday.slice(3)}` : ''}${g.memo ? ' · ' + esc(g.memo) : ''}</small></span><span class="row" style="gap:4px"><button class="btn sm pri" data-act="v-gv" data-v="${g.id}">＋방문</button><button class="btn sm" data-act="v-gdel" data-v="${g.id}" aria-label="지우기">✕</button></span></div>`).join('') || '<div class="empty">아직 없어요. 아래에서 추가하세요</div>'}</div>
+  <details class="more" ${S.guests.length ? '' : 'open'}><summary>＋ 손님 추가</summary><div class="grid2"><label class="fl">이름·닉네임<input id="v-gn" maxlength="40"></label><label class="fl">연락처 <small class="mut">(선택)</small><input id="v-gp" inputmode="tel" maxlength="20"></label><label class="fl">생일 <small class="mut">월-일</small><input id="v-gb" placeholder="03-15" maxlength="5"></label><label class="fl">태그<input id="v-gt" placeholder="VIP·주말" maxlength="20"></label></div><label class="fl">메모<input id="v-gm" maxlength="300" placeholder="좋아하는 게임·음료"></label><button class="btn pri full" data-act="v-gadd">추가</button><p class="note">연락처는 손님 동의를 받고 적어주세요. 매장 관리자만 볼 수 있어요.</p></details>`);
+}
+// 매장 연혁: 달마다 쌓인 숫자
+async function historySheet() {
+  const M = (await q(sb.from('store_metrics').select('month,sales,profit,days').eq('store_id', S.store.id).order('month'))) || [], mx = Math.max(1, ...M.map(x => +x.sales || 0)), best = [...M].sort((a, b) => b.sales - a.sales)[0], tot = M.reduce((a, x) => a + (+x.sales || 0), 0);
+  const Y = {}; M.forEach(x => (Y[String(x.month).slice(0, 4)] ||= []).push(x));
+  openSheet(`<h2>📚 ${esc(S.store.name)} 연혁</h2>${M.length ? `<div class="dsum"><div><small>함께한 달</small><b class="num">${M.length}개월</b></div><div><small>누적 매출</small><b class="num">₩${man(tot)}</b></div><div><small>최고의 달</small><b class="num">${String(best.month).slice(2, 7).replace('-', '.')}</b></div></div>` : ''}
+  ${Object.entries(Y).reverse().map(([y, L]) => `<h3 style="margin:14px 0 6px">${y}년 <small class="mut">₩${man(L.reduce((a, x) => a + (+x.sales || 0), 0))}</small></h3>${L.map(x => `<div class="cb"><span>${+String(x.month).slice(5, 7)}월${x === best ? ' 🏆' : ''}</span><div class="bar"><i style="width:${x.sales / mx * 100}%"></i></div><b class="num">₩${man(+x.sales || 0)} <small class="mut ${x.profit < 0 ? 'down' : ''}">${x.profit < 0 ? '−' : ''}₩${man(Math.abs(+x.profit || 0))}</small></b></div>`).join('')}`).join('') || '<div class="empty">마감이 쌓이면 달마다 기록이 남아요</div>'}<p class="note">매장을 넘길 때 이 기록이 그대로 매장의 이력이 돼요.</p>`);
+}
+FAVS.push(['guest', '👥 단골 손님', 'v-guestopen'], ['hist', '📚 매장 연혁', 'v-histopen'], ['say', '🎤 말로 마감', 'v-sayopen']);
+Object.assign(FABA, { say: ['🎤', '말로 마감', 'x:say'], guest: ['👥', '단골 손님', 'x:guest'], hist: ['📚', '매장 연혁', 'x:hist'] });
+document.addEventListener('click', e => {
+  const b = e.target.closest?.('[data-act^="v-"],[data-act=u-fabgo]'); if (!b) return; const a = b.dataset.act, v = b.dataset.v;
+  if (a === 'u-fabgo') { const x = FABA[v]?.[2]; if (!x?.startsWith('x:')) return; const k = x.slice(2); if (k === 'say') { S.tab = 'sales'; render(); return setTimeout(sayClose, 120); } if (k === 'guest') return busy(() => guestSheet()); if (k === 'hist') return busy(historySheet); return; }
+  if (a === 'v-guestopen') return busy(() => guestSheet());
+  if (a === 'v-histopen') return busy(historySheet);
+  if (a === 'v-sayopen') { S.tab = 'sales'; render(); return setTimeout(sayClose, 120); }
+  if (a === 'v-say') return sayClose();
+  if (a === 'v-say-t') return sayApply($('#v-say-t')?.value || '');
+  if (a === 'v-yexp') { const y = addDay(bizDay(), -1); (S.expAll || S.expenses || []).filter(x => x.spent_on === y && x.source === 'close').forEach(x => $('#close-exp')?.insertAdjacentHTML('beforeend', xrowHtml(x.category, x.amount))); b.closest('details')?.setAttribute('open', ''); b.remove(); return toast('어제 지출을 넣었어요. 금액만 고치세요'); }
+  if (a === 'v-send') { const r = (S.reports || []).find(x => x.report_date === bizDay()) || {}, M = monthSummary(S.y, S.m), d = bizDay(); const t = `[${S.store.name}] ${+d.slice(5, 7)}/${+d.slice(8)} 마감\n매출 ₩${E.won(r.sales || 0)}${r.card != null ? `\n카드 ₩${E.won(r.card)} · 이체 ₩${E.won(r.transfer || 0)}` : ''}\n엔트리 ${r.entries || 0}명${r.cash_diff ? `\n금고 차액 ${r.cash_diff < 0 ? '−' : '+'}₩${E.won(Math.abs(r.cash_diff))}` : ''}\n이번 달 누적 ₩${E.won(M.sales)} (${M.n}일)${r.memo ? `\n메모: ${r.memo}` : ''}\n— +EV`;
+    if (navigator.share) return navigator.share({ text: t }).catch(() => { }); navigator.clipboard?.writeText(t).then(() => toast('복사했어요. 단톡방에 붙여 넣으세요'), () => toast(t)); return; }
+  if (a === 'v-tax') { const y0 = S.y, m0 = S.m, p = new Date(+TODAY.slice(0, 4), +TODAY.slice(5, 7) - 2, 1); S.y = p.getFullYear(); S.m = p.getMonth() + 1; try { const k = document.createElement('button'); k.dataset.act = 'tax-csv'; document.body.append(k); k.click(); k.remove(); } finally { S.y = y0; S.m = m0; } return; }
+  if (a === 'v-gq') return guestSheet($('#v-gq')?.value);
+  if (a === 'v-gv') return busy(async () => { const id = +v || v, n = (await q(sb.rpc('guest_visit', { p_id: id }))); const g = S.guests.find(x => String(x.id) === String(v)); if (g) { g.visits = n || g.visits + 1; g.last_at = TODAY; } guestSheet($('#v-gq')?.value); toast(`${g?.name || ''} 방문 ${g?.visits}회째`); });
+  if (a === 'v-gdel') return busy(async () => { const g = S.guests.find(x => String(x.id) === String(v)); await q(sb.from('store_guests').delete().eq('id', g.id)); S.guests = S.guests.filter(x => x !== g); guestSheet(); undoToast(`${g.name} 지웠어요`, () => busy(async () => { const { id: _i, ...r } = g; S.guests = null; await q(sb.from('store_guests').insert(r)); guestSheet(); })); });
+  if (a === 'v-gadd') { const n = $('#v-gn').value.trim(), bd = $('#v-gb').value.trim(); if (!n) return toast('이름을 넣어주세요'); if (bd && !/^\d{2}-\d{2}$/.test(bd)) return toast('생일은 03-15처럼 적어주세요');
+    return busy(async () => { const r = (await q(sb.from('store_guests').insert({ store_id: S.store.id, name: n, phone: $('#v-gp').value.trim() || null, bday: bd || null, tag: $('#v-gt').value.trim() || null, memo: $('#v-gm').value.trim() || null, visits: 1, last_at: TODAY }).select().single())); S.guests = [r, ...S.guests]; guestSheet(); toast(`${n} 추가했어요`); }); }
+});
+document.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.id === 'v-say-t') { e.preventDefault(); sayApply(e.target.value); } if (e.key === 'Enter' && e.target.id === 'v-gq') { e.preventDefault(); guestSheet(e.target.value); } });

@@ -891,3 +891,5 @@ details.warnc>summary,details.card>summary,.ltmore>summary,.empd>summary{cursor:
 html.ui-big #view,html.ui-big #sheet{zoom:1.12}html.ui-big #tabs{font-size:13px}
 html.ui-dense .card{padding:10px 12px;margin-bottom:8px}html.ui-dense .li{padding-block:6px}html.ui-dense #view{font-size:13.5px}
 #tabs:has(button:nth-child(6)) button{font-size:10.5px}
+/* v0.90 */
+.say-bar{display:flex;gap:6px;align-items:center;margin:0 0 10px;flex-wrap:wrap}
