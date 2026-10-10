@@ -120,6 +120,8 @@ async function pay(kind, arg = {}) {
 async function payGo(o, m) {
   try { localStorage.setItem('ev-paym', m) } catch { }
   const tax = $('#tax-auto'); if (tax && !!tax.checked !== !!S.company?.tax_auto) { await q(sb.rpc('pay_tax', { p_order: o.order_id, p_on: tax.checked })); S.company.tax_auto = tax.checked; }
+  // 플레이스토어 앱 안이면 구글 대체결제 안내창 → 신고 토큰부터 (구글 정책, 한국). 돌아오면 altpayReturn이 이어서 결제
+  if (IN_APP && !o.gp) { lsSet('ev-altpay', JSON.stringify({ o, m })); location.href = 'intent://altpay?o=' + o.order_id + '#Intent;scheme=plusev;package=kr.plusevapp.twa;end'; return; }
   const pm = PAYM.find(x => x[0] === m) || PAYM[0], easy = pm[3];
   await loadToss(); const back = location.origin + location.pathname;
   await window.TossPayments(TOSS_CLIENT_KEY).payment({ customerKey: S.user.id }).requestPayment({ method: easy ? 'CARD' : m, ...(easy ? { card: { flowMode: 'DIRECT', easyPay: easy } } : {}), amount: { currency: 'KRW', value: o.amount }, orderId: o.order_id, orderName: o.order_name, successUrl: back + '?pay=ok', failUrl: back + '?pay=fail', customerEmail: S.user.email });
@@ -131,6 +133,14 @@ async function payReturn(pr) {
   if (error || !data?.ok) { toast((data && data.message) || '결제 확인에 실패했어요. 운영사에 문의해 주세요'); return; }
   track('paid', { kind: data.kind, amount: data.amount });
   toast({ tickets: '결제 완료! 지원권을 넣어드렸어요', pro: '결제 완료! PRO가 시작됐어요', academy: '결제 완료! 딜러 교육이 열렸어요', plan: '결제 완료! 프로 요금제가 시작됐어요', store: '결제 완료! 새 매장이 추가됐어요', post: '결제 완료! 공고가 올라갔어요', post_extra: '결제 완료! 공고 기간·노출을 늘렸어요', franchise: '결제 완료! 가맹 공고가 30일 동안 게시돼요', franchise_leads: '결제 완료! 리드 비용을 정산했어요', used_boost: '결제 완료! 중고 글이 맨 위로 올라갔어요' }[data.kind] || '결제가 완료됐어요');
+}
+const IN_APP = (() => { try { if (document.referrer.startsWith('android-app://kr.plusevapp.twa')) sessionStorage.setItem('ev-twa', '1'); return sessionStorage.getItem('ev-twa') === '1'; } catch { return false; } })();
+async function altpayReturn(pr) {
+  let p; try { p = JSON.parse(lsGet('ev-altpay')); } catch { } lsSet('ev-altpay', '');
+  if (!p || p.o.order_id !== pr.get('altpay')) return toast('결제 정보를 찾지 못했어요. 다시 시도해 주세요');
+  if (!pr.get('tok')) return toast(/^(avail|setup)/.test(pr.get('err') || '') ? '이 기기에서는 앱 결제를 할 수 없어요' : '결제를 취소했어요');
+  await q(sb.rpc('pay_gp_token', { p_order: p.o.order_id, p_token: pr.get('tok') }));
+  await payGo({ ...p.o, gp: 1 }, p.m);
 }
 window.__evPayReturn = async p => { await payReturn(new URLSearchParams(p)); await boot(); };
 const payNote = () => PAY_TEST ? '<p class="note">정식 결제 오픈 전이라 지금은 돈이 나가지 않아요. 오픈하면 미리 알려드려요.</p>' : '';
@@ -187,7 +197,7 @@ sb.auth.onAuthStateChange((_e, session) => { if (_e === 'SIGNED_OUT' && S.user &
 async function boot() {
   try {
     if (!S.pricingLoaded) { applyPricing(await q(sb.from('pricing').select('key,amount'))); S.pricingLoaded = true; pushState(); } // 가격은 서버 한 곳
-    const pr = new URLSearchParams(location.search); if (S.user && pr.get('pay')) { history.replaceState(null, '', location.pathname); await payReturn(pr); }
+    const pr = new URLSearchParams(location.search); if (S.user && pr.get('pay')) { history.replaceState(null, '', location.pathname); await payReturn(pr); } if (S.user && pr.get('altpay')) { history.replaceState(null, '', location.pathname); await altpayReturn(pr); }
     if (!S.user) { Object.assign(S, { mode: 'auth', onb: null, tab: null, sub: null, company: null, stores: [], store: null }); return render(); }
     S.prof = (await q(sb.from('profiles').select('*').eq('id', S.user.id).maybeSingle())) || { name: '' };
     const mem = await q(sb.from('members').select('*').eq('user_id', S.user.id).eq('active', true));
