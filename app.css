@@ -827,3 +827,10 @@ details.warnc>summary,details.card>summary,.ltmore>summary,.empd>summary{cursor:
 .empd>summary{margin:8px 0 4px;font-size:13px}.ltmore>summary{margin:8px 0;font-size:13px}
 .btn.sm{white-space:nowrap;flex-shrink:0}
 .bill .li .num{white-space:nowrap}
+/* v0.82 매장 준비 */
+.su-bar{display:grid;grid-template-columns:repeat(10,1fr);gap:4px;margin:10px 0 2px}.su-bar i{height:6px;border-radius:3px;background:var(--line)}.su-bar i.on{background:var(--brand-2)}
+.su-steps{display:flex;gap:4px;flex-wrap:wrap;margin:0 0 12px}.su-steps button{width:30px;height:30px;border-radius:50%;border:1px solid var(--line);background:transparent;color:var(--muted);font-weight:700;font-size:12.5px;cursor:pointer}
+.su-steps button.on{border-color:rgba(var(--brand-rgb),.5);color:var(--brand-2)}.su-steps button.cur{background:var(--brand-2);border-color:var(--brand-2);color:#0b1210}.su-steps button:disabled{opacity:.45;cursor:default}
+#wz-form .choice{gap:6px;margin-top:8px}#wz-form .choice b{font-size:15px}
+.itbl{min-width:0;margin:8px 0;font-size:13px}.itbl th,.itbl td{padding:5px 6px}
+#simp-pv,#sales-pv{max-height:260px;overflow:auto}
