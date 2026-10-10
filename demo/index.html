@@ -16,7 +16,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800;900&family=Gothic+A1:wght@400;500;600;700;800&family=Manrope:wght@500;600;700&family=Noto+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="app.css?v=68">
+<link rel="stylesheet" href="app.css?v=88">
 </head>
 <body>
 <header class="top"><div class="brand" data-act="sub" role="button" style="cursor:pointer"><div><b aria-label="+EV"><sup>+</sup>EV</b><small>장기적 수익을 위한 올인원 운영 파트너</small></div></div><div id="top-r"></div></header>
@@ -24,6 +24,11 @@
 <nav id="tabs" hidden></nav>
 <div id="sheet" hidden></div>
 <div id="toast" role="status" aria-live="polite"></div>
-<script type="module">import '/demo/mock-sb.js'; const j = await (await fetch('/demo/db-home.json')).json(); Object.assign(window.__DB, j.db); Object.assign(window.__USERS, j.users); window.__DEMO = 1; await import('/app.js');</script>
+<script type="module">import '/demo/mock-sb.js'; const j = await (await fetch('/demo/db-home.json')).json(); // 데모 날짜를 오늘 기준으로 옮김 (마지막 마감 = 어제)
+const last = j.db.daily_reports.map(r => r.report_date).sort().pop(), y = new Date(Date.now() + 9 * 3600e3 - 864e5).toISOString().slice(0, 10), off = Math.round((new Date(y) - new Date(last)) / 864e5) * 864e5;
+const mv = v => /^\d{4}-\d{2}-\d{2}$/.test(v) ? new Date(+new Date(v) + off).toISOString().slice(0, 10) : /^\d{4}-\d{2}-\d{2}T/.test(v) ? new Date(+new Date(v) + off).toISOString() : /^\d{4}-\d{2}$/.test(v) ? new Date(+new Date(v + '-15') + off).toISOString().slice(0, 7) : v;
+for (const rows of Object.values(j.db)) if (Array.isArray(rows)) for (const r of rows) for (const k in r) if (typeof r[k] === 'string') r[k] = mv(r[k]);
+Object.assign(window.__DB, j.db); Object.assign(window.__USERS, j.users); window.__DEMO = 1;
+const as = new URLSearchParams(location.search).get('as'); window.__AUTO = { owner: 'owner@t.dev', staff: 'ace@t.dev' }[as] || null; await import('/app.js');</script>
 </body>
 </html>

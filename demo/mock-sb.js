@@ -194,7 +194,7 @@ const RPC = window.__RPC = {
 export function createClient() {
   return {
     auth: {
-      onAuthStateChange(cb) { cbs.push(cb); setTimeout(() => cb('INIT', user ? { user } : null), 0) },
+      onAuthStateChange(cb) { cbs.push(cb); if (!user && window.__AUTO) user = window.__USERS[window.__AUTO] || null; setTimeout(() => cb('INIT', user ? { user } : null), 0) },
       async signUp({ email, options }) { if (window.__USERS[email]) return { data: {}, error: { message: 'User already registered' } }; user = { id: uid(), email }; window.__USERS[email] = user; DB.profiles.push({ id: user.id, name: options.data.name, is_hq: email.startsWith('hq@') }); cbs.forEach(c => c('SIGNED_IN', { user })); return { data: { session: {} }, error: null } },
       async updateUser() { return { data: { user }, error: null } },
       async signInWithPassword({ email }) { const u = window.__USERS[email]; if (!u) return { error: { message: 'Invalid login' } }; user = u; cbs.forEach(c => c('SIGNED_IN', { user })); return { error: null } },
