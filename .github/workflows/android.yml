@@ -50,15 +50,29 @@ jobs:
           BUBBLEWRAP_KEY_PASSWORD: ${{ env.KS_PASS }}
         run: |
           bubblewrap update --skipVersionUpgrade
+          # 구글 대체결제(한국) 네이티브 화면 추가 — bubblewrap update가 프로젝트를 새로 만들기 때문에 매번 덧붙임
+          cp native/AltPayActivity.java app/src/main/java/kr/plusevapp/twa/
+          grep -q billingclient app/build.gradle || sed -i "0,/dependencies {/s//dependencies {\n    implementation 'com.android.billingclient:billing:8.0.0'/" app/build.gradle
+          python3 - <<'PY'
+          p = 'app/src/main/AndroidManifest.xml'; s = open(p).read()
+          a = '''<activity android:name=".AltPayActivity" android:exported="true" android:theme="@android:style/Theme.Translucent.NoTitleBar">
+                  <intent-filter><action android:name="android.intent.action.VIEW"/><category android:name="android.intent.category.DEFAULT"/><category android:name="android.intent.category.BROWSABLE"/><data android:scheme="plusev" android:host="altpay"/></intent-filter>
+              </activity>
+          '''
+          if 'AltPayActivity' not in s: s = s.replace('</application>', a + '</application>', 1)
+          open(p, 'w').write(s)
+          PY
+          grep -n billingclient app/build.gradle && grep -c AltPayActivity app/src/main/AndroidManifest.xml
           bubblewrap build --skipPwaValidation
           ls -la *.aab *.apk
 
       - name: assetlinks.json 생성 (도메인 소유 증명)
         working-directory: android
         run: |
-          FP=$(grep -o 'SHA256: .*' fingerprint.txt | cut -d' ' -f2)
+          # 업로드 키 + 구글 플레이 앱 서명 키(play_fingerprint.txt, 한 줄에 하나)
+          FPS=$( (grep -o 'SHA256: .*' fingerprint.txt | cut -d' ' -f2; cat play_fingerprint.txt 2>/dev/null) | grep -E '^([0-9A-F]{2}:){31}[0-9A-F]{2}$' | sed 's/.*/"&"/' | paste -sd, )
           mkdir -p ../.well-known
-          echo "[{\"relation\":[\"delegate_permission/common.handle_all_urls\"],\"target\":{\"namespace\":\"android_app\",\"package_name\":\"kr.plusevapp.twa\",\"sha256_cert_fingerprints\":[\"$FP\"]}}]" > ../.well-known/assetlinks.json
+          echo "[{\"relation\":[\"delegate_permission/common.handle_all_urls\"],\"target\":{\"namespace\":\"android_app\",\"package_name\":\"kr.plusevapp.twa\",\"sha256_cert_fingerprints\":[$FPS]}}]" > ../.well-known/assetlinks.json
           cat ../.well-known/assetlinks.json
 
       - name: assetlinks.json·암호화 키 저장소에 커밋
