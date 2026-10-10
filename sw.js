@@ -1,5 +1,5 @@
 // 홈 화면 설치 + 푸시 알림 + 오프라인 셸(네트워크 우선, 끊기면 캐시)
-const CACHE = 'ev-shell-v1', SHELL = ['./', 'index.html', 'app.css', 'app.js', 'engine.js', 'pricing.js', 'legal.html', 'icon-192.png', 'icon-512.png', 'manifest.webmanifest'];
+const CACHE = 'ev-shell-v2', SHELL = ['./', 'index.html', 'app.css', 'app.js', 'engine.js', 'pricing.js', 'legal.html', 'icon-192.png', 'icon-512.png', 'manifest.webmanifest'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).catch(() => {})); self.skipWaiting(); });
 self.addEventListener('activate', e => e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== CACHE).map(k => caches.delete(k)))).then(() => self.clients.claim())));
 self.addEventListener('fetch', e => {

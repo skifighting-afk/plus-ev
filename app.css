@@ -811,3 +811,6 @@ fieldset.skills label{position:relative}fieldset.skills input{width:1px!importan
 .ced{display:flex;gap:6px;justify-content:flex-end;margin:6px 0 -4px}
 html.cvd [style*="#8FE3C4"]{background:#5AA9F0!important}html.cvd [style*="#3B82C4"]{background:#B07CE8!important}html.cvd .bar i,html.cvd .spark i{background:#5AA9F0}
 .chip[data-act^="ai-"]{min-height:30px;padding-block:5px}.tlink{padding-block:6px;display:inline-block}.cal .dn{min-height:28px;min-width:28px}
+/* v0.78 손가락으로 누르기 편하게 (모바일) · 부족 표시 아이콘 병행 */
+@media (pointer:coarse){.btn.sm{min-height:38px;padding-inline:12px}.seg button{min-height:38px}}
+.pill.r::before{content:'! ';font-weight:800}

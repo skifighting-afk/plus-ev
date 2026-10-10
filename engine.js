@@ -44,13 +44,16 @@ export function shiftsOf(p, y, m, tpl, ov, today, night) {
   }
   return out;
 }
-// 주휴수당: 월~일 한 주 15시간 이상이면 (주 시간/40 × 8 × 시급), 40시간 상한. 달 경계 주는 그 달 날짜만 셈
-export function juhuOf(p, y, m, sh, today) {
+// 주휴수당: 월~일 한 주 15시간 이상이면 (주 시간/40 × 8 × 시급), 40시간 상한.
+// 달 경계 주는 일요일이 속한 달에 지급 (지난달 마지막 며칠 근무 포함, 이번 달 끝에 걸친 주는 다음 달로)
+export function juhuOf(p, y, m, sh, today, prevSh = []) {
   if (!lawOn(p)) return { done: 0, full: 0 };
-  const wk = {};
-  sh.forEach(x => { const k = x.d - wdOf(y, m, x.d); (wk[k] = wk[k] || { h: 0, end: k + 6 }).h += x.hours; });
+  const wk = {}, D = daysIn(y, m), pd = daysIn(y, m - 1);
+  const add = (k, h) => { (wk[k] = wk[k] || { h: 0, end: k + 6 }).h += h; };
+  sh.forEach(x => add(x.d - wdOf(y, m, x.d), x.hours));
+  prevSh.forEach(x => { const py = m === 1 ? y - 1 : y, pm = m === 1 ? 12 : m - 1, k = x.d - wdOf(py, pm, x.d) - pd; if (k + 6 >= 1) add(k, x.hours); });
   let done = 0, full = 0;
-  Object.values(wk).forEach(w => { if (w.h < 15) return; const v = Math.round(Math.min(w.h, 40) / 40 * 8 * p.hourly_rate); full += v; if (ymd(y, m, Math.min(w.end, daysIn(y, m))) < today) done += v; });
+  Object.values(wk).forEach(w => { if (w.h < 15 || w.end > D) return; const v = Math.round(Math.min(w.h, 40) / 40 * 8 * p.hourly_rate); full += v; if (ymd(y, m, w.end) < today) done += v; });
   return { done, full };
 }
 export function tax33(g) { const it = floor10(g * 0.03), lt = floor10(it * 0.1); return it + lt; }
@@ -59,7 +62,7 @@ export const dedOf = (g, c) => (c === '4대' ? ins4(g) : tax33(g));
 
 export function payroll(p, y, m, tpl, ov, inc, today, night) {
   const sh = shiftsOf(p, y, m, tpl, ov, today, night), d = sh.filter(x => x.done), r = k => Math.round(d.reduce((a, x) => a + x[k], 0));
-  const jh = juhuOf(p, y, m, sh, today), base = r('base'), np = r('nightPay'), otp = r('otPay'), gross = base + np + otp + jh.done + inc, ded = dedOf(gross, p.contract);
+  const jh = juhuOf(p, y, m, sh, today, shiftsOf(p, m === 1 ? y - 1 : y, m === 1 ? 12 : m - 1, tpl, ov, today, night)), base = r('base'), np = r('nightPay'), otp = r('otPay'), gross = base + np + otp + jh.done + inc, ded = dedOf(gross, p.contract);
   const full = Math.round(sh.reduce((a, x) => a + x.gross, 0)) + jh.full + inc;
   return { days: d.length, hours: d.reduce((a, x) => a + x.hours, 0), brk: d.reduce((a, x) => a + x.brk, 0), base, np, otp, juhu: jh.done, inc, gross, ded, net: gross - ded, fullGross: full, fullNet: full - dedOf(full, p.contract), shifts: sh };
 }
