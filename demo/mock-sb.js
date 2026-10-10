@@ -88,7 +88,7 @@ const RPC = window.__RPC = {
   attend_code(a) { if (!canManage(a.p_store)) throw { message: '권한이 없어요' }; return [{ code: code(a.p_store), secs_left: 30 - Math.floor(Date.now() / 1000) % 30 }] },
   set_my_pay(a) { const m = DB.members.find(x => x.id === a.p_member); if (!m) throw { message: '내 정보만 바꿀 수 있어요' }; if (a.p_name) m.real_name = a.p_name; if (a.p_bank) m.bank_name = a.p_bank; if (a.p_acct) m.bank_acct = a.p_acct.replace(/[^0-9-]/g, ''); if (a.p_holder) m.bank_holder = a.p_holder; return null },
   store_urgent_wht() { return [] },
-  dealer_count() { return [{ total: 1287, open_n: 412 }] },
+  dealer_count() { return [{ total: 128, open_n: 52 }] },
   spin_left() { return Math.max(0, 1 - DB.dealer_spins.filter(x => x.user_id === me()).length) },
   spin_hand() { if (DB.dealer_spins.filter(x => x.user_id === me()).length) throw { message: '남은 룰렛이 없어요' }; const r = Math.random() * 100, t = [[90, '원페어', 1000], [96, '투페어', 2000], [98.5, '트리플', 3000], [99.5, '스트레이트', 5000], [99.85, '플러시', 10000], [99.97, '풀하우스', 20000], [99.995, '포카드', 50000], [101, '로티플', 100000]].find(x => r < x[0]); DB.dealer_spins.push({ user_id: me(), hand: t[1], points: t[2], created_at: new Date().toISOString() }); return [{ hand: t[1], points: t[2], left_n: 0 }] },
   set_ref() { return '데모 딜러' },
