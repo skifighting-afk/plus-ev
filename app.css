@@ -893,3 +893,7 @@ html.ui-dense .card{padding:10px 12px;margin-bottom:8px}html.ui-dense .li{paddin
 #tabs:has(button:nth-child(6)) button{font-size:10.5px}
 /* v0.90 */
 .say-bar{display:flex;gap:6px;align-items:center;margin:0 0 10px;flex-wrap:wrap}
+/* v0.91 */
+.rc-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}.rc{display:grid;gap:4px;color:inherit;text-decoration:none;min-width:0}.rc img{width:100%;aspect-ratio:3/4;object-fit:cover;border-radius:8px;background:var(--card2)}.rc small{font-size:11px;line-height:1.35}
+.star{border:0;background:none;font-size:22px;line-height:1;padding:2px;color:var(--line2);cursor:pointer}.star.on{color:#e9c46a}
+.ho-code{font:800 34px/1.2 ui-monospace,monospace;letter-spacing:.12em;text-align:center;padding:12px;margin:8px 0;border:2px dashed var(--brand-2,#3ddc84);border-radius:12px;user-select:all}

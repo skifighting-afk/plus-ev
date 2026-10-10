@@ -2102,7 +2102,7 @@ function menuSheet() {
   <label class="mn-tog"><span><b>폰 설정 따라 밝게·어둡게</b><small>낮엔 밝은 화면, 밤엔 어두운 화면 자동</small></span><input type="checkbox" data-act="theme" data-v="${lsGet('ev_theme') === 'auto' ? 'mint' : 'auto'}" ${lsGet('ev_theme') === 'auto' ? 'checked' : ''}></label>
   ${S.user ? `<div class="mn-lb">알림·보안</div><div class="mn-list"><button data-act="dnd"><span class="mn-ic">🌙</span>방해 금지 시간 <small class="mut" style="margin-left:4px">${S.prof?.dnd?.f ? `${S.prof.dnd.f}~${S.prof.dnd.t}` : '꺼짐'}</small><i>›</i></button><button data-act="pin-set"><span class="mn-ic">🔒</span>앱 잠금 (PIN) <small class="mut" style="margin-left:4px">${lsGet('ev_pin') ? '켜짐 · 이 폰' : '꺼짐'}</small><i>›</i></button><button data-act="logout-all"><span class="mn-ic">📱</span>모든 기기에서 로그아웃<i>›</i></button></div>` : ''}
   <label class="mn-tog"><span><b>글자 크게</b><small>모든 화면 글자를 조금 크게</small></span><input type="checkbox" data-act="big" ${lsGet('ev_big') === '1' ? 'checked' : ''}></label>
-  <div class="mn-lb">기타 <small class="mut" style="font-weight:400">v0.90 · 말로 마감·단골 손님 장부·이상 감지·신고 일정·매장 연혁 · 한 번에 세팅 · 매장 키우기 퀘스트 · 매장 준비 10단계 · 기능 켜기/끄기 · 근무 일괄 확정 · 가져오기 · 화면 정리: 홈 접기 · 경고 요약 · 직원 카드 접기 · 출퇴근 고치기 안내</small></div>
+  <div class="mn-lb">기타 <small class="mut" style="font-weight:400">v0.91 · 영수증 보관함·계약 알림·부가세 미리·리포트 영상·확장 시뮬레이터·양도 인계 · 한 번에 세팅 · 매장 키우기 퀘스트 · 매장 준비 10단계 · 기능 켜기/끄기 · 근무 일괄 확정 · 가져오기 · 화면 정리: 홈 접기 · 경고 요약 · 직원 카드 접기 · 출퇴근 고치기 안내</small></div>
   <div class="mn-list"><a href="guide.html#${S.mode === 'store' ? 'owner' : S.mode}" target="_blank" rel="noopener"><span class="mn-ic"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2zM4 21V5M8 7h7"/></svg></span>사용법 보기<i>›</i></a>
   ${S.user && (S.user.app_metadata?.provider || 'email') === 'email' ? `<button data-act="pw-change"><span class="mn-ic"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg></span>비밀번호 바꾸기<i>›</i></button>` : ''}
   ${S.user ? '<button data-act="myset"><span class="mn-ic">🧩</span>내 화면 · 기기 · 단축키<i>›</i></button>' : ''}
@@ -4334,3 +4334,145 @@ document.addEventListener('click', e => {
     return busy(async () => { const r = (await q(sb.from('store_guests').insert({ store_id: S.store.id, name: n, phone: $('#v-gp').value.trim() || null, bday: bd || null, tag: $('#v-gt').value.trim() || null, memo: $('#v-gm').value.trim() || null, visits: 1, last_at: TODAY }).select().single())); S.guests = [r, ...S.guests]; guestSheet(); toast(`${n} 추가했어요`); }); }
 });
 document.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.id === 'v-say-t') { e.preventDefault(); sayApply(e.target.value); } if (e.key === 'Enter' && e.target.id === 'v-gq') { e.preventDefault(); guestSheet(e.target.value); } });
+
+// ===== v0.91 인스타 올리기 · 계약 만료 · 부가세 미리 · 영수증 보관함 · 신입 교육 · 인수인계 사진 · 딜러 레벨 · 리포트 영상 · 확장 시뮬레이터 · 양도 데이터 인계 =====
+const vat11 = n => Math.round(n / 11);
+// 28 부가세 미리 계산 (일반과세 추정): 반기 매출 ÷ 11 − 매입(카드수수료·인건비 제외 지출) ÷ 11
+function vatSaveCard() {
+  if (!isOwner()) return ''; const [y, m] = TODAY.split('-').map(Number), h1 = m <= 6, f = `${y}-${h1 ? '01' : '07'}-01`, l = `${y}-${h1 ? '06' : '12'}-31`;
+  const S1 = (S.hist || []).filter(r => r.report_date >= f && r.report_date <= l).reduce((a, r) => a + (r.sales || 0), 0); if (!S1) return '';
+  const P = (S.expAll || []).filter(x => x.spent_on >= f && x.spent_on <= l && !['card', 'labor'].includes(x.category)).reduce((a, x) => a + (x.amount || 0), 0);
+  const mo = m - (h1 ? 0 : 6), est = Math.max(0, (vat11(S1) - vat11(P)) / mo * 6), due = h1 ? `${y}-07-25` : `${y + 1}-01-25`, left = Math.max(1, 6 - mo + 1);
+  return `<div class="card"><h3>🧾 다음 부가세 미리 보기 <small>${+due.slice(5, 7)}/${+due.slice(8)} 신고 · 일반과세 추정</small></h3><div class="dsum"><div><small>예상 부가세</small><b class="num">₩${man(est)}</b></div><div><small>지금까지 쌓인 몫</small><b class="num">₩${man(Math.max(0, vat11(S1) - vat11(P)))}</b></div><div><small>매달 따로 모으기</small><b class="num up">₩${man(est / 6)}</b></div></div><small class="mut">매출 ₩${man(S1)}의 1/11 − 매입 ₩${man(P)}의 1/11 · 남은 ${left}달 · 간이과세·면세는 다르니 세무사와 확인하세요</small></div>`;
+}
+// 27 계약 만료: 홈 일정 카드에도 60일 안이면 보임
+{ const o = dueCard; dueCard = function () { const base = o(), C = (CFG().contracts || []).map(c => [c.end, `${c.n} 계약 만료`, c.memo || '연장·해지 미리 정하기', Math.round((new Date(c.end) - new Date(TODAY)) / 864e5)]).filter(x => x[3] >= 0 && x[3] <= 60);
+  if (!isOwner() || !C.length) return base; const row = ([d, l, s, n]) => `<div class="li"><span><b>📄 ${esc(l)}</b><small class="mut" style="display:block">${+d.slice(5, 7)}/${+d.slice(8)} · ${esc(s)}</small></span><span class="pill ${n <= 7 ? 'r' : n <= 30 ? 'y' : ''}">D-${n}</span></div>`;
+  return base ? base.replace('<small class="mut">일반과세', C.map(row).join('') + '<small class="mut">일반과세') : `<div class="card"><h3>🗓 신고·계약 일정</h3>${C.map(row).join('')}</div>`; }; }
+function ctrSheet() {
+  const L = CFG().contracts || [];
+  openSheet(`<h2>📄 계약 관리</h2><p class="sub">끝나는 날 60·30·7·1일 전에 알림이 가요.</p>${L.map((c, i) => `<div class="li"><span><b>${esc(c.n)}</b><small class="mut" style="display:block">${c.end} 만료${c.memo ? ' · ' + esc(c.memo) : ''}</small></span><button class="btn sm" data-act="w-cdel" data-i="${i}">✕</button></div>`).join('') || '<div class="empty">아직 없어요</div>'}
+  <div class="chips" style="margin:10px 0 6px">${['임대차', '보증보험', 'CCTV·보안', 'POS·카드단말기', '정수기·렌탈', '인터넷·IPTV', '화재보험'].map(n => `<button class="fchip" data-act="w-cpick" data-v="${n}">${n}</button>`).join('')}</div>
+  <div class="grid2"><label class="fl">계약 이름<input id="w-cn" placeholder="임대차"></label><label class="fl">끝나는 날<input id="w-ce" type="date"></label></div><label class="fl">메모 <small class="mut">(선택)</small><input id="w-cm" placeholder="보증금 3천 · 자동연장 조항"></label><button class="btn pri full" data-act="w-cadd">추가</button>`);
+}
+// 30 영수증 보관함: 사진 붙은 지출을 달별로 · 세무사용 묶음(zip) 받기
+async function receiptSheet(mon) {
+  const L = (S.expAll || []).filter(x => x.photo).sort((a, b) => b.spent_on.localeCompare(a.spent_on)), months = [...new Set(L.map(x => x.spent_on.slice(0, 7)))], cur = mon || months[0], R = L.filter(x => x.spent_on.startsWith(cur || '-'));
+  const U = R.length ? ((await sb.storage.from('receipts').createSignedUrls(R.map(x => x.photo), 600)).data || []) : [];
+  openSheet(`<h2>🧾 영수증 보관함</h2><p class="sub">지출을 넣을 때 사진을 붙이면 여기 달별로 모여요.</p>${months.length ? `<div class="chips" style="margin-bottom:8px">${months.map(k => `<button class="fchip ${k === cur ? 'on' : ''}" data-act="w-rmon" data-v="${k}">${+k.slice(5)}월</button>`).join('')}</div>` : ''}
+  <div class="rc-grid">${R.map((x, i) => `<a class="rc" href="${U[i]?.signedUrl || '#'}" target="_blank" rel="noopener"><img src="${U[i]?.signedUrl || ''}" alt="" loading="lazy"><small>${+x.spent_on.slice(5, 7)}/${+x.spent_on.slice(8)} · ${CAT[x.category] || ''}<br><b>₩${E.won(x.amount)}</b></small></a>`).join('') || '<div class="empty">아직 사진 붙은 지출이 없어요</div>'}</div>
+  ${R.length ? `<p class="note">${R.length}장 · 합계 ₩${E.won(R.reduce((a, x) => a + x.amount, 0))}</p><button class="btn pri full" data-act="w-rzip" data-v="${cur}">📦 ${+cur.slice(5)}월 세무사용 묶음 받기 (사진 + 목록)</button>` : ''}`);
+}
+async function receiptZip(mon) {
+  if (!window.JSZip) await new Promise((ok, no) => { const s = document.createElement('script'); s.src = 'https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js'; s.onload = ok; s.onerror = () => no(new Error('압축 도구를 불러오지 못했어요')); document.head.append(s); });
+  const R = (S.expAll || []).filter(x => x.photo && x.spent_on.startsWith(mon)), U = (await sb.storage.from('receipts').createSignedUrls(R.map(x => x.photo), 600)).data || [], z = new JSZip();
+  z.file('목록.csv', '﻿' + [['날짜', '항목', '금액', '메모', '파일'], ...R.map((x, i) => [x.spent_on, CAT[x.category] || x.category, x.amount, x.memo || '', `${i + 1}_${x.spent_on}.jpg`])].map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\r\n'));
+  for (let i = 0; i < R.length; i++) { const b = U[i]?.signedUrl ? await (await fetch(U[i].signedUrl)).blob() : null; if (b) z.file(`${i + 1}_${R[i].spent_on}.jpg`, b); }
+  const blob = await z.generateAsync({ type: 'blob' }), name = `${S.store.name}_${mon}_영수증.zip`, file = new File([blob], name, { type: 'application/zip' });
+  if (navigator.canShare?.({ files: [file] })) { try { await navigator.share({ files: [file], title: name }); return; } catch { } }
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; a.click(); toast('받았어요. 세무사에게 보내세요');
+}
+// 31 신입 교육 체크리스트 (대표·점장이 체크)
+const TRAIN0 = ['매장 규칙·비상 연락처', '칩 종류·바이인 금액', '딜링 기본 (셔플·컷·버닝)', '팟 계산·사이드팟', '블라인드 구조·타이머', '오픈·마감 순서', '손님 응대·분쟁 처리', '금고·현금 다루는 법'];
+function trainSheet(mid) {
+  const C = CFG(), T = C.train || TRAIN0, D = C.trainDone || {}, staff = S.members.filter(p => p.role !== 'owner'), cur = mid || S.trMid || staff[0]?.id; S.trMid = cur;
+  openSheet(`<h2>📋 신입 교육</h2><div class="chips" style="margin-bottom:8px">${staff.map(p => `<button class="fchip ${p.id === cur ? 'on' : ''}" data-act="w-tmem" data-v="${p.id}">${esc(p.nick)} <small>${(D[p.id] || []).length}/${T.length}</small></button>`).join('') || '<span class="mut">직원이 없어요</span>'}</div>
+  ${cur ? `<div class="pbar" style="margin:4px 0 10px"><i style="width:${(D[cur] || []).length / T.length * 100}%;background:var(--brand)"></i></div>${T.map((t, i) => `<label class="tog"><span><b>${i + 1}. ${esc(t)}</b></span><input type="checkbox" data-act="w-tchk" data-i="${i}" ${(D[cur] || []).includes(i) ? 'checked' : ''}></label>`).join('')}` : ''}
+  <details class="more"><summary>항목 고치기</summary><textarea id="w-tlist" rows="8" style="width:100%">${esc(T.join('\n'))}</textarea><button class="btn sm pri" data-act="w-tsave">한 줄에 하나씩 저장</button></details>`);
+}
+// 34 딜러 레벨: 속도·정확도·응대를 대표가 별점 → 레벨·추천 시급
+const LV = [['🥉', '견습'], ['🥈', '주니어'], ['🥇', '시니어'], ['💎', '에이스'], ['👑', '마스터']], SKK = [['s', '속도'], ['a', '정확도'], ['c', '응대']];
+const lvOf = k => { const v = SKK.map(([x]) => +(k?.[x] || 0)).filter(Boolean); return v.length ? Math.max(1, Math.round(v.reduce((a, b) => a + b, 0) / v.length)) : 0; };
+function levelSheet() {
+  const K = CFG().skill || {}, staff = S.members.filter(p => p.role !== 'owner');
+  openSheet(`<h2>🏅 딜러 레벨</h2><p class="sub">속도·정확도·응대를 1~5점으로 매기면 레벨과 추천 시급이 나와요. 직원에게는 레벨만 보여요.</p>${staff.map(p => { const k = K[p.id] || {}, lv = lvOf(k), base = +p.hourly_rate || minWage(); return `<div class="card" style="padding:10px 12px;margin-bottom:8px"><div class="row between"><b>${lv ? LV[lv - 1][0] : '·'} ${esc(p.nick)} <small class="mut">${lv ? LV[lv - 1][1] : '평가 전'}</small></b>${lv ? `<small class="mut">추천 시급 <b class="num">₩${E.won(Math.round(base * (1 + (lv - 1) * .05) / 10) * 10)}</b> (지금 ₩${E.won(base)})</small>` : ''}</div>${SKK.map(([x, l]) => `<div class="row" style="gap:6px;align-items:center;margin-top:4px"><small style="width:44px">${l}</small>${[1, 2, 3, 4, 5].map(n => `<button class="star ${(+k[x] || 0) >= n ? 'on' : ''}" data-act="w-star" data-m="${p.id}" data-k="${x}" data-v="${n}" aria-label="${l} ${n}점">★</button>`).join('')}</div>`).join('')}</div>`; }).join('') || '<div class="empty">직원이 없어요</div>'}<p class="note">추천 시급은 레벨마다 5%씩 올린 참고값이에요. 실제 시급은 직원 화면에서 바꿔요.</p>`);
+}
+// 36 월 매출 리포트 영상 (15초 · 세로)
+async function reportVideo() {
+  const M = monthSummary(S.y, S.m), [f, l] = monthRange(S.y, S.m), rs = (S.hist || []).filter(r => r.report_date >= f && r.report_date <= l).sort((a, b) => a.report_date.localeCompare(b.report_date)); if (!rs.length) return toast('이번 달 마감이 있어야 만들 수 있어요');
+  if (!window.MediaRecorder) return toast('이 폰은 영상 만들기를 지원하지 않아요');
+  const W = 720, H = 1280, c = document.createElement('canvas'); c.width = W; c.height = H; const x = c.getContext('2d'), mx = Math.max(...rs.map(r => r.sales)), best = rs.reduce((a, r) => r.sales > a.sales ? r : a), ent = rs.reduce((a, r) => a + (r.entries || 0), 0);
+  openSheet(`<h2>🎬 ${S.m}월 리포트 영상</h2><p class="sub">15초 · 만드는 중이에요. 화면을 끄지 마세요</p>`); $('#sheet .sub').after(c); c.style.cssText = 'width:100%;max-width:300px;display:block;margin:8px auto;border-radius:12px';
+  const mime = ['video/mp4', 'video/webm;codecs=vp9', 'video/webm'].find(t => MediaRecorder.isTypeSupported?.(t)) || 'video/webm', rec = new MediaRecorder(c.captureStream(30), { mimeType: mime, videoBitsPerSecond: 4e6 }), chunks = [];
+  rec.ondataavailable = e => e.data.size && chunks.push(e.data);
+  const ease = t => 1 - Math.pow(1 - Math.min(1, Math.max(0, t)), 3), T0 = performance.now(), DUR = 15000, ac = '#3ddc84', gold = '#e9c46a';
+  const F = (s, w = 800) => `${w} ${s}px "Noto Sans KR", sans-serif`;
+  const frame = () => { const t = performance.now() - T0, g = x.createLinearGradient(0, 0, 0, H); g.addColorStop(0, '#0b0f19'); g.addColorStop(1, '#102018'); x.fillStyle = g; x.fillRect(0, 0, W, H); x.textAlign = 'center';
+    x.fillStyle = '#8fa39a'; x.font = F(30, 600); x.fillText(`${S.store.name} · ${S.y}년 ${S.m}월`, W / 2, 120);
+    const a = ease(t / 1500); x.globalAlpha = a; x.fillStyle = '#fff'; x.font = F(72, 900); x.fillText('이번 달 리포트', W / 2, 220); x.globalAlpha = 1;
+    if (t > 2500) { const k = ease((t - 2500) / 2500); x.fillStyle = '#8fa39a'; x.font = F(32, 600); x.fillText('총매출', W / 2, 360); x.fillStyle = ac; x.font = F(96, 900); x.fillText('₩' + man(M.sales * k), W / 2, 470); x.fillStyle = '#c9d4cf'; x.font = F(30, 600); x.fillText(`${rs.length}일 영업 · 엔트리 ${Math.round(ent * k)}명`, W / 2, 530); }
+    if (t > 5500) { const k = ease((t - 5500) / 3500), bw = (W - 120) / rs.length, base = 900; rs.forEach((r, i) => { const h = r.sales / mx * 280 * Math.min(1, Math.max(0, k * rs.length - i)); x.fillStyle = r === best ? gold : ac; x.fillRect(60 + i * bw + 2, base - h, Math.max(2, bw - 4), h); }); x.fillStyle = '#8fa39a'; x.font = F(26, 600); x.fillText('일별 매출', W / 2, base + 46); }
+    if (t > 9500) { const k = ease((t - 9500) / 1500); x.globalAlpha = k; x.fillStyle = gold; x.font = F(34, 800); x.fillText(`🏆 최고의 날 ${+best.report_date.slice(5, 7)}/${+best.report_date.slice(8)} · ₩${man(best.sales)}`, W / 2, 1030); x.fillStyle = M.left >= 0 ? ac : '#ff6b6b'; x.font = F(44, 900); x.fillText(`예상 순이익 ${M.left < 0 ? '−' : ''}₩${man(Math.abs(M.left))}`, W / 2, 1110); x.globalAlpha = 1; }
+    x.fillStyle = '#56685f'; x.font = F(24, 600); x.fillText('+EV · 홀덤펍 운영 파트너', W / 2, H - 60);
+    if (t < DUR) requestAnimationFrame(frame); else rec.stop(); };
+  const done = new Promise(r => rec.onstop = r); rec.start(250); frame(); await done;
+  const ext = mime.includes('mp4') ? 'mp4' : 'webm', blob = new Blob(chunks, { type: mime.split(';')[0] }), file = new File([blob], `${S.store.name}_${S.m}월_리포트.${ext}`, { type: blob.type }), url = URL.createObjectURL(blob);
+  $('#sheet .sub').textContent = '완성! 동업자 단톡방·인스타에 올려 보세요'; c.replaceWith(Object.assign(document.createElement('video'), { src: url, controls: true, playsInline: true, style: 'width:100%;max-width:300px;display:block;margin:8px auto;border-radius:12px' }));
+  $('#sheet').insertAdjacentHTML('beforeend', '<button class="btn pri full" data-act="w-vshare">공유·저장</button>'); S.vfile = file;
+}
+// 39 이전·확장 시뮬레이터
+function simSheet() {
+  const M = monthSummary(S.y, S.m), tb = +S.store.tables || 6, rent = +(fixedFor(S.y, S.m).fx.rent || 0), wage = Math.round(S.members.filter(p => p.role !== 'owner' && p.hourly_rate).reduce((a, p, _, L) => a + p.hourly_rate / L.length, 0)) || minWage();
+  S.sim = S.sim || { tb, rent, util: 100, price: 100, wage }; const v = S.sim, base = M.proj || M.sales;
+  if (!base) return openSheet('<h2>📐 확장 시뮬레이터</h2><div class="empty">마감이 3일 이상 쌓이면 지금 숫자로 계산해 드려요</div>');
+  const sales = base / tb * v.tb * v.util / 100 * v.price / 100, labor = M.labor * v.tb / tb * v.wage / wage, other = M.cost - M.labor - rent, cost = labor + v.rent + other, left = sales - cost, d = left - M.left;
+  const row = (k, l, min, max, step, fmt) => `<label class="fl">${l} <b class="num" style="float:right">${fmt(v[k])}</b><input type="range" data-sim="${k}" min="${min}" max="${max}" step="${step}" value="${v[k]}"></label>`;
+  openSheet(`<h2>📐 확장·이전 시뮬레이터</h2><p class="sub">지금 이번 달 숫자(예상 매출 ₩${man(base)})를 기준으로 바꿔 봐요.</p>
+  ${row('tb', '테이블 수', 1, Math.max(20, tb * 2), 1, n => n + '개')}${row('rent', '월 임대료', 0, Math.max(10e6, rent * 3), 100000, n => '₩' + man(n))}${row('util', '테이블 가동률 (지금=100)', 40, 160, 5, n => n + '%')}${row('price', '바인·객단가 (지금=100)', 60, 160, 5, n => n + '%')}${row('wage', '평균 시급', 9000, 25000, 100, n => '₩' + E.won(n))}
+  <div class="dsum" style="margin-top:10px"><div><small>예상 매출</small><b class="num">₩${man(sales)}</b></div><div><small>비용</small><b class="num">₩${man(cost)}</b></div><div><small>순이익</small><b class="num ${left >= 0 ? 'up' : 'down'}">${left < 0 ? '−' : ''}₩${man(Math.abs(left))}</b></div></div>
+  <p class="note">지금보다 월 <b class="num ${d >= 0 ? 'up' : 'down'}">${d >= 0 ? '+' : '−'}₩${man(Math.abs(d))}</b> · 인건비는 테이블 수에 비례, 임대료 외 고정비는 그대로로 계산한 추정이에요.</p><button class="btn full" data-act="w-simreset">지금 숫자로 되돌리기</button>`);
+}
+// 40 양도 시 데이터 인계
+function handoffSheet(tok) {
+  openSheet(`<h2>🤝 매장 양도 · 데이터 인계</h2>${isOwner?.() && S.store ? `<div class="card"><b>이 매장을 넘길 때</b><p class="sub" style="margin:6px 0">코드를 만들어 새 대표님께 주세요. 받는 순간 매출·근무·급여 기록과 직원 연결이 그대로 넘어가요. 장부가 그대로 남아서 권리금 협상 때 근거가 돼요.</p>${tok ? `<div class="ho-code">${esc(tok)}</div><small class="mut">7일 동안 쓸 수 있어요 · 다시 만들면 이전 코드는 막혀요</small>` : `<button class="btn pri full" data-act="w-hocreate">양도 코드 만들기</button>`}</div>` : ''}
+  <div class="card"><b>양도받은 매장 가져오기</b><div class="row" style="gap:6px;margin-top:8px"><input id="w-hotok" placeholder="양도 코드 8자리" maxlength="8" style="flex:1;min-width:0;text-transform:uppercase"><button class="btn sm" data-act="w-hopeek">확인</button></div><div id="w-hoinfo"></div></div>`);
+}
+// 25 인스타에 올리기: 캡션 복사 → 이미지 공유창(인스타 선택)
+function instaCaption() { const P = pState(), [, mm, dd] = (P.d || TODAY).split('-').map(Number), a = (S.store?.area || '').split(' ').filter(Boolean); return [P.t, `📅 ${mm}/${dd} ${P.s || ''}`, P.fee ? `참가비 ${P.fee}` : '', P.sub, '', `📍 ${S.store?.name || ''}${S.store?.area ? ' · ' + S.store.area : ''}`, ['홀덤', '홀덤펍', '토너먼트', ...a.map(x => x + '홀덤'), (S.store?.name || '').replace(/\s/g, '')].filter(Boolean).map(x => '#' + x).join(' ')].filter((x, i) => x || i === 4).join('\n'); }
+function after91() {
+  if (S.mode === 'store' && (S.tab === 'home' || !S.tab)) { const v = $('.home .v90'); if (v && !v.querySelector('.vat')) v.insertAdjacentHTML('beforeend', `<div class="vat">${vatSaveCard()}</div>`); }
+  if (S.mode === 'store' && S.tab === 'staff' && isOwner() && !$('#w-stbar')) $('#view h1, #view .sh-head')?.insertAdjacentHTML('afterend', '<div class="chips" id="w-stbar" style="margin:0 0 10px"><button class="fchip" data-act="w-train">📋 신입 교육</button><button class="fchip" data-act="w-level">🏅 딜러 레벨</button></div>');
+  if (S.sub === 'ops' && !$('#w-hop')) hoPhotos();
+  if (S.mode === 'onboard' && !$('#w-hojoin')) $('#view')?.insertAdjacentHTML('beforeend', '<div class="card lbud" id="w-hojoin" style="margin-top:12px"><div><b>🤝 매장을 양도받으셨나요?</b><small>전 대표님께 받은 코드로 기록 그대로 시작해요</small></div><button class="btn sm" data-act="w-hoopen">코드 넣기</button></div>');
+}
+{ const o = posterOpen; posterOpen = function () { o(); if (!$('[data-act=w-insta]')) $('#poster-form [data-act=psave]')?.insertAdjacentHTML('afterend', '<button type="button" class="btn" data-act="w-insta">📸 인스타</button>'); }; }
+{ const o = after90; after90 = function () { o(); try { after91(); } catch (e) { console.warn(e); } }; }
+// 32 인수인계 사진: 남길 때 사진 3장까지 · 매장 노트 위에 최근 사진
+{ const o = hoSheet; hoSheet = function (code) { o(code); $('#ho-form button.pri')?.insertAdjacentHTML('beforebegin', '<label class="fl">사진 <small class="mut">(선택 · 칩 수량·금고·고장 난 곳)</small><input type="file" id="w-hof" accept="image/*" multiple capture="environment"></label>'); }; }
+for (const k of ['ho-form']) { const o = F68[k]; if (o) F68[k] = async (f, v) => { const files = [...($('#w-hof')?.files || [])].slice(0, 3), sid = (S.my?.[S.mi || 0] || {}).store_id || S.store?.id; const r = await o(f, v); if (files.length && sid) { try { const P = []; for (const fl of files) { const p = `${sid}/ho/${Date.now()}_${P.length}.jpg`; await q(sb.storage.from('store-media').upload(p, await shrink(fl), { contentType: 'image/jpeg' })); P.push(p); } const { data } = await sb.from('store_notes').select('id,data').eq('store_id', sid).eq('kind', 'handover').eq('created_by', S.user.id).order('created_at', { ascending: false }).limit(1); if (data?.[0]) await sb.from('store_notes').update({ data: { ...(data[0].data || {}), photos: P } }).eq('id', data[0].id); } catch (e) { toast('사진은 못 올렸어요 · 글은 남았어요'); } } return r; }; }
+async function hoPhotos() {
+  const sid = S.mode === 'staff' ? S.my?.[S.mi || 0]?.store_id : S.store?.id, v = $('#view'); if (!sid || !v) return; v.insertAdjacentHTML('afterbegin', '<div id="w-hop"></div>');
+  const { data } = await sb.from('store_notes').select('created_at,body,data').eq('store_id', sid).eq('kind', 'handover').not('data->photos', 'is', null).order('created_at', { ascending: false }).limit(4); const L = (data || []).filter(n => n.data?.photos?.length); if (!L.length) return;
+  const U = (await sb.storage.from('store-media').createSignedUrls(L.flatMap(n => n.data.photos), 600)).data || []; let i = 0;
+  const el = $('#w-hop'); if (el) el.innerHTML = `<div class="card"><h3>📷 인수인계 사진 <small>최근</small></h3>${L.map(n => `<div style="margin-bottom:8px"><small class="mut">${fmtDT(n.created_at)} · ${esc(n.data.by || '')} — ${esc((n.body || '').slice(0, 40))}</small><div class="rc-grid">${n.data.photos.map(() => { const u = U[i++]?.signedUrl || ''; return `<a class="rc" href="${u}" target="_blank" rel="noopener"><img src="${u}" alt="" loading="lazy"></a>`; }).join('')}</div></div>`).join('')}</div>`;
+}
+Object.assign(FABA, { contract: ['📄', '계약 관리', 'x:contract'], receipt: ['🧾', '영수증 보관함', 'x:receipt'], video: ['🎬', '리포트 영상', 'x:video'], sim: ['📐', '확장 시뮬레이터', 'x:sim'], handoff: ['🤝', '양도·인계', 'x:handoff'] });
+FAVS.push(['receipt', '🧾 영수증', 'w-receipt'], ['contract', '📄 계약', 'w-contract'], ['video', '🎬 리포트 영상', 'w-video'], ['sim', '📐 시뮬레이터', 'w-sim'], ['handoff', '🤝 양도·인계', 'w-hoopen']);
+document.addEventListener('input', e => { const k = e.target.dataset?.sim; if (!k || !S.sim) return; S.sim[k] = +e.target.value; const sc = $('#sheet').scrollTop; simSheet(); $('#sheet').scrollTop = sc; $(`[data-sim="${k}"]`)?.focus(); });
+document.addEventListener('click', e => {
+  const b = e.target.closest?.('[data-act^="w-"],[data-act=u-fabgo]'); if (!b) return; const a = b.dataset.act, v = b.dataset.v;
+  const X = { contract: 'w-contract', receipt: 'w-receipt', video: 'w-video', sim: 'w-sim', handoff: 'w-hoopen' };
+  const act = a === 'u-fabgo' ? X[(FABA[v]?.[2] || '').slice(2)] : a; if (!act) return;
+  if (act === 'w-contract') return ctrSheet();
+  if (act === 'w-receipt') return busy(() => receiptSheet());
+  if (act === 'w-video') return reportVideo().catch(err => toast('영상을 못 만들었어요: ' + err.message));
+  if (act === 'w-sim') { S.sim = null; return simSheet(); }
+  if (act === 'w-hoopen') return handoffSheet();
+  if (act === 'w-cpick') { $('#w-cn').value = v; return $('#w-ce').focus(); }
+  if (act === 'w-cadd') { const n = $('#w-cn').value.trim(), end = $('#w-ce').value; if (!n || !end) return toast('이름과 끝나는 날을 넣어주세요'); return busy(async () => { await cfgSave({ contracts: [...(CFG().contracts || []), { n, end, memo: $('#w-cm').value.trim() || undefined }].sort((x, y) => x.end.localeCompare(y.end)) }); ctrSheet(); toast(`${n} 계약을 등록했어요`); }); }
+  if (act === 'w-cdel') return busy(async () => { const L = [...(CFG().contracts || [])]; L.splice(+b.dataset.i, 1); await cfgSave({ contracts: L }); ctrSheet(); });
+  if (act === 'w-rmon') return busy(() => receiptSheet(v));
+  if (act === 'w-rzip') return busy(() => receiptZip(v)).catch?.(() => { });
+  if (act === 'w-train') return trainSheet();
+  if (act === 'w-tmem') return trainSheet(v);
+  if (act === 'w-tchk') return busy(async () => { const D = { ...(CFG().trainDone || {}) }, s = new Set(D[S.trMid] || []), i = +b.dataset.i; s.has(i) ? s.delete(i) : s.add(i); D[S.trMid] = [...s]; await cfgSave({ trainDone: D }); const T = CFG().train || TRAIN0; if (s.size === T.length) toast('🎓 교육을 다 마쳤어요!'); trainSheet(); });
+  if (act === 'w-tsave') { const L = $('#w-tlist').value.split('\n').map(x => x.trim()).filter(Boolean).slice(0, 30); if (!L.length) return; return busy(async () => { await cfgSave({ train: L }); trainSheet(); toast('교육 항목을 저장했어요'); }); }
+  if (act === 'w-level') return levelSheet();
+  if (act === 'w-star') return busy(async () => { const K = { ...(CFG().skill || {}) }, m = b.dataset.m; K[m] = { ...(K[m] || {}), [b.dataset.k]: +v }; await cfgSave({ skill: K }); const sc = $('#sheet').scrollTop; levelSheet(); $('#sheet').scrollTop = sc; });
+  if (act === 'w-vshare') { const f = S.vfile; if (!f) return; if (navigator.canShare?.({ files: [f] })) return navigator.share({ files: [f], title: f.name }).catch(() => { }); const l = document.createElement('a'); l.href = URL.createObjectURL(f); l.download = f.name; l.click(); return; }
+  if (act === 'w-simreset') { S.sim = null; return simSheet(); }
+  if (act === 'w-hocreate') return busy(async () => handoffSheet(await q(sb.rpc('handoff_create', { p_store: S.store.id }))));
+  if (act === 'w-hopeek') return busy(async () => { const t = $('#w-hotok').value.trim().toUpperCase(), r = await q(sb.rpc('handoff_peek', { p_token: t })), el = $('#w-hoinfo'); if (!r) return el.innerHTML = '<p class="note">코드가 없거나 기한이 지났어요</p>'; el.innerHTML = `<div class="promo" style="margin-top:8px"><span><b>${esc(r.store)}</b> ${esc(r.area || '')} · 기록 ${r.months}개월 · 누적 매출 ₩${man(r.sales)} · 직원 ${r.staff}명</span></div><label class="fl">내 회사 이름 <small class="mut">(처음이면 새로 만들어요)</small><input id="w-hoco" value="${esc(r.store)}"></label><button class="btn pri full" data-act="w-hoaccept" data-v="${esc(t)}">이 매장 받기</button>`; });
+  if (act === 'w-hoaccept') return busy(async () => { await q(sb.rpc('handoff_accept', { p_token: v, p_company: $('#w-hoco')?.value || '' })); closeSheet(); toast('매장을 받았어요. 기록이 그대로 있어요'); await boot(); });
+  if (act === 'w-insta') { const cap = instaCaption(); (navigator.clipboard?.writeText(cap) || Promise.reject()).then(() => toast('캡션을 복사했어요 · 공유창에서 인스타를 고르고 붙여 넣으세요'), () => toast('캡션: ' + cap.slice(0, 60))); return setTimeout(() => F68['poster-form'](), 400); }
+});
