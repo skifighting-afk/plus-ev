@@ -2101,7 +2101,7 @@ function menuSheet() {
   <label class="mn-tog"><span><b>폰 설정 따라 밝게·어둡게</b><small>낮엔 밝은 화면, 밤엔 어두운 화면 자동</small></span><input type="checkbox" data-act="theme" data-v="${lsGet('ev_theme') === 'auto' ? 'mint' : 'auto'}" ${lsGet('ev_theme') === 'auto' ? 'checked' : ''}></label>
   ${S.user ? `<div class="mn-lb">알림·보안</div><div class="mn-list"><button data-act="dnd"><span class="mn-ic">🌙</span>방해 금지 시간 <small class="mut" style="margin-left:4px">${S.prof?.dnd?.f ? `${S.prof.dnd.f}~${S.prof.dnd.t}` : '꺼짐'}</small><i>›</i></button><button data-act="pin-set"><span class="mn-ic">🔒</span>앱 잠금 (PIN) <small class="mut" style="margin-left:4px">${lsGet('ev_pin') ? '켜짐 · 이 폰' : '꺼짐'}</small><i>›</i></button><button data-act="logout-all"><span class="mn-ic">📱</span>모든 기기에서 로그아웃<i>›</i></button></div>` : ''}
   <label class="mn-tog"><span><b>글자 크게</b><small>모든 화면 글자를 조금 크게</small></span><input type="checkbox" data-act="big" ${lsGet('ev_big') === '1' ? 'checked' : ''}></label>
-  <div class="mn-lb">기타 <small class="mut" style="font-weight:400">v0.86 · 포스터 스튜디오·사진 마감·매장 공지·지난 주문·보기 전용 링크 · 한 번에 세팅 · 매장 키우기 퀘스트 · 매장 준비 10단계 · 기능 켜기/끄기 · 근무 일괄 확정 · 가져오기 · 화면 정리: 홈 접기 · 경고 요약 · 직원 카드 접기 · 출퇴근 고치기 안내</small></div>
+  <div class="mn-lb">기타 <small class="mut" style="font-weight:400">v0.87 · 포스터 배경·무늬·내 사진 붙이기·문구 추천 · 한 번에 세팅 · 매장 키우기 퀘스트 · 매장 준비 10단계 · 기능 켜기/끄기 · 근무 일괄 확정 · 가져오기 · 화면 정리: 홈 접기 · 경고 요약 · 직원 카드 접기 · 출퇴근 고치기 안내</small></div>
   <div class="mn-list"><a href="guide.html#${S.mode === 'store' ? 'owner' : S.mode}" target="_blank" rel="noopener"><span class="mn-ic"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2zM4 21V5M8 7h7"/></svg></span>사용법 보기<i>›</i></a>
   ${S.user && (S.user.app_metadata?.provider || 'email') === 'email' ? `<button data-act="pw-change"><span class="mn-ic"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg></span>비밀번호 바꾸기<i>›</i></button>` : ''}
   ${S.user ? '<button data-act="myset"><span class="mn-ic">🧩</span>내 화면 · 기기 · 단축키<i>›</i></button>' : ''}
@@ -3904,6 +3904,10 @@ const PT = {
   vip: { n: '골드 VIP', bg: ['#000000', '#141008'], fg: '#f7e7b4', sub: '#cdbb88', ac: '#e9c46a', pos: 'center', al: 'center', deco: 'double' },
   photo: { n: '사진 풀배경', bg: ['#111', '#222'], fg: '#ffffff', sub: '#e5e5e5', ac: '#3ddc84', pos: 'bottom', al: 'left', deco: 'shade' }
 };
+const PBG = [['#0b0d0c', '#1c221f'], ['#0a0620', '#24104a'], ['#2a0303', '#7a0d0d'], ['#000000', '#3a2a08'], ['#03203a', '#0b6e8a'], ['#0d2b1d', '#1f7a4c'], ['#3b0a45', '#c2185b'], ['#ff6a00', '#ee0979'], ['#141e30', '#243b55'], ['#f6f4ef', '#d9d2c3'], ['#fdfbfb', '#ebedee'], ['#1a1a1a', '#1a1a1a']];
+const PPAT = { none: '없음', suits: '♠♥ 문양', chips: '칩', dots: '점', lines: '사선', cards: '카드' };
+// 포스터 문구 예시 (AI 없이도 바로 고를 수 있게) — [제목, 한 줄 소개]
+const PCOPY = [['토요 데일리 토너먼트', '초보 환영 · 룰 설명해 드려요'], ['금요일 밤 딥스택', '긴 블라인드, 진짜 실력 승부'], ['레이디스 나이트', '여성 고객 첫 게임 무료 음료'], ['신규 오픈 기념 이벤트', '첫 방문 손님께 웰컴 드링크'], ['월말 챔피언십', '이번 달 랭킹 1위를 가립니다'], ['초보자 홀덤 교실', '칩 잡는 법부터 차근차근']];
 const PSIZE = { feed: [1080, 1350, '피드 4:5'], story: [1080, 1920, '스토리 9:16'], sq: [1080, 1080, '정사각형'] };
 const PFONT = { 'Noto Sans KR': '기본', 'Black Han Sans': '굵은 제목', 'Do Hyeon': '도현', 'Jua': '주아', 'Gowun Dodum': '부드럽게' };
 function pFontLoad() { if (S.pfLoaded) return; S.pfLoaded = 1; const l = document.createElement('link'); l.rel = 'stylesheet'; l.href = 'https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Do+Hyeon&family=Jua&family=Gowun+Dodum&display=swap'; document.head.appendChild(l); }
@@ -3913,18 +3917,26 @@ function posterOpen() {
   openSheet(`<h2>🎨 포스터 스튜디오</h2><p class="sub">템플릿을 고르고 글자를 적으면 바로 보여요. 미리보기의 글자는 끌어서 옮길 수 있어요.</p>
   <div class="pt-row">${Object.entries(PT).map(([k, t]) => `<button type="button" class="pt ${P.tpl === k ? 'on' : ''}" data-act="pt" data-v="${k}" style="--a:${t.bg[0]};--b:${t.bg[1]};--c:${t.ac}"><i></i><small>${t.n}</small></button>`).join('')}</div>
   <canvas id="poster-cv" style="width:100%;max-width:420px;display:block;margin:10px auto;border-radius:12px;touch-action:none;cursor:grab"></canvas>
+  <div class="row" style="gap:6px;flex-wrap:wrap;justify-content:center"><label class="btn sm" style="cursor:pointer">🖼 배경을 내 사진으로<input type="file" id="p-bg" accept="image/*" hidden></label><label class="btn sm" style="cursor:pointer">🙂 내 사진·로고 붙이기<input type="file" id="p-ov" accept="image/*" hidden></label>${P.img ? '<button type="button" class="btn sm" data-act="pbg-off">배경 사진 빼기</button>' : ''}${P.ov ? '<button type="button" class="btn sm" data-act="pov-off">붙인 사진 빼기</button>' : ''}</div>
+  ${P.ov ? '<p class="note" style="text-align:center">붙인 사진을 끌면 사진이, 글자를 끌면 글자가 움직여요</p>' : ''}
   <form class="f" id="poster-form">
     <div class="seg" style="margin-bottom:8px">${Object.entries(PSIZE).map(([k, v]) => `<button type="button" data-act="psize" data-v="${k}" aria-pressed="${P.size === k}">${v[2]}</button>`).join('')}</div>
     <label class="fl">이벤트 이름<input name="t" value="${esc(P.t)}" placeholder="예: 토요 데일리 토너먼트" required></label>
     <div class="grid2"><label class="fl">날짜<input type="date" name="d" value="${P.d}"></label><label class="fl">시작<input type="time" name="s" value="${P.s}"></label></div>
     <label class="fl">참가비 <small class="mut">(선택)</small><input name="fee" value="${esc(P.fee)}" placeholder="예: 3만 원"></label>
     <label class="fl">한 줄 소개 <small class="mut">(선택)</small><input name="sub" maxlength="40" value="${esc(P.sub)}" placeholder="예: 초보 환영 · 룰 설명해 드려요"></label>
+    <div class="fl"><span>문구 고르기 <small class="mut">누르면 바로 들어가요</small></span><div class="row" style="gap:6px;flex-wrap:wrap">${(S.pcopy || PCOPY).map((c, i) => `<button type="button" class="chip" data-act="pcopy" data-i="${i}">${esc(c[0])}</button>`).join('')}<button type="button" class="chip" data-act="pcopy-ai">✨ AI 문구 추천 <span class="pill g">PRO</span></button></div></div>
     <details class="more" open><summary>디자인 조절</summary>
       <div class="grid2"><label class="fl">포인트 색<input type="color" name="ac" value="${P.ac || T.ac}"></label><label class="fl">글꼴<select name="font">${Object.entries(PFONT).map(([k, l]) => `<option value="${k}" ${P.font === k ? 'selected' : ''}>${l}</option>`).join('')}</select></label></div>
       <label class="fl">글자 크기 <small class="mut" id="p-sc">${Math.round(P.scale * 100)}%</small><input type="range" name="scale" min="0.7" max="1.4" step="0.05" value="${P.scale}"></label>
       <div class="row" style="gap:6px;flex-wrap:wrap"><span class="mut" style="font-size:12px">정렬</span>${[['left', '왼쪽'], ['center', '가운데']].map(([k, l]) => `<button type="button" class="btn sm ${(P.al || T.al) === k ? 'pri' : ''}" data-act="palign" data-v="${k}">${l}</button>`).join('')}<button type="button" class="btn sm" data-act="preset">위치 처음으로</button></div>
-      <div class="fl" style="margin-top:8px"><span>배경 사진 <small class="mut">매장·테이블 사진을 넣으면 고급스러워져요</small></span><div class="row" style="gap:6px"><label class="btn sm" style="cursor:pointer">📷 사진 넣기<input type="file" id="p-bg" accept="image/*" hidden></label>${P.img ? '<button type="button" class="btn sm" data-act="pbg-off">사진 빼기</button>' : ''}</div></div>
-      ${P.img ? `<label class="fl">사진 어둡게 <small class="mut">${P.dim}%</small><input type="range" name="dim" min="0" max="85" step="5" value="${P.dim}"></label>` : ''}
+      <div class="fl" style="margin-top:8px"><span>배경</span><div class="pbg-row">${PBG.map((b, i) => `<button type="button" class="pbg" data-act="pbg" data-i="${i}" style="--a:${b[0]};--b:${b[1]}" aria-label="배경 ${i + 1}"></button>`).join('')}</div></div>
+      <div class="grid2"><label class="fl">배경 색 1<input type="color" name="bg1" value="${P.bg1 || T.bg[0]}"></label><label class="fl">배경 색 2<input type="color" name="bg2" value="${P.bg2 || T.bg[1]}"></label></div>
+      <div class="seg" style="margin:6px 0">${[['lin', '그라데이션'], ['rad', '가운데 빛'], ['solid', '단색']].map(([k, l]) => `<button type="button" data-act="pbgs" data-v="${k}" aria-pressed="${(P.bgs || 'lin') === k}">${l}</button>`).join('')}</div>
+      <div class="fl"><span>무늬</span><div class="row" style="gap:6px;flex-wrap:wrap">${Object.entries(PPAT).map(([k, l]) => `<button type="button" class="btn sm ${(P.pat || 'def') === k ? 'pri' : ''}" data-act="ppat" data-v="${k}">${l}</button>`).join('')}</div></div>
+      <label class="fl">글자 색<input type="color" name="fg" value="${P.fg || T.fg}"></label>
+      ${P.img ? `<label class="fl">배경 사진 어둡게 <small class="mut">${P.dim}%</small><input type="range" name="dim" min="0" max="85" step="5" value="${P.dim}"></label>` : ''}
+      ${P.ov ? `<label class="fl">붙인 사진 크기 <small class="mut">${Math.round((P.osz || .3) * 100)}%</small><input type="range" name="osz" min="0.12" max="0.9" step="0.02" value="${P.osz || .3}"></label><div class="row" style="gap:6px">${[['circle', '동그랗게'], ['round', '둥근 네모'], ['none', '그대로']].map(([k, l]) => `<button type="button" class="btn sm ${(P.osh || 'circle') === k ? 'pri' : ''}" data-act="posh" data-v="${k}">${l}</button>`).join('')}</div>` : ''}
     </details>
     <p class="note">현금 상금·환전처럼 사행성으로 보일 수 있는 문구는 넣지 마세요.</p>
     <div class="row" style="gap:6px"><button type="button" class="btn" data-act="psave">내 템플릿 저장</button><button class="btn pri" style="flex:1">이미지 저장·공유</button></div></form>`);
@@ -3933,34 +3945,45 @@ function posterOpen() {
 function posterDraw() {
   const c = $('#poster-cv'); if (!c) return; const P = pState(), T = PT[P.tpl], [W, H] = PSIZE[P.size]; if (c.width !== W || c.height !== H) { c.width = W; c.height = H; }
   const x = c.getContext('2d'), ac = P.ac || T.ac, al = P.al || T.al, sc = +P.scale || 1, F = (z, w = 900) => `${w} ${Math.round(z * sc)}px "${P.font}", "Noto Sans KR", sans-serif`;
-  const g = x.createLinearGradient(0, 0, W * .4, H); g.addColorStop(0, T.bg[0]); g.addColorStop(1, T.bg[1]); x.fillStyle = g; x.fillRect(0, 0, W, H);
+  const b1 = P.bg1 || T.bg[0], b2 = P.bg2 || T.bg[1], fg = P.fg || T.fg, sub = P.fg ? P.fg + 'b3' : T.sub, bs = P.bgs || 'lin';
+  const g = bs === 'rad' ? x.createRadialGradient(W / 2, H * .42, 20, W / 2, H * .42, Math.max(W, H) * .75) : x.createLinearGradient(0, 0, W * .4, H); g.addColorStop(0, bs === 'rad' ? b2 : b1); g.addColorStop(1, bs === 'rad' ? b1 : b2); x.fillStyle = bs === 'solid' ? b1 : g; x.fillRect(0, 0, W, H);
   if (P.imgEl) { const im = P.imgEl, k = Math.max(W / im.width, H / im.height); x.drawImage(im, (W - im.width * k) / 2, (H - im.height * k) / 2, im.width * k, im.height * k); x.fillStyle = `rgba(0,0,0,${P.dim / 100})`; x.fillRect(0, 0, W, H); }
-  x.save();
+  x.save(); const pat = P.pat && P.pat !== 'def' ? P.pat : (T.deco === 'suits' ? 'suits' : 'none'); x.fillStyle = x.strokeStyle = fg; x.globalAlpha = .07;
+  if (pat === 'dots') for (let yy = 30; yy < H; yy += 60) for (let xx = (yy / 60 % 2) * 30 + 30; xx < W; xx += 60) { x.beginPath(); x.arc(xx, yy, 6, 0, 7); x.fill(); }
+  if (pat === 'lines') { x.lineWidth = 14; for (let k = -H; k < W; k += 70) { x.beginPath(); x.moveTo(k, 0); x.lineTo(k + H, H); x.stroke(); } }
+  if (pat === 'chips') { x.lineWidth = 10; [[.12, .1, 120], [.88, .16, 90], [.1, .86, 100], [.9, .9, 140], [.78, .55, 60]].forEach(([a, b, r]) => { x.beginPath(); x.arc(W * a, H * b, r, 0, 7); x.stroke(); x.setLineDash([r * .35, r * .35]); x.beginPath(); x.arc(W * a, H * b, r * .72, 0, 7); x.stroke(); x.setLineDash([]); }); }
+  if (pat === 'cards') { x.lineWidth = 8; [[.06, .05, -12], [.74, .7, 14], [.7, .04, 8]].forEach(([a, b, r]) => { x.save(); x.translate(W * a, H * b); x.rotate(r * Math.PI / 180); x.strokeRect(0, 0, 220, 310); x.font = '120px serif'; x.fillText('♠', 50, 200); x.restore(); }); }
+  if (pat === 'suits') { x.font = '220px serif'; ['♠', '♥', '♦', '♣'].forEach((ch, i) => x.fillText(ch, (i % 2) * W * .62 + 40, i < 2 ? 260 : H - 80)); }
+  x.globalAlpha = 1;
   if (T.deco === 'frame') { x.strokeStyle = ac; x.lineWidth = 3; x.strokeRect(54, 54, W - 108, H - 108); }
   if (T.deco === 'double') { x.strokeStyle = ac; x.lineWidth = 6; x.strokeRect(48, 48, W - 96, H - 96); x.lineWidth = 2; x.strokeRect(70, 70, W - 140, H - 140); }
   if (T.deco === 'bar') { x.fillStyle = ac; x.fillRect(0, 0, 24, H); }
   if (T.deco === 'glow') { const r = x.createRadialGradient(W * .8, H * .2, 10, W * .8, H * .2, W * .7); r.addColorStop(0, ac + '55'); r.addColorStop(1, 'transparent'); x.fillStyle = r; x.fillRect(0, 0, W, H); }
-  if (T.deco === 'suits') { x.fillStyle = 'rgba(255,255,255,.06)'; x.font = '220px serif'; ['♠', '♥', '♦', '♣'].forEach((ch, i) => x.fillText(ch, (i % 2) * W * .62 + 40, i < 2 ? 260 : H - 80)); }
   if (T.deco === 'shade') { const s2 = x.createLinearGradient(0, H * .35, 0, H); s2.addColorStop(0, 'transparent'); s2.addColorStop(1, 'rgba(0,0,0,.85)'); x.fillStyle = s2; x.fillRect(0, 0, W, H); }
   x.restore();
+  if (P.ovEl) { const im = P.ovEl, z = W * (P.osz || .3), k = z / Math.max(im.width, im.height), w = im.width * k, hh = im.height * k, ox = W * (P.ox ?? .76) - w / 2, oy = H * (P.oy ?? .74) - hh / 2, sh = P.osh || 'circle'; P.obox = [ox, oy, w, hh];
+    x.save(); x.beginPath(); if (sh === 'circle') { const r = Math.min(w, hh) / 2; x.arc(ox + w / 2, oy + hh / 2, r, 0, 7); } else if (sh === 'round') x.roundRect(ox, oy, w, hh, 36); else x.rect(ox, oy, w, hh); x.save(); x.clip();
+    if (sh === 'circle') { const r = Math.min(w, hh) / 2, s2 = r * 2 / Math.min(w, hh); x.drawImage(im, ox + w / 2 - w * s2 / 2, oy + hh / 2 - hh * s2 / 2, w * s2, hh * s2); } else x.drawImage(im, ox, oy, w, hh);
+    x.restore(); if (sh !== 'none') { x.lineWidth = 8; x.strokeStyle = ac; x.stroke(); } x.restore(); } else P.obox = null;
   const pad = 120, mx = W - pad * 2, X = (al === 'center' ? W / 2 : pad) + (P.dx || 0); x.textAlign = al; x.textBaseline = 'alphabetic';
   const wrap = (t, z) => { x.font = F(z); const o = []; let l = ''; for (const w of String(t).split(' ')) { const cc = l ? l + ' ' + w : w; if (x.measureText(cc).width > mx && l) { o.push(l); l = w; } else l = cc; } if (l) o.push(l); return o.slice(0, 4); };
   const title = wrap(P.t || '이벤트 이름', 118), [, mm, dd] = (P.d || TODAY).split('-').map(Number), wd = E.WD[E.wdOf(...(P.d || TODAY).split('-').map(Number))];
   // [글꼴, 색, 글, 글자 크기, 아래 여백] — 글자 크기만큼 내려서 그려야 줄이 안 겹침
-  const lines = [[F(40, 800), ac, (S.store?.name || '').toUpperCase(), 40, 34], ...title.map((l, i) => [F(118), T.fg, l, 118, i === title.length - 1 ? 46 : 14]), [F(76, 900), ac, `${mm}/${dd} (${wd})  ${P.s || ''}`, 76, 40], ...(P.fee ? [[F(52, 700), T.fg, `참가비 ${P.fee}`, 52, 24]] : []), ...(P.sub ? [[F(42, 500), T.sub, P.sub, 42, 0]] : [])];
+  const lines = [[F(40, 800), ac, (S.store?.name || '').toUpperCase(), 40, 34], ...title.map((l, i) => [F(118), fg, l, 118, i === title.length - 1 ? 46 : 14]), [F(76, 900), ac, `${mm}/${dd} (${wd})  ${P.s || ''}`, 76, 40], ...(P.fee ? [[F(52, 700), fg, `참가비 ${P.fee}`, 52, 24]] : []), ...(P.sub ? [[F(42, 500), sub, P.sub, 42, 0]] : [])];
   const h = lines.reduce((a, l) => a + (l[3] + l[4]) * sc, 0), y0 = (T.pos === 'top' ? 190 : T.pos === 'bottom' ? H - h - 190 : (H - h) / 2) + (P.dy || 0);
   let y = y0; lines.forEach(([f, col, t, z, gap], i) => { y += z * sc; x.font = f; x.fillStyle = col; if (T.deco === 'glow' && i > 0) { x.shadowColor = ac; x.shadowBlur = 24; } x.fillText(t, X, y); x.shadowBlur = 0; y += gap * sc; });
-  x.textAlign = 'center'; x.font = F(34, 600); x.fillStyle = T.sub; x.fillText(`📍 ${S.store?.name || ''}${S.store?.area ? ' · ' + S.store.area : ''}`, W / 2, H - 90);
+  x.textAlign = 'center'; x.font = F(34, 600); x.fillStyle = sub; x.fillText(`📍 ${S.store?.name || ''}${S.store?.area ? ' · ' + S.store.area : ''}`, W / 2, H - 90);
 }
 function pSet(k, v) { pState()[k] = v; posterDraw(); }
-document.addEventListener('input', e => { const f = e.target.closest?.('#poster-form'); if (!f) return; const n = e.target.name; if (!n) return; pSet(n, ['scale', 'dim'].includes(n) ? +e.target.value : e.target.value); if (n === 'scale') { const el = $('#p-sc'); if (el) el.textContent = Math.round(e.target.value * 100) + '%'; } });
+document.addEventListener('input', e => { const f = e.target.closest?.('#poster-form'); if (!f) return; const n = e.target.name; if (!n) return; if (n === 'fg') pState().fgSet = 1; pSet(n, ['scale', 'dim', 'osz'].includes(n) ? +e.target.value : e.target.value); if (n === 'scale') { const el = $('#p-sc'); if (el) el.textContent = Math.round(e.target.value * 100) + '%'; } });
 document.addEventListener('change', e => {
   if (e.target.name === 'font' && e.target.closest?.('#poster-form')) { pSet('font', e.target.value); document.fonts?.load(`40px "${e.target.value}"`).then(posterDraw); }
+  if (e.target.id === 'p-ov' && e.target.files[0]) { const fl = e.target.files[0]; e.target.value = ''; const im = new Image(); im.onload = () => { Object.assign(pState(), { ovEl: im, ov: 1 }); posterOpen(); }; im.src = URL.createObjectURL(fl); }
   if (e.target.id === 'p-bg' && e.target.files[0]) { const fl = e.target.files[0]; e.target.value = ''; const im = new Image(); im.onload = () => { const P = pState(); P.imgEl = im; P.img = 1; if (P.tpl !== 'photo' && !P.picked) P.tpl = 'photo'; posterOpen(); }; im.src = URL.createObjectURL(fl); }
 });
 { let drag = null; // 미리보기에서 글자 덩어리 끌어서 옮기기
-  document.addEventListener('pointerdown', e => { if (e.target.id !== 'poster-cv') return; const c = e.target, k = c.width / c.clientWidth, P = pState(); drag = { x: e.clientX, y: e.clientY, k, dx: P.dx || 0, dy: P.dy || 0 }; c.setPointerCapture(e.pointerId); });
-  document.addEventListener('pointermove', e => { if (!drag || e.target.id !== 'poster-cv') return; const P = pState(); P.dx = drag.dx + (e.clientX - drag.x) * drag.k; P.dy = drag.dy + (e.clientY - drag.y) * drag.k; posterDraw(); });
+  document.addEventListener('pointerdown', e => { if (e.target.id !== 'poster-cv') return; const c = e.target, k = c.width / c.clientWidth, P = pState(); const r = c.getBoundingClientRect(), px = (e.clientX - r.left) * k, py = (e.clientY - r.top) * k, b = P.obox; drag = { x: e.clientX, y: e.clientY, k, dx: P.dx || 0, dy: P.dy || 0, ov: !!(b && px >= b[0] && px <= b[0] + b[2] && py >= b[1] && py <= b[1] + b[3]), ox: P.ox ?? .76, oy: P.oy ?? .74, W: c.width, H: c.height }; c.setPointerCapture(e.pointerId); });
+  document.addEventListener('pointermove', e => { if (!drag || e.target.id !== 'poster-cv') return; const P = pState(), mx = (e.clientX - drag.x) * drag.k, my = (e.clientY - drag.y) * drag.k; if (drag.ov) { P.ox = drag.ox + mx / drag.W; P.oy = drag.oy + my / drag.H; } else { P.dx = drag.dx + mx; P.dy = drag.dy + my; } posterDraw(); });
   document.addEventListener('pointerup', () => { drag = null; }); }
 F68['poster-form'] = async () => {
   posterDraw(); const c = $('#poster-cv'), blob = await new Promise(r => c.toBlob(r, 'image/png')), file = new File([blob], 'event-poster.png', { type: 'image/png' });
@@ -4024,12 +4047,19 @@ async function shareView(token) {
 document.addEventListener('click', e => {
   const b = e.target.closest('[data-act]'); if (!b) return; const a = b.dataset.act;
   if (a === 'poster') return posterOpen();
-  if (a === 'pt') { const P = pState(); P.tpl = b.dataset.v; P.ac = null; P.al = null; P.picked = 1; return posterOpen(); }
+  if (a === 'pt') { const P = pState(); P.tpl = b.dataset.v; Object.assign(P, { ac: null, al: null, bg1: null, bg2: null, fg: null, fgSet: 0, pat: null, bgs: null, picked: 1 }); return posterOpen(); }
+  if (a === 'pbg') { const [b1, b2] = PBG[+b.dataset.i], P = pState(); Object.assign(P, { bg1: b1, bg2: b2, bgs: b1 === b2 ? 'solid' : (P.bgs === 'solid' ? 'lin' : P.bgs) }); if (!P.fgSet) { const lum = parseInt(b1.slice(1, 3), 16) + parseInt(b1.slice(3, 5), 16) + parseInt(b1.slice(5, 7), 16); P.fg = lum > 600 ? '#111111' : null; } return posterOpen(); }
+  if (a === 'pbgs') { pState().bgs = b.dataset.v; return posterOpen(); }
+  if (a === 'ppat') { pState().pat = b.dataset.v; return posterOpen(); }
+  if (a === 'posh') { pState().osh = b.dataset.v; return posterOpen(); }
+  if (a === 'pov-off') { Object.assign(pState(), { ovEl: null, ov: 0 }); return posterOpen(); }
+  if (a === 'pcopy') { const [t, sub] = (S.pcopy || PCOPY)[+b.dataset.i]; Object.assign(pState(), { t, sub }); return posterOpen(); }
+  if (a === 'pcopy-ai') return busy(async () => { const P = pState(), fm = $('#poster-form'); if (fm) Object.assign(P, formVals(fm)); const { data, error } = await sb.functions.invoke('ai', { body: { store_id: S.store.id, mode: 'poster', topic: [P.t && '이벤트: ' + P.t, P.fee && '참가비: ' + P.fee, P.d && '날짜: ' + P.d, P.s && '시작: ' + P.s, P.sub && '메모: ' + P.sub].filter(Boolean).join('\n') || '홀덤펍 이벤트', store: S.store.name, area: S.store.area || '' } }); if (error || !data?.ok) return toast(data?.msg || 'AI가 지금 답하지 않아요'); const L = String(data.text).split('\n').map(l => l.split('|').map(x => x.trim())).filter(l => l[0]).slice(0, 5); if (!L.length) return toast('문구를 못 만들었어요. 다시 눌러 주세요'); S.pcopy = L; posterOpen(); toast('AI 문구 ' + L.length + '개 · 눌러서 고르세요'); });
   if (a === 'psize') { pState().size = b.dataset.v; return posterOpen(); }
   if (a === 'palign') { pState().al = b.dataset.v; pState().dx = 0; return posterOpen(); }
   if (a === 'preset') { Object.assign(pState(), { dx: 0, dy: 0 }); return posterDraw(); }
   if (a === 'pbg-off') { Object.assign(pState(), { imgEl: null, img: 0 }); return posterOpen(); }
-  if (a === 'psave') { const { imgEl, img, box, t, d, fee, sub, ...keep } = pState(); try { localStorage.setItem('ev-poster', JSON.stringify(keep)); } catch { } if (isOwner()) busy(() => cfgSave({ poster: keep })); return toast('내 템플릿으로 저장했어요 · 다음엔 글자만 바꾸면 돼요'); }
+  if (a === 'psave') { const { imgEl, img, ovEl, ov, obox, box, t, d, fee, sub, ...keep } = pState(); try { localStorage.setItem('ev-poster', JSON.stringify(keep)); } catch { } if (isOwner()) busy(() => cfgSave({ poster: keep })); return toast('내 템플릿으로 저장했어요 · 다음엔 글자만 바꾸면 돼요'); }
   if (a === 'ntc-ok') return busy(async () => { await q(sb.rpc('notice_read', { p_id: +b.dataset.v })); const n = (S.ntc || []).find(x => x.id === +b.dataset.v), me = S.my?.[S.mi || 0]; if (n && me) n.reads = { ...(n.reads || {}), [me.id]: new Date().toISOString() }; render(); toast('확인했어요'); });
   if (a === 'reorder') { const o = S.orders?.[0]; if (!o) return; S.cart = {}; o.items.forEach(i => { if (item(i.id)) S.cart[i.id] = i.q; }); render(); return toast('지난 주문을 그대로 담았어요. 수량 확인하고 주문하세요'); }
   if (a === 'share-open') return busy(shareSheet);

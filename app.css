@@ -881,3 +881,5 @@ details.warnc>summary,details.card>summary,.ltmore>summary,.empd>summary{cursor:
 .pt-row{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}.pt{display:grid;gap:4px;padding:6px;border-radius:10px;border:1.5px solid var(--line2);background:var(--card2);cursor:pointer;color:var(--text)}
 .pt i{display:block;aspect-ratio:4/3;border-radius:6px;background:linear-gradient(160deg,var(--a),var(--b));box-shadow:inset 0 -6px 0 var(--c)}.pt small{font-size:11.5px}.pt.on{border-color:var(--brand-2);box-shadow:0 0 0 2px rgba(var(--brand-rgb),.25)}
 .sh-bar{height:6px;border-radius:3px;background:var(--line);margin:6px 0 4px;overflow:hidden}.sh-bar i{display:block;height:100%;background:var(--brand-2);border-radius:3px}
+/* v0.87 포스터 배경 */
+.pbg-row{display:grid;grid-template-columns:repeat(6,1fr);gap:6px}.pbg{aspect-ratio:1;border-radius:8px;border:1.5px solid var(--line2);background:linear-gradient(160deg,var(--a),var(--b));cursor:pointer;padding:0}
