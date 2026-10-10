@@ -13,6 +13,7 @@ const OWNED = { notifications: 'user_id', inquiries: 'from_user', lesson_progres
 const TODAY0 = () => new Date().toISOString().slice(0, 10);
 const compActive = co => !!co && ((co.plan === 'pro' && co.paid_until && new Date(co.paid_until) > new Date()) || (co.trial_ends && co.trial_ends >= TODAY0()) || (co.diag_until && new Date(co.diag_until) > new Date()));
 function builder(t) {
+  DB[t] = DB[t] || [];
   let op = 'select', payload = null, filters = [], single = false, order = null, lim = 0;
   const b = { select() { return b }, eq(k, v) { filters.push(r => r[k] === v); return b }, neq(k, v) { filters.push(r => r[k] !== v); return b }, not(k, o, v) { const re = new RegExp('^' + String(v).replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/%/g, '.*') + '$'); filters.push(r => !re.test(String(r[k] ?? ''))); return b }, in(k, v) { filters.push(r => v.includes(r[k])); return b }, gte(k, v) { filters.push(r => r[k] >= v); return b }, lte(k, v) { filters.push(r => r[k] <= v); return b }, like(k, v) { const re = new RegExp('^' + v.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/%/g, '.*') + '$'); filters.push(r => re.test(r[k] || '')); return b },
     order(k, o) { order = [k, o?.ascending !== false]; return b }, limit(n) { lim = n; return b }, range(a, z) { lim = z + 1; return b }, or() { return b }, is(k, v) { filters.push(r => (r[k] ?? null) === v); return b }, single() { single = true; return b }, maybeSingle() { single = true; return b },
@@ -57,6 +58,7 @@ function fulfill(o) { const r = DB.payments.find(x => x.order_id === o); if (r.s
 window.__autoPayMethod = 'CARD';
 window.TossPayments = () => ({ payment: () => ({ requestPayment: async o => { window.__lastPay = o; setTimeout(() => window.__evPayReturn({ pay: 'ok', paymentKey: 'pk_test', orderId: o.orderId, amount: o.amount.value }), 30); } }) });
 const RPC = window.__RPC = {
+  guest_visit: ({ p_id }) => { const g = DB.store_guests.find(x => x.id === p_id); if (!g) return 0; g.visits = (g.visits || 0) + 1; g.last_at = TODAY0(); return g.visits; },
   area_dealers() { return { sido: '서울', gu: '강남구', all: 128, sido_n: 64, gu_n: 12, verified: 41, now_on: 3, worked: 37, alert_on: 52, new7: 5, posts30: 18 } },
   hq_dealers() { return DB.profiles.filter(p => p.kind === 'dealer' || p.open_to_sub).map(p => ({ id: p.id, name: p.name, phone: p.phone, verified: !!p.phone_verified_at, area: p.area, career_months: p.career_months || 0, created_at: p.created_at || new Date().toISOString(), done: DB.job_slots.filter(j => j.dealer_id === p.id && ['DONE', 'PAID'].includes(j.status)).length, noshow: 0, now_on: false, banned: false, last_work: null, open_to_sub: !!p.open_to_sub })) },
   company_kpi() { return DB.stores.filter(s => DB.members.some(m => m.user_id === user?.id && m.role === 'owner' && m.company_id === s.company_id)).map((s, i) => ({ store_id: s.id, name: s.name, sales: 4e7 - i * 9e6, profit: 6e6 - i * 4e6, labor: 1.1e7 - i * 1e6, days: 20, diff_abs: 15000 * (i + 1), closes: 19 - i, mgr: i ? '점장B' : '민지', open_today: i ? null : '18:10:00', open_avg: '18:00:00', notice_reads: 2 - i, notice_staff: 3 })) },
