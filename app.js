@@ -2097,7 +2097,7 @@ function menuSheet() {
   <label class="mn-tog"><span><b>폰 설정 따라 밝게·어둡게</b><small>낮엔 밝은 화면, 밤엔 어두운 화면 자동</small></span><input type="checkbox" data-act="theme" data-v="${lsGet('ev_theme') === 'auto' ? 'mint' : 'auto'}" ${lsGet('ev_theme') === 'auto' ? 'checked' : ''}></label>
   ${S.user ? `<div class="mn-lb">알림·보안</div><div class="mn-list"><button data-act="dnd"><span class="mn-ic">🌙</span>방해 금지 시간 <small class="mut" style="margin-left:4px">${S.prof?.dnd?.f ? `${S.prof.dnd.f}~${S.prof.dnd.t}` : '꺼짐'}</small><i>›</i></button><button data-act="pin-set"><span class="mn-ic">🔒</span>앱 잠금 (PIN) <small class="mut" style="margin-left:4px">${lsGet('ev_pin') ? '켜짐 · 이 폰' : '꺼짐'}</small><i>›</i></button><button data-act="logout-all"><span class="mn-ic">📱</span>모든 기기에서 로그아웃<i>›</i></button></div>` : ''}
   <label class="mn-tog"><span><b>글자 크게</b><small>모든 화면 글자를 조금 크게</small></span><input type="checkbox" data-act="big" ${lsGet('ev_big') === '1' ? 'checked' : ''}></label>
-  <div class="mn-lb">기타 <small class="mut" style="font-weight:400">v0.83 · 매장 키우기 퀘스트 · 매장 준비 10단계 · 기능 켜기/끄기 · 근무 일괄 확정 · 가져오기 · 화면 정리: 홈 접기 · 경고 요약 · 직원 카드 접기 · 출퇴근 고치기 안내</small></div>
+  <div class="mn-lb">기타 <small class="mut" style="font-weight:400">v0.84 · 자료 끌어다 놓고 한 번에 세팅 · 매장 키우기 퀘스트 · 매장 준비 10단계 · 기능 켜기/끄기 · 근무 일괄 확정 · 가져오기 · 화면 정리: 홈 접기 · 경고 요약 · 직원 카드 접기 · 출퇴근 고치기 안내</small></div>
   <div class="mn-list"><a href="guide.html#${S.mode === 'store' ? 'owner' : S.mode}" target="_blank" rel="noopener"><span class="mn-ic"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2zM4 21V5M8 7h7"/></svg></span>사용법 보기<i>›</i></a>
   ${S.user && (S.user.app_metadata?.provider || 'email') === 'email' ? `<button data-act="pw-change"><span class="mn-ic"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg></span>비밀번호 바꾸기<i>›</i></button>` : ''}
   ${S.user ? '<button data-act="myset"><span class="mn-ic">🧩</span>내 화면 · 기기 · 단축키<i>›</i></button>' : ''}
@@ -3353,7 +3353,7 @@ document.addEventListener('submit', e => {
       if (S.authMode === 'signup') { lsSet('ev_terms', new Date().toISOString()); const { data, error } = await sb.auth.signUp({ email: v.email, password: v.pw, options: { data: { name: v.name }, emailRedirectTo: location.origin + location.pathname } }); if (error) return toast(error.message.includes('registered') ? '이미 가입된 이메일이에요. 로그인해 주세요' : error.message); if (!data.session) toast('확인 메일을 보냈어요. 메일의 버튼을 눌러주세요'); }
       else { const { error } = await sb.auth.signInWithPassword({ email: v.email, password: v.pw }); if (error) toast(error.message.includes('Invalid') ? '이메일이나 비밀번호가 달라요' : error.message); }
     }
-    if (id === 'owner-form') { if (!bizOk(v.biz)) return toast('사업자등록번호가 맞지 않아요. 사업자등록증의 10자리를 다시 확인해 주세요'); const __cid = await q(sb.rpc('create_company', { p_name: v.name, p_brand: v.brand || null, p_biz_no: v.biz, p_store: v.store, p_area: v.area || null, p_nick: v.nick })); if ((v.ref || '').trim()) await q(sb.rpc('set_company_ref', { p_company: __cid, p_ref: v.ref })); track('store_created'); await q(sb.from('profiles').update({ name: v.nick }).eq('id', S.user.id)); toast('매장을 만들었어요! 이어서 매장에 맞게 준비할게요'); await boot(); if (S.store?.id) wzOpen(2); }
+    if (id === 'owner-form') { if (!bizOk(v.biz)) return toast('사업자등록번호가 맞지 않아요. 사업자등록증의 10자리를 다시 확인해 주세요'); const __cid = await q(sb.rpc('create_company', { p_name: v.name, p_brand: v.brand || null, p_biz_no: v.biz, p_store: v.store, p_area: v.area || null, p_nick: v.nick })); if ((v.ref || '').trim()) await q(sb.rpc('set_company_ref', { p_company: __cid, p_ref: v.ref })); track('store_created'); await q(sb.from('profiles').update({ name: v.nick }).eq('id', S.user.id)); toast('매장을 만들었어요! 이어서 매장에 맞게 준비할게요'); await boot(); if (S.store?.id) obOpen(); }
     if (id === 'dealer-form') { if (v.birth === 'minor') return toast('만 19세 이상(올해 기준)만 가입할 수 있어요'); if ((v.area2 || '').split(/[,·]+/).filter(x => x.trim()).length > 3) return toast('구·시는 3곳까지 넣을 수 있어요'); const sk = [...f.querySelectorAll('[name=sk]:checked')].map(x => x.value);
       await q(sb.rpc('start_dealer', { p_name: v.name, p_phone: v.phone, p_career: +v.career || 0, p_bio: v.bio || '' })); if (S.mode !== 'onboard') await q(sb.from('profiles').update({ area: v.area || null, area2: (v.area2 || '').trim() || null, games: v.games || null, open_to_sub: !!f.open_to_sub?.checked }).eq('id', S.user.id)); const avd = [...f.querySelectorAll('[name=av]:checked')].map(x => +x.value), a2 = (v.area2 || '').split(/[,·]+/).map(x => x.trim()).filter(Boolean);
       await q(sb.from('profiles').update({ skills: sk, ...(v.birth ? { birth_year: +v.birth } : {}), ...(f.elements.av_f ? { avail: avd.length || v.av_f ? { ...(avd.length ? { d: avd } : {}), f: v.av_f || null, t: v.av_t || null } : null } : {}) }).eq('id', S.user.id)); if (S.mode === 'onboard') track('dealer_signup'); toast(S.mode === 'onboard' ? '환영해요! 이제 공고에 바로 지원할 수 있어요' : '저장했어요'); await boot(); }
@@ -3534,6 +3534,7 @@ function setupCard() {
   const L = setupSteps(), n = L.filter(x => x[2]).length, next = Math.max(2, L.findIndex(x => !x[2]));
   return `<div class="card qcard"><div class="qh"><div><small class="qk">매장 키우기 퀘스트</small><b>Lv.${n} · ${RANK[n]}</b></div><button class="btn sm pri" data-act="wz" data-v="${next}">${n > 2 ? '다음 스테이지 ▶' : '게임 시작 ▶'}</button></div>
   ${xpBar(n)}${questMap(L, next)}
+  <button class="ob-cta" data-act="ob-open"><b>📂 자료 끌어다 놓고 한 번에 세팅</b><small>근무표·직원 명단·매출 장부 사진이나 엑셀만 올리세요</small></button>
   <p class="note" style="margin:8px 0 0">다음: <b>${SICON[next]} ${L[next][1]}</b> · 클리어하면 +100 XP · <span class="mut">마감·매출 입력은 지금 바로 돼요</span></p></div>`;
 }
 // 한 줄 문장 → 설정 제안 (규칙 기반, 프로 AI 없이 무료). 못 읽은 값은 비워 둠
@@ -3739,4 +3740,93 @@ document.addEventListener('click', e => {
   if (a === 'fill-sug') { const L = S.sug = fillSug(); if (!L.length) return toast('남은 날 중 비는 자리가 없거나, 넣을 수 있는 직원이 없어요');
     return openSheet(`<h2>빈자리 자동 추천 <small>${L.length}개</small></h2><p class="sub">적정 인원보다 적은 날에, 이번 달 근무가 적은 직원부터 넣었어요. 휴무 신청한 날은 뺐어요. 확인하고 넣으세요.</p>
       <form class="f" id="sug-form">${L.map((x, i) => { const [, mm, dd] = x.k.split('-').map(Number); return `<label class="tog"><span><b>${mm}/${dd}(${E.WD[E.wdOf(...x.k.split('-').map(Number))]}) ${esc(x.p.nick)}</b><small>${x.s}–${x.e}</small></span><input type="checkbox" name="s_${i}" checked></label>`; }).join('')}<button class="btn pri full">체크한 근무 넣기</button></form>`); }
+});
+
+// ===== v0.84 한 번에 세팅: 자료 끌어다 놓기 → 스캔 → 확인 → 한 번에 적용 =====
+// 엑셀·CSV는 기기 안에서 바로 읽고, 사진은 AI(scan)가 읽음. 저장은 사장이 확인한 뒤에만.
+const KIND = { roster: ['👥', '직원 명단'], sched: ['📅', '고정 근무표'], sales: ['🧾', '지난 매출'], none: ['❔', '알 수 없음'] };
+function detectKind(t) {
+  const L = String(t || '').split('\n').map(l => l.trim()).filter(Boolean).slice(0, 30); if (!L.length) return 'none';
+  const n = re => L.filter(l => re.test(l)).length;
+  if (n(/^(\d{4}[.\-/년]\s*)?\d{1,2}[.\-/월]\s*\d{1,2}/) >= L.length / 2) return 'sales';
+  if (n(/\d{1,2}(:\d{2}|시).*\d{1,2}(:\d{2}|시)/) >= L.length / 2 && n(/[월화수목금토일]|매일|평일|주말/) >= L.length / 2) return 'sched';
+  if (n(/[가-힣A-Za-z]{2,}.*\d{4,}/) >= L.length / 2 || /시급|연락처|이름|성명/.test(L[0])) return 'roster';
+  return 'none';
+}
+async function scanFile(file) {
+  if (file.type.startsWith('image/')) {
+    const img = await createImageBitmap(file), z = Math.min(1, 1600 / Math.max(img.width, img.height)), c = document.createElement('canvas'); c.width = img.width * z; c.height = img.height * z; c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+    const { data, error } = await sb.functions.invoke('ai', { body: { store_id: S.store.id, mode: 'scan', image: c.toDataURL('image/jpeg', .85) } });
+    if (error || !data?.ok) return { kind: 'none', text: '', err: data?.msg || '사진을 못 읽었어요' };
+    return { kind: KIND[data.kind] ? data.kind : 'none', text: String(data.text || '').trim() };
+  }
+  const text = (await fileText(file)) || ''; return { kind: detectKind(text), text: text.replace(/\r/g, '').trim() };
+}
+const ob = () => (S.ob = S.ob || { items: [], say: '' });
+function obCount(it) {
+  if (it.kind === 'roster') { const L = bulkRows(it.text); return `${L.length}명 인식`; }
+  if (it.kind === 'sched') { const nw = new Set(ob().items.filter(x => x.kind === 'roster').flatMap(x => bulkRows(x.text).map(r => r.nick))), L = schedRows(it.text), ok = L.filter(r => r.wds.length && r.s && r.e && (r.p || nw.has(r.name))).length; return `${L.length}명 · 연결 가능 ${ok}명${ok < L.length ? ' · 이름이 직원과 다르면 고쳐주세요' : ''}`; }
+  if (it.kind === 'sales') { const L = salesRows(it.text); return `${L.length}일 · 새 날짜 ${L.filter(r => r.ok && !r.dup).length}일`; }
+  return it.err || '어떤 자료인지 모르겠어요 · 종류를 골라주세요';
+}
+function obItem(it, i) {
+  const [ic, nm] = KIND[it.kind];
+  if (it.st === 'scan') return `<div class="scan-it on"><div class="scan-th">${it.thumb ? `<img src="${it.thumb}" alt="">` : '<b>📄</b>'}<i class="scan-line"></i></div><div class="scan-tx"><b>${esc(it.name)}</b><small class="scan-msg">스캔 중입니다… 조금만 기다려 주세요</small><div class="scan-bar"><i></i></div></div></div>`;
+  return `<div class="scan-it ${it.kind === 'none' ? 'bad' : 'ok'}"><div class="scan-th">${it.thumb ? `<img src="${it.thumb}" alt="">` : `<b>${ic}</b>`}</div><div class="scan-tx"><b>${ic} ${nm}</b><small>${esc(it.name)} · ${obCount(it)}</small>
+    <div class="row" style="gap:4px;margin-top:6px;flex-wrap:wrap"><select data-ob-kind="${i}" aria-label="자료 종류">${Object.entries(KIND).map(([k, [, l]]) => `<option value="${k}" ${k === it.kind ? 'selected' : ''}>${l}</option>`).join('')}</select><button type="button" class="btn sm" data-act="ob-edit" data-v="${i}">내용 보기·고치기</button><button type="button" class="btn sm" data-act="ob-del" data-v="${i}" aria-label="빼기">✕</button></div>
+    ${it.open ? `<textarea data-ob-text="${i}" rows="6" style="width:100%;margin-top:6px">${esc(it.text)}</textarea>` : ''}</div></div>`;
+}
+function obOpen() {
+  if (!isOwner()) return toast('대표만 할 수 있어요');
+  const O = ob(), busyN = O.items.filter(x => x.st === 'scan').length, ready = O.items.filter(x => x.st !== 'scan' && x.kind !== 'none');
+  openSheet(`<div class="qtop"><span class="qstage">한 번에 세팅</span><span class="qxp">자료만 올리면 끝</span></div>
+  <h2 class="qtitle">📂 가지고 있는 자료를 끌어다 놓으세요</h2><p class="sub">근무표·직원 명단·매출 장부를 <b>사진, 캡처, 엑셀</b> 그대로 올리면 알아서 읽어요. 저장은 확인한 뒤에만 해요.</p>
+  <label class="drop-z" id="ob-drop" tabindex="0"><input type="file" id="ob-file" multiple accept="image/*,.xlsx,.xls,.csv,.txt" hidden><b>여기에 끌어다 놓기</b><small>또는 눌러서 고르기 · 여러 개 한 번에 · 캡처는 Ctrl+V로 붙여넣기</small></label>
+  <div class="scan-list">${O.items.map(obItem).join('')}</div>
+  <label class="fl">영업시간 한 줄로 <small class="mut">(선택)</small><input id="ob-say" value="${esc(O.say)}" placeholder="예: 오후 6시~새벽 4시, 월요일 휴무"></label>
+  <p class="note">사진 읽기는 AI라 프로·무료 체험에서 돼요. 엑셀·CSV는 언제나 돼요. 직원 명단 → 근무표 순서로 저장해서 이름을 자동으로 이어요.</p>
+  <div class="row" style="margin-top:10px"><button type="button" class="btn" data-act="wz" data-v="2">하나씩 직접 할게요</button><button type="button" class="btn pri" style="flex:1" data-act="ob-apply" ${busyN || (!ready.length && !O.say.trim()) ? 'disabled' : ''}>${busyN ? `스캔 중… ${busyN}개` : `세팅 완료하기${ready.length ? ` · 자료 ${ready.length}개` : ''}`}</button></div>`);
+}
+async function obAdd(files) {
+  const O = ob();
+  for (const f of files) {
+    const it = { name: f.name || '붙여넣은 캡처', st: 'scan', kind: 'none', text: '' };
+    if (f.type.startsWith('image/')) it.thumb = URL.createObjectURL(f);
+    O.items.push(it); obOpen();
+    const t0 = Date.now();
+    try { Object.assign(it, await scanFile(f)); } catch (e) { it.err = '읽지 못했어요'; }
+    await new Promise(r => setTimeout(r, Math.max(0, 900 - (Date.now() - t0)))); // 너무 빨리 끝나면 스캔한 느낌이 안 나서 최소 0.9초
+    it.st = 'done'; obOpen();
+  }
+}
+async function obApply() {
+  const O = ob(), before = cleared(), done = [], by = k => O.items.filter(x => x.st === 'done' && x.kind === k).map(x => x.text).join('\n');
+  if (O.say.trim()) { const r = sayParse(O.say); if (r.open && r.close) { await cfgSave({ open: r.open, close: r.close, cut: CFG().cut ?? cutOf(r.open, r.close), offwd: r.offwd || CFG().offwd || [] }); done.push('영업시간'); } }
+  const R = bulkRows(by('roster')); if (R.length) { await q(sb.from('members').insert(R.map(r => ({ ...r, company_id: S.store.company_id, store_id: S.store.id, role: 'staff', contract: '3.3', emp_type: '파트타임', night_pay: true })))); done.push(`직원 ${R.length}명`); await reload(); }
+  const W = schedRows(by('sched')).filter(r => r.ok); if (W.length) { await q(sb.from('shift_templates').upsert(W.flatMap(r => r.wds.map(w => ({ member_id: r.p.id, weekday: w, start_t: r.s, end_t: r.e, break_min: r.brk }))))); await cfgSave({ sched: CFG().sched || 'mix' }); done.push(`고정 근무 ${W.length}명`); }
+  const Y = salesRows(by('sales')).filter(r => r.ok && !r.dup); if (Y.length) { await q(sb.from('daily_reports').insert(Y.map(r => ({ store_id: S.store.id, report_date: r.k, sales: r.sales, card: r.card, cash: r.cash, transfer: r.tr, reported_by: S.user.id, memo: '한 번에 세팅', detail: { src: 'import' } })))); done.push(`매출 ${Y.length}일`); }
+  if (!done.length) return toast('저장할 내용이 없어요. 자료 종류를 확인해 주세요');
+  S.ob = null; closeSheet(); await reload(); render();
+  const after = cleared(); for (let n = before + 1; n <= after; n++) await stageClear(n);
+  toast(`세팅했어요 · ${done.join(' · ')}`);
+  const next = setupSteps().findIndex(x => !x[2]); if (next > 0 && next < 9) wzOpen(next);
+}
+document.addEventListener('change', e => {
+  if (e.target.id === 'ob-file' && e.target.files.length) { const F = [...e.target.files]; e.target.value = ''; obAdd(F); }
+  if (e.target.dataset?.obKind != null) { const it = ob().items[+e.target.dataset.obKind]; it.kind = e.target.value; it.err = null; obOpen(); }
+});
+document.addEventListener('input', e => {
+  if (e.target.id === 'ob-say') ob().say = e.target.value;
+  if (e.target.dataset?.obText != null) ob().items[+e.target.dataset.obText].text = e.target.value;
+});
+document.addEventListener('dragover', e => { const z = e.target.closest?.('#ob-drop'); if (z) { e.preventDefault(); z.classList.add('hot'); } });
+document.addEventListener('dragleave', e => e.target.closest?.('#ob-drop')?.classList.remove('hot'));
+document.addEventListener('drop', e => { if (!e.target.closest?.('#ob-drop')) return; e.preventDefault(); obAdd([...e.dataTransfer.files]); });
+document.addEventListener('paste', e => { if (!$('#ob-drop')) return; const F = [...(e.clipboardData?.files || [])]; if (F.length) { e.preventDefault(); obAdd(F); } });
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-act]'); if (!b) return; const a = b.dataset.act;
+  if (a === 'ob-open') return obOpen();
+  if (a === 'ob-edit') { const it = ob().items[+b.dataset.v]; it.open = !it.open; return obOpen(); }
+  if (a === 'ob-del') { ob().items.splice(+b.dataset.v, 1); return obOpen(); }
+  if (a === 'ob-apply') return busy(obApply);
 });

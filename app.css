@@ -860,3 +860,17 @@ details.warnc>summary,details.card>summary,.ltmore>summary,.empd>summary{cursor:
 @keyframes qpop{from{transform:scale(.5);opacity:0}to{transform:scale(1);opacity:1}}
 @keyframes qburst{from{transform:rotate(var(--a)) translateY(0) scale(.4);opacity:1}to{transform:rotate(var(--a)) translateY(calc(-1 * var(--d))) scale(1);opacity:0}}
 @media (prefers-reduced-motion:reduce){.qn.cur i,.qc-in,.chip-p,.xp i{animation:none;transition:none}.chip-p{display:none}}
+/* v0.84 한 번에 세팅 — 드롭존 · 스캔 */
+.ob-cta{display:grid;gap:2px;width:100%;text-align:left;margin-top:10px;padding:12px 14px;border-radius:12px;border:1.5px dashed rgba(var(--brand-rgb),.6);background:rgba(var(--brand-rgb),.08);color:var(--text);cursor:pointer}.ob-cta b{font-size:15px}.ob-cta small{color:var(--muted);font-size:12px}
+.drop-z{display:grid;place-items:center;gap:4px;text-align:center;padding:26px 14px;margin:12px 0;border-radius:16px;border:2px dashed var(--line2);background:var(--card2);cursor:pointer;transition:.2s}
+.drop-z b{font-size:17px}.drop-z small{color:var(--muted);font-size:12.5px}.drop-z::before{content:'⬆';font-size:26px;width:52px;height:52px;display:grid;place-items:center;border-radius:50%;background:rgba(var(--brand-rgb),.14);color:var(--brand-2)}
+.drop-z.hot,.drop-z:hover,.drop-z:focus-visible{border-color:var(--brand-2);background:rgba(var(--brand-rgb),.1);outline:none}
+.scan-list{display:grid;gap:8px}
+.scan-it{display:grid;grid-template-columns:64px 1fr;gap:10px;padding:10px;border-radius:12px;border:1px solid var(--line2);background:var(--card)}.scan-it.ok{border-color:rgba(var(--brand-rgb),.45)}.scan-it.bad{border-color:rgba(245,185,66,.5)}
+.scan-th{position:relative;width:64px;height:64px;border-radius:10px;overflow:hidden;background:var(--card2);display:grid;place-items:center;font-size:26px}.scan-th img{width:100%;height:100%;object-fit:cover}
+.scan-tx{min-width:0;display:grid;align-content:center;gap:2px}.scan-tx small{color:var(--muted);font-size:12px}.scan-tx select{font-size:12.5px;padding:4px 6px;border-radius:8px}
+.scan-line{position:absolute;left:0;right:0;height:3px;background:var(--brand-2);box-shadow:0 0 12px 3px rgba(var(--brand-rgb),.7);animation:scanY 1.1s ease-in-out infinite alternate}
+.scan-bar{height:4px;border-radius:2px;background:var(--line);overflow:hidden;margin-top:6px}.scan-bar i{display:block;height:100%;width:40%;background:var(--brand-2);border-radius:2px;animation:scanX 1.2s ease-in-out infinite}
+.scan-it.on .scan-msg{color:var(--brand-2);font-weight:700}
+@keyframes scanY{from{top:4%}to{top:92%}}@keyframes scanX{from{transform:translateX(-100%)}to{transform:translateX(250%)}}
+@media (prefers-reduced-motion:reduce){.scan-line,.scan-bar i{animation:none}}
