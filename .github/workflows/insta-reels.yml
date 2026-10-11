@@ -1,0 +1,110 @@
+name: 인스타 릴스 자동 제작 (+EV)
+
+# 매일 2번(10:07 · 16:07 KST) 앞으로 3일 안에 올라갈 draft 중 대본이 있는 것을 영상으로 만든다.
+# Higgsfield Seedance 실사 8초 + 자막 + 앱·엔딩 장면 + 나레이션 → insta-media 브랜치 → Supabase insta-reels sync → status ready.
+# 게시는 기존 Supabase insta-bot(30분마다)이 정해진 시간에 한다. 이 작업은 게시하지 않는다.
+# 비밀값: HF_API_KEY_ID, HF_API_KEY_SECRET (없으면 리허설만, 회색 자리 영상으로 경로 확인)
+on:
+  schedule:
+    - cron: '7 1,7 * * *'
+  workflow_dispatch:
+    inputs:
+      slug:
+        description: '특정 영상만 (예: o06). 비우면 큐 순서대로'
+        required: false
+        default: ''
+      dry:
+        description: '리허설 (Higgsfield 안 쓰고 경로만 확인)'
+        type: boolean
+        default: false
+
+concurrency:
+  group: insta-reels
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  make:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: 큐 확인
+        id: q
+        run: |
+          n=$(curl -fsS "https://hkcmsjwuwopxritafreg.supabase.co/functions/v1/insta-reels?queue=1&days=3" | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>console.log(JSON.parse(s).queue.length))")
+          echo "큐 $n건"; echo "n=$n" >> "$GITHUB_OUTPUT"
+      - name: 영상 브랜치 가져오기
+        if: steps.q.outputs.n != '0'
+        run: |
+          git fetch --depth 1 origin insta-media && git worktree add media origin/insta-media || { mkdir -p media; echo '{}' > media/manifest.json; }
+          ls media
+      - name: 도구 준비 (한글 글꼴 · ffmpeg · 화면 렌더)
+        if: steps.q.outputs.n != '0'
+        timeout-minutes: 20
+        run: |
+          export DEBIAN_FRONTEND=noninteractive
+          for n in 1 2 3; do timeout 300 sudo -E apt-get update -qq >/dev/null && timeout 400 sudo -E apt-get install -y -qq --no-install-recommends fonts-noto-cjk ffmpeg >/dev/null && break; sleep 10; done
+          npm install --no-save --no-audit --no-fund playwright@1.56.0 >/dev/null
+          timeout 600 npx playwright install --with-deps chromium >/dev/null
+      - uses: actions/setup-python@v5
+        if: steps.q.outputs.n != '0'
+        with:
+          python-version: '3.10'
+      - name: 목소리 모델 캐시
+        if: steps.q.outputs.n != '0'
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/pip
+            ~/.cache/huggingface
+          key: melotts-v1
+      - name: 목소리 모델 준비 (MeloTTS)
+        if: steps.q.outputs.n != '0'
+        continue-on-error: true
+        timeout-minutes: 20
+        run: |
+          pip install -q torch torchaudio --index-url https://download.pytorch.org/whl/cpu
+          pip install -q git+https://github.com/myshell-ai/MeloTTS.git
+          python -m unidic download >/dev/null
+          python -c "import nltk;[nltk.download(x,quiet=True) for x in ['averaged_perceptron_tagger','averaged_perceptron_tagger_eng','cmudict']]"
+          python -c "from melo.api import TTS" && echo "REEL_PYTHON=$(which python)" >> "$GITHUB_ENV"
+      - name: 릴스 만들기
+        if: steps.q.outputs.n != '0'
+        env:
+          HF_API_KEY_ID: ${{ secrets.HF_API_KEY_ID }}
+          HF_API_KEY_SECRET: ${{ secrets.HF_API_KEY_SECRET }}
+        run: |
+          extra=""
+          [ "${{ github.event.inputs.dry }}" = "true" ] && extra="--dry"
+          [ -n "${{ github.event.inputs.slug }}" ] && extra="$extra --slug ${{ github.event.inputs.slug }}"
+          NODE_PATH=$(pwd)/node_modules node tools/insta/make.mjs --media media --days 3 --max 2 $extra
+      - name: 미리보기 보관
+        if: always() && steps.q.outputs.n != '0'
+        uses: actions/upload-artifact@v4
+        with:
+          name: reels-${{ github.run_id }}
+          path: |
+            work/*/final.mp4
+            work/DRY-*.mp4
+            media/manifest.json
+          retention-days: 7
+          if-no-files-found: ignore
+      - name: 영상 브랜치에 올리기 (커밋 1개로 유지)
+        if: steps.q.outputs.n != '0' && github.event.inputs.dry != 'true'
+        run: |
+          mkdir pub && cp media/manifest.json pub/ && (cp media/*.mp4 pub/ 2>/dev/null || true)
+          cd pub && git init -q && git checkout -q -b insta-media
+          git -c user.name=reel-bot -c user.email=reel-bot@users.noreply.github.com add -A
+          git -c user.name=reel-bot -c user.email=reel-bot@users.noreply.github.com commit -qm "insta media $(date -u +%F' '%H:%M)"
+          git push -qf "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" insta-media
+      - name: Supabase에 바로 반영 (ready)
+        if: steps.q.outputs.n != '0' && github.event.inputs.dry != 'true'
+        run: |
+          sleep 20
+          curl -fsS -X POST -H 'Content-Type: application/json' -d '{"action":"sync"}' https://hkcmsjwuwopxritafreg.supabase.co/functions/v1/insta-reels; echo
