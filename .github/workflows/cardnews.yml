@@ -1,0 +1,43 @@
+name: 카드뉴스 렌더 (+EV 메타 광고)
+
+# 수동 실행: 주차(W1 또는 W1,W2)를 고르면 1080x1350 JPG를 cardnews-out 브랜치와 실행 결과 파일로 남긴다.
+on:
+  workflow_dispatch:
+    inputs:
+      weeks:
+        description: '주차 (예: W1 또는 W1,W2). 비우면 전부'
+        required: false
+        default: 'W1'
+  push:
+    branches: [main]
+    paths: ['tools/cardnews/**']
+
+permissions:
+  contents: write
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: 도구 준비
+        run: |
+          sudo apt-get update -qq >/dev/null && sudo apt-get install -y -qq --no-install-recommends fonts-noto-cjk >/dev/null
+          npm install --no-save --no-audit --no-fund playwright@1.56.0 >/dev/null
+          npx playwright install --with-deps chromium >/dev/null
+      - name: 렌더
+        run: node tools/cardnews/render.mjs cardnews-out "${{ github.event.inputs.weeks || '' }}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cardnews-${{ github.run_id }}
+          path: cardnews-out/
+      - name: cardnews-out 브랜치에 올리기
+        run: |
+          cd cardnews-out && git init -q && git checkout -q -b cardnews-out
+          git -c user.name=card-bot -c user.email=card-bot@users.noreply.github.com add -A
+          git -c user.name=card-bot -c user.email=card-bot@users.noreply.github.com commit -qm "cardnews $(date -u +%F' '%H:%M)"
+          git push -qf "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" cardnews-out
