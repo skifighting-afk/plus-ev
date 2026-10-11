@@ -3,7 +3,7 @@ name: 인스타 릴스 자동 제작 (+EV)
 # 매일 2번(10:07 · 16:07 KST) 앞으로 3일 안에 올라갈 draft 중 대본이 있는 것을 영상으로 만든다.
 # Higgsfield Seedance 실사 8초 + 자막 + 앱·엔딩 장면 + 나레이션 → insta-media 브랜치 → Supabase insta-reels sync → status ready.
 # 게시는 기존 Supabase insta-bot(30분마다)이 정해진 시간에 한다. 이 작업은 게시하지 않는다.
-# 비밀값: HF_API_KEY_ID, HF_API_KEY_SECRET (없으면 리허설만, 회색 자리 영상으로 경로 확인)
+# 비밀값: HF_API_KEY (키 한 줄) 또는 HF_API_KEY_ID + HF_API_KEY_SECRET (없으면 리허설만, 회색 자리 영상으로 경로 확인)
 on:
   schedule:
     - cron: '7 1,7 * * *'
@@ -77,6 +77,7 @@ jobs:
       - name: 릴스 만들기
         if: steps.q.outputs.n != '0'
         env:
+          HF_API_KEY: ${{ secrets.HF_API_KEY }}
           HF_API_KEY_ID: ${{ secrets.HF_API_KEY_ID }}
           HF_API_KEY_SECRET: ${{ secrets.HF_API_KEY_SECRET }}
         run: |

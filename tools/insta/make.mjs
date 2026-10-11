@@ -2,7 +2,7 @@
 // 흐름: insta-reels 큐 조회 → Higgsfield Seedance 실사 8초 → 자막 2줄 → 앱·엔딩 장면(render.mjs) → 나레이션(MeloTTS)
 //      → 합치기(15.6초) → media/<slug>-<시각>.mp4 + media/manifest.json 기록. 게시는 Supabase insta-bot이 기존 시간대로 한다.
 // 사용: node tools/insta/make.mjs --media media [--slug o06] [--days 3] [--max 2] [--dry]
-//   HF_API_KEY_ID / HF_API_KEY_SECRET 이 없거나 --dry 이면 실사 대신 회색 자리 영상으로 리허설만 한다(매니페스트에 올리지 않음).
+//   HF_API_KEY (또는 HF_API_KEY_ID + HF_API_KEY_SECRET) 가 없거나 --dry 이면 실사 대신 회색 자리 영상으로 리허설만 한다(매니페스트에 올리지 않음).
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
@@ -13,7 +13,8 @@ const MEDIA = path.resolve(arg("media", "media"));
 const ONLY = arg("slug", "");
 const DAYS = Number(arg("days", 3));
 const MAX = Number(arg("max", 2));
-const KEY = process.env.HF_API_KEY_ID && process.env.HF_API_KEY_SECRET ? `${process.env.HF_API_KEY_ID}:${process.env.HF_API_KEY_SECRET}` : "";
+// 키 한 줄(HF_API_KEY, 보통 "ID:Secret" 모양) 또는 ID·Secret 두 개 중 있는 쪽을 쓴다
+const KEY = (process.env.HF_API_KEY || "").trim() || (process.env.HF_API_KEY_ID && process.env.HF_API_KEY_SECRET ? `${process.env.HF_API_KEY_ID}:${process.env.HF_API_KEY_SECRET}` : "");
 const DRY = arg("dry", false) === true || !KEY;
 const FN = "https://hkcmsjwuwopxritafreg.supabase.co/functions/v1";
 const RAW = "https://raw.githubusercontent.com/skifighting-afk/plus-ev/insta-media/";
