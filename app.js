@@ -398,13 +398,13 @@ function vOnboard() {
     <div class="choice"><button data-act="onb" data-v="owner"><b>대표·점장 및 매장이에요</b><small>매장 PC에 켜 두고 매출·스케줄·급여·구인을 관리해요. 처음 등록은 사업자등록번호가 필요해요.</small></button>
     <button data-act="onb" data-v="dealer"><b>딜러·스태프예요</b><small>공고를 보고 지원하거나, 매장 가입코드로 소속될 수 있어요. 공고 지원은 무료예요.</small></button></div>
     <p class="note">점장도 먼저 딜러·스태프로 가입해 매장 초대 링크(가입코드)로 소속 신청하세요. 대표님이 승인한 뒤 점장 권한을 주면 돼요.</p>`;
-  if (k === 'owner') return `<h1>매장 등록</h1><p class="sub">사업자등록번호가 없으면 가입할 수 없어요. 첫 달 무료로 시작해요.</p>
+  if (k === 'owner') return `<h1>매장 등록</h1><p class="sub">사업자등록번호가 없으면 가입할 수 없어요. 첫 달 무료로 시작해요.</p><div id="slot5"></div>
     <form class="f card" id="owner-form"><label class="fl">회사(상호)<input name="name" required placeholder="예: 로얄플러시"></label>
     <label class="fl">브랜드 (프랜차이즈면)<input name="brand" list="brand-list" autocomplete="off" placeholder="골라도 되고 직접 써도 돼요 · 없으면 비워두세요"><datalist id="brand-list"><option value="ES 홀덤펍"><option value="KPC 홀덤"><option value="KT Stadium"><option value="MZ"><option value="VIP홀덤펍"><option value="WDHL"><option value="WDHL JUNIOR"><option value="골드버튼 홀덤펍"><option value="러너펍"><option value="몬스터홀덤펍"><option value="미믹"><option value="블랙레이디"><option value="쇼다운홀덤펍"><option value="시저스홀덤"><option value="액시스 홀덤펍"><option value="야자수"><option value="엠더블유(MW)홀덤펍"><option value="잭펍(JACKPUB)"><option value="젠틀래빗"><option value="포카드 홀덤펍"><option value="하이롤러"><option value="홀덤클라쓰"><option value="홀팡(HOLPANG)"></datalist></label>
     <label class="fl">사업자등록번호 (10자리)<input name="biz" required inputmode="numeric" placeholder="123-45-67890"></label>
     <label class="fl">첫 매장 이름<input name="store" required placeholder="예: 강남 1호점"></label>
     <label class="fl">지역<input name="area" placeholder="예: 서울 강남"></label>
-    <label class="fl">추천인 <small class="mut">(선택 · 소개해 준 분 이름)</small><input name="ref" placeholder="없으면 비워두세요"></label>
+    <div class="fl"><span>추천인 <small class="mut">(선택 · 입점 축하금 5만 원을 받을 분 · 비워두면 대표님께 드려요)</small></span><div class="grid2"><input name="ref" maxlength="30" placeholder="이름"><input name="ref_phone" inputmode="tel" maxlength="13" placeholder="010-0000-0000" data-tel="1"></div></div>
     <label class="fl">대표님 이름<input name="nick" required value="${esc(S.prof.name)}"></label>
     <button class="btn pri full">매장 만들기</button><button class="btn full" type="button" data-act="onb" data-v="">뒤로</button></form>`;
   return `<h1>딜러·스태프로 시작</h1><p class="sub">매장이 지원자 목록에서 보는 내용이에요. 연락처는 채용된 뒤에만 매장에 보여요.</p>
@@ -2102,7 +2102,7 @@ function menuSheet() {
   <label class="mn-tog"><span><b>폰 설정 따라 밝게·어둡게</b><small>낮엔 밝은 화면, 밤엔 어두운 화면 자동</small></span><input type="checkbox" data-act="theme" data-v="${lsGet('ev_theme') === 'auto' ? 'mint' : 'auto'}" ${lsGet('ev_theme') === 'auto' ? 'checked' : ''}></label>
   ${S.user ? `<div class="mn-lb">알림·보안</div><div class="mn-list"><button data-act="dnd"><span class="mn-ic">🌙</span>방해 금지 시간 <small class="mut" style="margin-left:4px">${S.prof?.dnd?.f ? `${S.prof.dnd.f}~${S.prof.dnd.t}` : '꺼짐'}</small><i>›</i></button><button data-act="pin-set"><span class="mn-ic">🔒</span>앱 잠금 (PIN) <small class="mut" style="margin-left:4px">${lsGet('ev_pin') ? '켜짐 · 이 폰' : '꺼짐'}</small><i>›</i></button><button data-act="logout-all"><span class="mn-ic">📱</span>모든 기기에서 로그아웃<i>›</i></button></div>` : ''}
   <label class="mn-tog"><span><b>글자 크게</b><small>모든 화면 글자를 조금 크게</small></span><input type="checkbox" data-act="big" ${lsGet('ev_big') === '1' ? 'checked' : ''}></label>
-  <div class="mn-lb">기타 <small class="mut" style="font-weight:400">v0.91 · 영수증 보관함·계약 알림·부가세 미리·리포트 영상·확장 시뮬레이터·양도 인계 · 한 번에 세팅 · 매장 키우기 퀘스트 · 매장 준비 10단계 · 기능 켜기/끄기 · 근무 일괄 확정 · 가져오기 · 화면 정리: 홈 접기 · 경고 요약 · 직원 카드 접기 · 출퇴근 고치기 안내</small></div>
+  <div class="mn-lb">기타 <small class="mut" style="font-weight:400">v0.92 · 하루 선착순 5곳 입점 이벤트 · 한 번에 세팅 · 매장 키우기 퀘스트 · 매장 준비 10단계 · 기능 켜기/끄기 · 근무 일괄 확정 · 가져오기 · 화면 정리: 홈 접기 · 경고 요약 · 직원 카드 접기 · 출퇴근 고치기 안내</small></div>
   <div class="mn-list"><a href="guide.html#${S.mode === 'store' ? 'owner' : S.mode}" target="_blank" rel="noopener"><span class="mn-ic"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2zM4 21V5M8 7h7"/></svg></span>사용법 보기<i>›</i></a>
   ${S.user && (S.user.app_metadata?.provider || 'email') === 'email' ? `<button data-act="pw-change"><span class="mn-ic"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg></span>비밀번호 바꾸기<i>›</i></button>` : ''}
   ${S.user ? '<button data-act="myset"><span class="mn-ic">🧩</span>내 화면 · 기기 · 단축키<i>›</i></button>' : ''}
@@ -3358,7 +3358,7 @@ document.addEventListener('submit', e => {
       if (S.authMode === 'signup') { lsSet('ev_terms', new Date().toISOString()); const { data, error } = await sb.auth.signUp({ email: v.email, password: v.pw, options: { data: { name: v.name }, emailRedirectTo: location.origin + location.pathname } }); if (error) return toast(error.message.includes('registered') ? '이미 가입된 이메일이에요. 로그인해 주세요' : error.message); if (!data.session) toast('확인 메일을 보냈어요. 메일의 버튼을 눌러주세요'); }
       else { const { error } = await sb.auth.signInWithPassword({ email: v.email, password: v.pw }); if (error) toast(error.message.includes('Invalid') ? '이메일이나 비밀번호가 달라요' : error.message); }
     }
-    if (id === 'owner-form') { if (!bizOk(v.biz)) return toast('사업자등록번호가 맞지 않아요. 사업자등록증의 10자리를 다시 확인해 주세요'); const __cid = await q(sb.rpc('create_company', { p_name: v.name, p_brand: v.brand || null, p_biz_no: v.biz, p_store: v.store, p_area: v.area || null, p_nick: v.nick })); if ((v.ref || '').trim()) await q(sb.rpc('set_company_ref', { p_company: __cid, p_ref: v.ref })); track('store_created'); await q(sb.from('profiles').update({ name: v.nick }).eq('id', S.user.id)); toast('매장을 만들었어요! 이어서 매장에 맞게 준비할게요'); await boot(); if (S.store?.id) obOpen(); }
+    if (id === 'owner-form') { const rp = (v.ref_phone || '').replace(/\D/g, ''); if (rp && !/^010\d{8}$/.test(rp)) return toast('추천인 연락처는 010으로 시작하는 11자리로 적어주세요'); if (!bizOk(v.biz)) return toast('사업자등록번호가 맞지 않아요. 사업자등록증의 10자리를 다시 확인해 주세요'); const __cid = await q(sb.rpc('create_company', { p_name: v.name, p_brand: v.brand || null, p_biz_no: v.biz, p_store: v.store, p_area: v.area || null, p_nick: v.nick })); if ((v.ref || '').trim() || rp) await q(sb.rpc('set_signup_ref', { p_company: __cid, p_name: v.ref || '', p_phone: rp })); track('store_created'); await q(sb.from('profiles').update({ name: v.nick }).eq('id', S.user.id)); toast('매장을 만들었어요! 이어서 매장에 맞게 준비할게요'); await boot(); if (S.store?.id) obOpen(); }
     if (id === 'dealer-form') { if (v.birth === 'minor') return toast('만 19세 이상(올해 기준)만 가입할 수 있어요'); if ((v.area2 || '').split(/[,·]+/).filter(x => x.trim()).length > 3) return toast('구·시는 3곳까지 넣을 수 있어요'); const sk = [...f.querySelectorAll('[name=sk]:checked')].map(x => x.value);
       await q(sb.rpc('start_dealer', { p_name: v.name, p_phone: v.phone, p_career: +v.career || 0, p_bio: v.bio || '' })); if (S.mode !== 'onboard') await q(sb.from('profiles').update({ area: v.area || null, area2: (v.area2 || '').trim() || null, games: v.games || null, open_to_sub: !!f.open_to_sub?.checked }).eq('id', S.user.id)); const avd = [...f.querySelectorAll('[name=av]:checked')].map(x => +x.value), a2 = (v.area2 || '').split(/[,·]+/).map(x => x.trim()).filter(Boolean);
       await q(sb.from('profiles').update({ skills: sk, ...(v.birth ? { birth_year: +v.birth } : {}), ...(f.elements.av_f ? { avail: avd.length || v.av_f ? { ...(avd.length ? { d: avd } : {}), f: v.av_f || null, t: v.av_t || null } : null } : {}) }).eq('id', S.user.id)); if (S.mode === 'onboard') track('dealer_signup'); toast(S.mode === 'onboard' ? '환영해요! 이제 공고에 바로 지원할 수 있어요' : '저장했어요'); await boot(); }
@@ -4475,4 +4475,63 @@ document.addEventListener('click', e => {
   if (act === 'w-hopeek') return busy(async () => { const t = $('#w-hotok').value.trim().toUpperCase(), r = await q(sb.rpc('handoff_peek', { p_token: t })), el = $('#w-hoinfo'); if (!r) return el.innerHTML = '<p class="note">코드가 없거나 기한이 지났어요</p>'; el.innerHTML = `<div class="promo" style="margin-top:8px"><span><b>${esc(r.store)}</b> ${esc(r.area || '')} · 기록 ${r.months}개월 · 누적 매출 ₩${man(r.sales)} · 직원 ${r.staff}명</span></div><label class="fl">내 회사 이름 <small class="mut">(처음이면 새로 만들어요)</small><input id="w-hoco" value="${esc(r.store)}"></label><button class="btn pri full" data-act="w-hoaccept" data-v="${esc(t)}">이 매장 받기</button>`; });
   if (act === 'w-hoaccept') return busy(async () => { await q(sb.rpc('handoff_accept', { p_token: v, p_company: $('#w-hoco')?.value || '' })); closeSheet(); toast('매장을 받았어요. 기록이 그대로 있어요'); await boot(); });
   if (act === 'w-insta') { const cap = instaCaption(); (navigator.clipboard?.writeText(cap) || Promise.reject()).then(() => toast('캡션을 복사했어요 · 공유창에서 인스타를 고르고 붙여 넣으세요'), () => toast('캡션: ' + cap.slice(0, 60))); return setTimeout(() => F68['poster-form'](), 400); }
+});
+
+// ===== v0.92 하루 선착순 5곳 입점 이벤트: 남은 자리 · 마감·00시 초기화 · 추천인(이름·010) · 첫 화면 팝업(다시 보지 않기) · 운영사 현황 =====
+const SLOT5 = { cap: 5, used: 0, at: 0 };
+async function slotLoad(force) { if (!force && Date.now() - SLOT5.at < 30e3) return SLOT5; try { const { data } = await sb.rpc('signup_slots'); if (data) Object.assign(SLOT5, data, { at: Date.now() }); } catch { } return SLOT5; }
+const slotLeft = () => Math.max(0, SLOT5.cap - SLOT5.used);
+const toMidnight = () => { const k = new Date(Date.now() + 9 * 3600e3), m = 1440 - (k.getUTCHours() * 60 + k.getUTCMinutes()); return `${Math.floor(m / 60)}시간 ${m % 60}분`; };
+const slotDots = () => `<div class="s5-dots" aria-label="오늘 ${SLOT5.cap}자리 중 ${slotLeft()}자리 남음">${Array.from({ length: SLOT5.cap }, (_, i) => `<i class="${i < SLOT5.used ? 'on' : ''}"></i>`).join('')}</div>`;
+function slotBox() {
+  const left = slotLeft();
+  return left ? `<div class="s5"><div class="s5-top"><b>오늘 선착순 ${SLOT5.cap}곳 · 남은 자리 <span class="num">${left}</span></b><small>매일 00시에 다시 열려요</small></div>${slotDots()}<small class="mut">입점(매장 등록)만 해도 5만 원 현금 지급 · 운영팀 확인 후 바로 보내 드려요</small></div>`
+    : `<div class="s5 full"><div class="s5-top"><b>오늘 ${SLOT5.cap}곳이 모두 찼어요</b><small>${toMidnight()} 뒤 00시에 다시 열려요</small></div>${slotDots()}</div>`;
+}
+async function slotForm() {
+  const el = $('#slot5'); if (!el || el.dataset.on) return; el.dataset.on = 1; await slotLoad(true); el.innerHTML = slotBox();
+  const f = $('#owner-form'); if (f && !slotLeft()) f.querySelectorAll('input,button.pri').forEach(x => x.disabled = true);
+}
+// 첫 화면 팝업 — '다시 보지 않기'를 누르면 이 기기에서는 다시 안 떠요
+const POP_KEY = 'ev_pop5_never';
+async function promoPop() {
+  if (S.user || location.pathname.includes('/demo') || location.search.includes('share=') || lsGet(POP_KEY) || S.popShown || $('#pop5')) return; S.popShown = 1;
+  await slotLoad(true); const left = slotLeft();
+  document.body.insertAdjacentHTML('beforeend', `<div id="pop5" role="dialog" aria-modal="true" aria-label="하루 선착순 5개 펍 입점 이벤트"><div class="pop5-box">
+    <img src="promo5.webp" alt="하루 선착순 5개 펍 한정 · 주변 매장 또는 내 매장 입점만 해도 5만 원 현금 즉시 지급" width="720" height="903">
+    <div class="pop5-body">${slotBox()}
+      <ul class="pop5-list"><li>주변 홀덤펍을 소개하거나 내 매장을 등록하면 <b>5만 원</b>을 드려요</li><li>소개라면 매장 등록할 때 <b>추천인 이름·연락처(010)</b>를 적어 주세요 · 그분께 보내 드려요</li><li>사업자등록번호가 있는 홀덤펍 · 매장당 1회</li><li>하루 ${SLOT5.cap}곳만 받아요 · 차면 그날은 마감, 00시에 다시 열려요</li></ul>
+      <div class="pop5-act">${left ? '<button class="btn pri full" data-act="pop5-go">지금 매장 등록하기</button>' : '<button class="btn full" disabled>오늘은 마감됐어요</button>'}<div class="row" style="gap:6px"><button class="btn sm" data-act="pop5-never">다시 보지 않기</button><button class="btn sm" data-act="pop5-x" style="flex:1">닫기</button></div></div>
+    </div></div></div>`);
+}
+const popClose = () => $('#pop5')?.remove();
+// 운영사 현황
+function hqSignupCard() {
+  const D = S.hqSign; if (!D) return '<div class="card"><h3>선착순 입점 현황</h3><div class="empty">불러오는 중…</div></div>';
+  const T = D.today || [], mx = Math.max(5, ...(D.days || []).map(x => x.n));
+  const row = x => `<div class="li"><span style="min-width:0"><b>${esc(x.store_name || '')}</b> <small class="mut">${esc(x.company_name || '')} · ${esc(x.area || '')} · 대표 ${esc(x.owner_name || '')} · ${fmtDT(x.created_at)}</small><small style="display:block">추천인 ${x.ref_name || x.ref_phone ? `<b>${esc(x.ref_name || '-')}</b> <span class="num">${esc(x.ref_phone || '')}</span>` : '<span class="mut">없음 · 대표님께 지급</span>'}</small></span><button class="btn sm ${x.paid_at ? '' : 'pri'}" data-act="s5-paid" data-v="${x.id}" data-to="${esc(x.ref_name ? x.ref_name + ' ' + (x.ref_phone || '') : '대표 ' + (x.owner_name || ''))}">${x.paid_at ? '지급 완료' : '5만 원 지급 표시'}</button></div>`;
+  return `<div class="card"><div class="row between"><h3 style="margin:0">선착순 입점 현황 <small>오늘 ${T.length}/5 · 미지급 ${D.unpaid || 0}건 · 누적 ${D.total || 0}곳</small></h3><button class="btn sm" data-act="s5-csv">엑셀</button></div>
+    <div class="s5-slots">${Array.from({ length: 5 }, (_, i) => T[i] ? `<div class="on"><small>${i + 1}</small><b>${esc(T[i].store_name || '')}</b></div>` : `<div><small>${i + 1}</small><b class="mut">빈 자리</b></div>`).join('')}</div>
+    ${T.length >= 5 ? `<p class="note">오늘 마감 · ${toMidnight()} 뒤 00시에 다시 열려요</p>` : ''}
+    ${T.map(row).join('')}
+    <h4 style="margin:14px 0 6px">최근 14일</h4><div class="s5-bars">${(D.days || []).map(x => `<div title="${x.day} ${x.n}곳"><i style="height:${x.n / mx * 100}%"></i><small>${+String(x.day).slice(8)}</small></div>`).join('')}</div>
+    ${(D.refs || []).length ? `<h4 style="margin:14px 0 6px">추천인 순위</h4>${D.refs.map((r, i) => `<div class="li"><span>${i + 1}. <b>${esc(r.ref_name || '-')}</b> <span class="num mut">${esc(r.ref_phone || '')}</span></span><b class="num">${r.n}곳</b></div>`).join('')}` : ''}
+    ${(D.recent || []).filter(x => String(x.day) !== String(SLOT5.day || TODAY)).length ? `<details class="more"><summary>지난 입점 (최근 50곳)</summary>${D.recent.filter(x => !T.some(t => t.id === x.id)).map(row).join('')}</details>` : ''}</div>`;
+}
+const hqSignLoad = () => sb.rpc('hq_signups', { p_days: 14 }).then(({ data }) => { S.hqSign = data || {}; if (S.mode === 'hq' && (!S.tab || S.tab === 'dash')) render(); });
+{ const o = vHqDash; vHqDash = () => { if (!S.hqSign && !S.hqSignBusy) { S.hqSignBusy = 1; hqSignLoad(); } return hqSignupCard() + o(); }; }
+function after92() {
+  if (S.mode === 'auth' || !S.user) promoPop();
+  if ($('#slot5')) slotForm();
+}
+{ const o = after91; after91 = function () { o(); try { after92(); } catch (e) { console.warn(e); } }; }
+{ const o = render; render = function () { o(); if (!S.user) try { after92(); } catch { } }; }
+document.addEventListener('input', e => { if (e.target.dataset?.tel) { const d = e.target.value.replace(/\D/g, '').slice(0, 11); e.target.value = d.length > 7 ? `${d.slice(0, 3)}-${d.slice(3, 7)}-${d.slice(7)}` : d.length > 3 ? `${d.slice(0, 3)}-${d.slice(3)}` : d; } });
+document.addEventListener('click', e => {
+  const b = e.target.closest?.('[data-act^="pop5-"],[data-act^="s5-"]'); if (!b && e.target.id === 'pop5') return popClose(); if (!b) return; const a = b.dataset.act;
+  if (a === 'pop5-x') return popClose();
+  if (a === 'pop5-never') { lsSet(POP_KEY, '1'); popClose(); return toast('이제 이 팝업은 다시 안 떠요'); }
+  if (a === 'pop5-go') { popClose(); if (!S.user) { S.authMode = 'signup'; render(); return toast('가입하고 "대표·점장 및 매장이에요"를 고르면 돼요'); } return; }
+  if (a === 's5-paid') return busy(async () => { await q(sb.rpc('hq_signup_paid', { p_id: +b.dataset.v, p_to: b.dataset.to })); S.hqSign = null; S.hqSignBusy = 0; await hqSignLoad(); toast('바꿨어요'); });
+  if (a === 's5-csv') { const L = S.hqSign?.recent || []; return download(`선착순입점_${TODAY}.csv`, [['날짜', '시각', '회사', '매장', '지역', '대표', '추천인', '추천인 연락처', '지급', '지급 대상'], ...L.map(x => [x.day, fmtDT(x.created_at), x.company_name, x.store_name, x.area, x.owner_name, x.ref_name, x.ref_phone, x.paid_at ? fmtDT(x.paid_at) : '', x.paid_to])]); }
 });
