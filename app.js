@@ -350,6 +350,7 @@ ICON.refresh = '<path d="M20 12a8 8 0 1 1-2.3-5.7M20 4v5h-5"/>'; ICON.menu = '<p
 const svg = k => `<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICON[k]}</svg>`;
 ICON.lounge = ICON.market; ICON.rep = '<path d="M12 3l8 3v6c0 4.5-3.4 8.3-8 9-4.6-.7-8-4.5-8-9V6z"/><path d="M12 8v5M12 16v.5"/>';
 function render() {
+  if (S.sub === 'ops') { S.sub = null; S.tab = S.mode === 'staff' ? 'work' : 'home'; }
   clearInterval(S.qrTimer);
   { const vk = TODAY + (S.mode || 'guest'); if (S.vk !== vk && !location.pathname.includes('/demo')) { S.vk = vk; let vid = lsGet('ev_vid'); if (!vid) { vid = Math.random().toString(36).slice(2) + Date.now().toString(36); lsSet('ev_vid', vid); } let rf = ''; try { rf = document.referrer && !document.referrer.includes(location.host) ? new URL(document.referrer).host : ''; } catch { } sb.rpc('log_visit', { p_vid: vid, p_mode: S.mode || 'guest', p_path: location.pathname, p_ref: rf, p_ua: /Mobi|Android|iPhone/i.test(navigator.userAgent) ? (matchMedia('(display-mode: standalone)').matches ? 'app' : 'mobile') : 'pc' }).then(() => { }, () => { }); } }
   const tabs = uiTabs(TABS[S.mode])?.filter(([k]) => !hideTab(k)), nav = $('#tabs'); if (tabs && hideTab(S.tab)) S.tab = tabs[0]?.[0] || 'home'; nav.hidden = !tabs;
@@ -524,7 +525,7 @@ function vOps() {
   <div class="chips" style="margin:12px 0">${[['all', '전체'], ...K.map(k => [k, NK[k][0]])].map(([k, l]) => `<button class="fchip ${f === k ? 'on' : ''}" data-act="opsf" data-v="${k}">${l}${k !== 'all' && cnt(k) ? ` <b class="num">${cnt(k)}</b>` : ''}</button>`).join('')}</div>
   ${L.map(noteCard).join('') || '<div class="card empty">아직 기록이 없어요. 교대할 때 인수인계부터 남겨보세요.</div>'}`;
 }
-function opsEntry() { return `<button class="card opsent" data-act="ops-open"><div><b>매장 노트</b><small>공지 · 인수인계 · 체크리스트 · 고장 · 분실물 · 투표</small></div><span aria-hidden="true">→</span></button>`; }
+function opsEntry() { return ''; }
 function eduCard(me) { const d = me.checks?.edu || []; if (d.length >= EDU.length) return ''; return `<div class="card"><div class="row between"><b>신입 교육 <small class="mut">${d.length}/${EDU.length}</small></b></div><div class="sktags edu" style="margin-top:6px">${EDU.map(([k, l]) => `<i class="${d.includes(k) ? 'on' : ''}">${d.includes(k) ? '✓ ' : ''}${l}</i>`).join('')}</div><small class="mut">대표·점장님이 교육하고 체크해줘요</small></div>`; }
 async function sosSheet() {
   const st = opsStore(), store = S.mode === 'staff' ? { name: S.store?.name, address: S.store?.address } : S.store;
@@ -658,7 +659,7 @@ function vHome() {
     <p class="note" style="margin-bottom:0">매출 = 매일 마감 · 인건비 = 근무표 자동 · 월세 등 = 고정지출에 한 번만 <button class="btn sm" data-act="fixed">고정지출 넣기</button></p><p class="note">${M.bep && M.bep <= E.daysIn(S.y, S.m) ? `손익분기: <b class="up">${S.m}월 ${M.bep}일</b>에 넘어요.` : '이번 달은 손익분기를 못 넘어요.'}</p></div>
   ${lightsCard(false)}
   ${selfCard()}
-  </div><details class="hmore" ${matchMedia('(min-width:900px)').matches ? 'open' : ''}><summary class="card">더 보기 <small class="mut">월별 손익 · 우리 지역 딜러 · 매장 노트 · 고정비 · 오늘 근무표 · 알림</small></summary><div class="hside">
+  </div><details class="hmore" ${matchMedia('(min-width:900px)').matches ? 'open' : ''}><summary class="card">더 보기 <small class="mut">월별 손익 · 우리 지역 딜러 · 고정비 · 오늘 근무표 · 알림</small></summary><div class="hside">
   ${months.length ? `<div class="card"><h3>월별 손익 <small>매출 − 비용 = 남은 돈</small></h3><div class="pnl">${months.map(x => `<div class="pr"><span class="mut">${x.mm}월</span><span class="num">₩${man(x.s.proj)}</span><span class="num mut">−₩${man(x.s.cost)}</span><span class="pb"><i class="${x.s.left >= 0 ? 'g' : 'r'}" style="width:${Math.max(3, Math.abs(x.s.left) / mx * 100)}%"></i></span><b class="num ${x.s.left >= 0 ? 'up' : 'down'}">${x.s.left < 0 ? '−' : '+'}₩${man(Math.abs(x.s.left))}</b></div>`).join('')}</div>${months.at(-1).yy === y && months.at(-1).mm === m ? '<p class="note">이번 달은 월말 예상이에요.</p>' : ''}</div>` : ''}
   ${opsEntry()}
   ${fixedCard()}
@@ -1066,12 +1067,7 @@ async function subSheet(k, absent) {
     <button type="button" class="btn full" data-act="ext-post" data-d="${k}">외부 공고로 구하기</button></form>`);
 }
 // 연차 (근로기준법 60조, 5인 이상·주 15시간 이상): 1년 미만 월 1일(최대 11), 1년 이상 15일 + 2년마다 1일(최대 25)
-function leaveOf(p) {
-  if (!p.joined_on || wkH(p.id) < 15) return null; const [jy, jm, jd] = p.joined_on.split('-').map(Number), [y, m, d] = TODAY.split('-').map(Number);
-  const mon = (y - jy) * 12 + (m - jm) - (d < jd ? 1 : 0), yrs = Math.floor(mon / 12);
-  if (yrs < 1) return { n: Math.min(11, Math.max(0, mon)), txt: `입사 ${mon}개월 · 매달 1일씩`, next: `${12 - mon}개월 뒤 15일` };
-  return { n: Math.min(25, 15 + Math.floor((yrs - 1) / 2)), txt: `근속 ${yrs}년차`, next: yrs % 2 ? `${yrs + 1}년차부터 +1일` : `${yrs + 2}년차부터 +1일` };
-}
+function leaveOf() { return null; }
 function myWeekCard(me) {
   const [y, m, d] = TODAY.split('-').map(Number), w0 = d - E.wdOf(y, m, d); let h = 0, n = 0;
   for (let i = 0; i < 7; i++) { const dt = new Date(y, m - 1, w0 + i), t = E.shiftOn(me.id, dt.getFullYear(), dt.getMonth() + 1, dt.getDate(), S.tpl, S.ov); if (!t) continue; n++; h += Math.max(0, hoursOf(t5(t.s), t5(t.e)) - (t.brk ?? 0) / 60); }
@@ -1304,9 +1300,7 @@ function upcomingCard() {
   staff.filter(p => p.health_exp).forEach(p => { const k = dd(p.health_exp); if (k <= 30) L.push([k >= 0 ? `D-${k}` : '만료', `${esc(p.nick)} 보건증 ${k >= 0 ? '만료 예정' : '만료됨'}`, 'staff']); });
   const ann = (k0, lab) => { if (!k0) return; const [, mm, dd0] = k0.split('-').map(Number); let k = E.ymd(y, mm, dd0); if (dd(k) < 0) k = E.ymd(y + 1, mm, dd0); const n = dd(k); return n <= 7 ? [n ? `D-${n}` : '오늘', lab(k)] : null; };
   staff.forEach(p => { const b = ann(p.birth, () => `${esc(p.nick)} 생일 🎂`); if (b) L.push([...b, 'staff']); const j = p.joined_on && ann(p.joined_on, k => `${esc(p.nick)} 입사 ${+k.slice(0, 4) - +p.joined_on.slice(0, 4)}주년`); if (j && +j[1].match(/(\d+)주년/)?.[1] > 0) L.push([...j, 'staff']); });
-  (S.expiry || []).forEach(n => { const k = dd(n.data?.date || TODAY); if (k <= 3) L.push([k >= 0 ? `D-${k}` : '지남', `${esc(n.title || '품목')} 유통기한`, 'ops']); });
   const low = staff.filter(p => +p.hourly_rate && +p.hourly_rate < minWage()); if (low.length) L.unshift(['⚠️', `${low.map(p => esc(p.nick)).join('·')} 시급이 ${y}년 최저임금(₩${E.won(minWage())})보다 낮아요`, 'rate']);
-  upcoming68().forEach(x => L.push([...x, 'ops']));
   if (!L.length) return '';
   return `<div class="card upc"><h3>다가오는 일 ${help('upc')} <small>${L.length}개</small></h3>${L.slice(0, 8).map(([t, b, go]) => `<div class="li"><span><span class="pill ${/오늘|지남|만료|⚠️/.test(t) ? 'r' : 'y'}">${t}</span> ${b}</span>${go.startsWith('ins:') ? `<button class="btn sm" data-act="ins-done" data-m="${go.slice(4)}">신고함</button>` : go === 'rate' ? '<button class="btn sm pri" data-act="rate-bulk">맞추기</button>' : go === 'wht' ? '<button class="btn sm" data-act="wht">금액 보기</button>' : go === 'ops' ? '<button class="btn sm" data-act="ops-open">보기</button>' : `<button class="btn sm" data-tab="staff">보기</button>`}</div>`).join('')}</div>`;
 }
@@ -2486,7 +2480,7 @@ function opsExtra() {
 // 직원 앱: 선호 시간 · 조기 퇴근/연장 요청 · 신입 첫 주 · 캘린더 · 청소 당번 · 계산 근거
 function firstWeek(me) {
   if (!me.joined_on || dDay(me.joined_on) < -7) return ''; const ed = me.checks?.edu || [], man0 = itemsOf('manual').length;
-  const T = [['신입 교육 7가지 받기', ed.length >= EDU.length, `${ed.length}/${EDU.length}`], ['매장 매뉴얼 읽기', !!lsGet('ev_fw_man'), man0 ? `${man0}개 · 매장 노트 → 장부` : '아직 없어요'], ['계좌·서류 등록', !!me.bank_acct, '내 정보'], ['비상 연락 확인', !!lsGet('ev_fw_sos'), '🚨 버튼'], ['첫 출근 체크', (S.att || []).some(a => a.kind === 'in'), '출퇴근 탭']];
+  const T = [['신입 교육 7가지 받기', ed.length >= EDU.length, `${ed.length}/${EDU.length}`], ['계좌·서류 등록', !!me.bank_acct, '내 정보'], ['비상 연락 확인', !!lsGet('ev_fw_sos'), '🚨 버튼'], ['첫 출근 체크', (S.att || []).some(a => a.kind === 'in'), '출퇴근 탭']];
   return `<div class="card fw"><h3>첫 주 할 일 👋 <small>입사 ${-dDay(me.joined_on) + 1}일째</small></h3>${T.map(([t, ok, s]) => `<div class="li"><span>${ok ? '✅' : '⬜'} ${t}</span><small class="mut">${s}</small></div>`).join('')}</div>`;
 }
 function workExtra(me) {
@@ -2560,8 +2554,8 @@ function reportSheet() {
   <button class="btn pri full" data-act="print">PDF로 저장 · 인쇄</button><button class="btn full" data-act="rep-copy" style="margin-top:6px">글로 복사 (인쇄창이 안 뜨면)</button>`);
 }
 // ===== 사용성: 오프라인 마감 · 홈 꾸미기 · 즐겨찾기 · 색약 · 첫 화면 · 단축키 · 기기 목록 · 지난해 =====
-const FAVS = [['sales', '마감', 'tab'], ['sched', '스케줄', 'tab'], ['staff', '직원·급여', 'tab'], ['jobs', '구인', 'tab'], ['ops', '매장 노트', 'ops-open'], ['order', '발주', 'sub'], ['qr', '출퇴근 QR', 'sub'], ['daily', '일 매출', 'sub']];
-const favs = () => (lsGet('ev_favs') || 'sales,sched,ops').split(',').filter(Boolean);
+const FAVS = [['sales', '마감', 'tab'], ['sched', '스케줄', 'tab'], ['staff', '직원·급여', 'tab'], ['jobs', '구인', 'tab'], ['order', '발주', 'sub'], ['qr', '출퇴근 QR', 'sub'], ['daily', '일 매출', 'sub']];
+const favs = () => (lsGet('ev_favs') || 'sales,sched').split(',').filter(Boolean);
 function favBar() { if (S.mode !== 'store') return ''; const F = FAVS.filter(([k]) => favs().includes(k)); return `<div class="favbar">${F.map(([k, l, t]) => t === 'tab' ? `<button class="fchip" data-tab="${k}">${l}</button>` : t === 'sub' ? `<button class="fchip" data-act="sub" data-v="${k}">${l}</button>` : `<button class="fchip" data-act="${t}">${l}</button>`).join('')}<button class="fchip" data-act="fav-set" aria-label="바로가기 고르기">＋</button><button class="fchip" data-act="home-edit">${S.homeEdit ? '✓ 다 꾸몄어요' : '홈 꾸미기'}</button><button class="fchip" data-act="u-set">🎛 맞춤 설정</button>${new Date().getDate() <= 7 ? '<button class="fchip" data-act="mrep">지난달 리포트</button>' : ''}</div>`; }
 const hideL = () => (lsGet('ev_hide') || '').split('|').filter(Boolean), pinL = () => (lsGet('ev_pin2') || '').split('|').filter(Boolean);
 const cardKey = c => (c.querySelector('h3,b')?.firstChild?.textContent || c.querySelector('h3,b')?.textContent || '').replace(/[\d,.₩%()·:/~+−-]|월|일|개|명|건|원|만/g, '').replace(/\s+/g, '').slice(0, 12);
@@ -2589,13 +2583,12 @@ function setSheet() {
   <label class="tog"><span><b>색약 모드</b><small>빨강·초록 대신 파랑·주황으로 구분</small></span><input type="checkbox" data-act="cvd" ${lsGet('ev_cvd') === '1' ? 'checked' : ''}></label>
   <div class="mn-list"><button data-act="u-set">🎛 맞춤 설정 · 탭·홈·마감·알림<i>›</i></button><button data-act="fav-set">⭐ 바로가기 고르기<i>›</i></button><button data-act="devices">📱 로그인한 기기<i>›</i></button><button data-act="lastyear">🗂 지난해 보관함<i>›</i></button><button data-act="keys">⌨️ PC 단축키<i>›</i></button></div>`);
 }
-const KEYS = [['1~6', '아래 탭 이동'], ['/', '검색'], ['N', '매장 노트 쓰기'], ['M', '마감 화면'], ['Esc', '창 닫기'], ['?', '단축키 보기']];
+const KEYS = [['1~6', '아래 탭 이동'], ['/', '검색'], ['M', '마감 화면'], ['Esc', '창 닫기'], ['?', '단축키 보기']];
 addEventListener('keydown', e => {
   const t = e.target; if (e.ctrlKey || e.metaKey || e.altKey || /INPUT|TEXTAREA|SELECT/.test(t.tagName) || t.isContentEditable || !S.user) return;
   if (e.key === 'Escape') return closeSheet(); if (e.key === '?') return openSheet(`<h2>PC 단축키</h2>${KEYS.map(([k, l]) => `<div class="li"><kbd>${k}</kbd><span>${l}</span></div>`).join('')}`);
   if (/^[1-6]$/.test(e.key)) { const b = document.querySelectorAll('#tabs button')[+e.key - 1]; if (b) { e.preventDefault(); b.click(); } return; }
   if (e.key === '/') { e.preventDefault(); menuSheet(); setTimeout(() => $('#srch')?.focus(), 50); return; }
-  if ((e.key === 'n' || e.key === 'N') && (S.mode === 'store' || S.mode === 'staff')) { e.preventDefault(); noteSheet(); }
   if ((e.key === 'm' || e.key === 'M') && S.mode === 'store') { S.tab = 'sales'; render(); }
 });
 // 오프라인 마감: 끊겼을 때 누르면 기억해 두고 연결되면 자동 저장
@@ -2680,7 +2673,7 @@ const A68 = {
   taxi: () => { const T = (() => { try { return JSON.parse(lsGet('ev_taxi') || '[]'); } catch { return []; } })(); openSheet(`<h2>교통비 기록 <small class="mut">이 폰에만 저장</small></h2><form class="f" id="taxi-form"><div class="grid2"><label class="fl">날짜<input name="d" type="date" value="${TODAY}"></label><label class="fl">금액<input name="a" type="number" inputmode="numeric" required></label></div><label class="fl">메모<input name="m" placeholder="예: 강남점 퇴근 택시"></label><button class="btn pri full">기록</button></form>${T.slice(-20).reverse().map(x => `<div class="li"><span>${x.d} ${esc(x.m || '')}</span><span class="num">₩${E.won(x.a)}</span></div>`).join('')}<p class="note">종합소득세 신고 때 경비 자료로 쓸 수 있어요 (영수증은 따로 보관)</p>`); },
   refund33: () => openSheet(`<h2>3.3% 환급 받는 법</h2>${(() => { const ly = String(now.getFullYear() - 1), t = (S.slots || []).filter(s => s.result && (s.done_at || '').startsWith(ly)).reduce((a, s) => a + (s.result.tax || 0), 0); return `<div class="evc"><div><small>${ly}년에 뗀 3.3%</small><b class="num">₩${E.won(t)}</b></div></div><p class="note">이 금액 안에서 돌려받을 수 있어요 (소득·경비에 따라 달라요)</p>`; })()}<div class="li"><b>1</b><span>매년 5월 종합소득세 신고 (홈택스·손택스)</span></div><div class="li"><b>2</b><span>'신고도움 서비스'에서 작년 3.3% 낸 내역 확인</span></div><div class="li"><b>3</b><span>소득이 적으면 단순경비율로 계산돼 낸 세금 일부를 돌려받는 경우가 많아요</span></div><div class="li"><b>4</b><span>환급금은 보통 6월 말쯤 계좌로 들어와요</span></div><p class="note">개인 상황마다 달라요. 정확한 금액은 홈택스나 세무사에게 확인하세요. 앱의 '연간 합계'로 작년 원천세를 볼 수 있어요.</p>`),
   'goal-all': () => goalAll(),
-  'notice-all': () => openSheet(`<h2>전 매장 공지</h2><p class="sub">${S.stores.length}개 매장 노트에 공지로 올라가요. 읽음은 매장 순위표에서 봐요.</p><form class="f" id="nall-form"><label class="fl">제목<input name="title" required maxlength="60"></label><label class="fl">내용<textarea name="body" rows="4"></textarea></label><button class="btn pri full">보내기</button></form>`),
+  'notice-all': () => openSheet(`<h2>전 매장 공지</h2><p class="sub">${S.stores.length}개 매장에 공지로 올라가요. 읽음은 매장 순위표에서 봐요.</p><form class="f" id="nall-form"><label class="fl">제목<input name="title" required maxlength="60"></label><label class="fl">내용<textarea name="body" rows="4"></textarea></label><button class="btn pri full">보내기</button></form>`),
   mrep: () => reportSheet(), print: () => { document.body.classList.add('printing'); print(); setTimeout(() => document.body.classList.remove('printing'), 500); },
   'fav-set': () => openSheet(`<h2>바로가기 고르기</h2><div class="chks col">${FAVS.map(([k, l]) => `<label><input type="checkbox" data-act="favk" data-v="${k}" ${favs().includes(k) ? 'checked' : ''}><span>${l}</span></label>`).join('')}</div>`),
   favk: (b, d) => { const s = new Set(favs()); b.checked ? s.add(d.v) : s.delete(d.v); lsSet('ev_favs', [...s].join(',') || ','); render(); },
@@ -2760,7 +2753,7 @@ const duru = g => (S.members || []).filter(x => x.role !== 'owner').length < 10 
 // 지난달 리포트 카드 (1~7일)
 function mrepCard() { const d = +TODAY.slice(8); if (!isOwner() || d > 7 || lsGet('ev_mrep') === TODAY.slice(0, 7) || (S.store?.created_at || '') >= TODAY.slice(0, 8) + '01') return ''; /* 이번 달에 만든 매장은 지난달 리포트 없음 */ const pm = new Date(S.y, S.m - 2, 1); return `<div class="card lbud"><div><b>📊 ${pm.getMonth() + 1}월 리포트가 나왔어요</b><small>매출·비용·남은 돈 한 장 · PDF 저장</small></div><span class="row"><button class="btn sm pri" data-act="mrep">보기</button><button class="btn sm" data-act="mrep-x" aria-label="닫기">✕</button></span></div>`; }
 // 직원 앱 바로가기
-function staffFav() { return `<div class="favbar">${[['attend', '출퇴근', 'tab'], ['ops-open', '매장 노트', 'act'], ['ics', '📅 캘린더', 'act'], ['rq-new', '조기 퇴근', 'act', 'early']].map(([k, l, t, v]) => t === 'tab' ? `<button class="fchip" data-tab="${k}">${l}</button>` : `<button class="fchip" data-act="${k}" ${v ? `data-v="${v}"` : ''}>${l}</button>`).join('')}</div>`; }
+function staffFav() { return `<div class="favbar">${[['attend', '출퇴근', 'tab'], ['ics', '📅 캘린더', 'act'], ['rq-new', '조기 퇴근', 'act', 'early']].map(([k, l, t, v]) => t === 'tab' ? `<button class="fchip" data-tab="${k}">${l}</button>` : `<button class="fchip" data-act="${k}" ${v ? `data-v="${v}"` : ''}>${l}</button>`).join('')}</div>`; }
 const EVK = { sales_entry: '마감 입력', schedule_created: '스케줄 저장', job_applied: '딜러 지원', store_created: '매장 생성', dealer_signup: '딜러 가입', staff_added: '직원 등록', order: '발주', contract_sent: '계약서 발송' };
 async function taxiLoad() { S.taxi = (await sb.from('dealer_taxi').select('*').order('d', { ascending: false }).limit(200)).data || []; }
 async function tplLoad() { S.tpls = (await sb.from('hq_tpl').select('*').eq('on_', true).order('id')).data || []; }
@@ -2999,7 +2992,8 @@ document.addEventListener('click', e => {
   if (a === 'bk-get') return busy(async () => { const { data: b } = await sb.from('store_backups').select('made_at,data').eq('id', d.v).single(); const D = b.data, M = D.members || [], Rp = D.reports || [], X = D.expenses || [];
     download(`자동백업_${S.store.name}_${String(b.made_at).slice(0, 10)}.csv`, [['[직원]'], ['닉네임', '실명', '직책', '계약', '시급', '입사일', '연락처', '재직'], ...M.map(p => [p.nick, p.real_name || '', p.job_role || '', p.contract, p.hourly_rate, p.joined_on || '', p.phone || '', p.active ? 'O' : '퇴사']), [], ['[매출]'], ['날짜', '총매출', '엔트리', '카드', '현금', '이체', '현금지출', '금고차액', '메모'], ...Rp.sort((a, c) => c.report_date.localeCompare(a.report_date)).map(r => [r.report_date, r.sales, r.entries ?? '', r.card, r.cash, r.transfer, r.expense, r.cash_diff ?? '', r.memo || '']), [], ['[지출]'], ['날짜', '항목', '금액'], ...X.map(x => [x.spent_on, CAT[x.category] || x.category, x.amount])]); });
   if (a === 'help') return openSheet(`<h2>도움말</h2><p style="font-size:15px;line-height:1.7">${esc(HELP[d.v] || '')}</p><button class="btn full" data-act="close">알겠어요</button>`);
-  if (a === 'ops-open') { S.notes = null; if (S.mode === 'staff') { S.sub = 'ops'; render(); } else { S.tab = 'more'; S.sub = 'ops'; render(); } return scrollTo(0, 0); }
+  if (a === 'ops-open') return;
+  if (a === 'ops-open-disabled') { S.notes = null; if (S.mode === 'staff') { S.sub = 'ops'; render(); } else { S.tab = 'more'; S.sub = 'ops'; render(); } return scrollTo(0, 0); }
   if (a === 'ops-close') { S.sub = null; return render(); }
   if (a === 'opsf') { S.opsF = d.v; return render(); }
   if (a === 'sos') return sosSheet();
@@ -4147,7 +4141,7 @@ function uiPat() {
   const h = v.querySelector('h1, .sh-head, .card'); h?.insertAdjacentHTML(h.tagName === 'H1' ? 'afterend' : 'beforebegin', `<div class="chips" id="u-pat" style="margin:0 0 10px"><span class="mut" style="font-size:12px;align-self:center">📋 근무표 틀</span>${Object.keys(P).map(k => `<button class="fchip" data-act="u-pat-use" data-v="${esc(k)}">${esc(k)}</button>`).join('')}<button class="fchip" data-act="u-pat-save">＋ 지금 근무표를 틀로 저장</button></div>`);
 }
 // 15 어디서나 ＋ 단축 버튼
-const FABA = { close: ['🧾', '마감 하기', 't:sales'], exp: ['💸', '지출 넣기', 't:sales'], note: ['📝', '매장 노트', 'a:ops-open'], poster: ['🎨', '이벤트 포스터', 'a:poster'], sched: ['📅', '근무표', 't:sched'], staff: ['👥', '직원·급여', 't:staff'], photo: ['📸', '사진 마감', 'p:close-photos'], share: ['👀', '보기 전용 링크', 'a:share-open'] };
+const FABA = { close: ['🧾', '마감 하기', 't:sales'], exp: ['💸', '지출 넣기', 't:sales'], poster: ['🎨', '이벤트 포스터', 'a:poster'], sched: ['📅', '근무표', 't:sched'], staff: ['👥', '직원·급여', 't:staff'], photo: ['📸', '사진 마감', 'p:close-photos'], share: ['👀', '보기 전용 링크', 'a:share-open'] };
 function uiFab() {
   let b = $('#u-fab'); const on = S.mode === 'store' && S.user && UI().fab !== false && !location.search.includes('share=');
   if (!on) { b?.remove(); return; } if (!b) { document.body.insertAdjacentHTML('beforeend', '<button id="u-fab" data-act="u-fab" aria-label="빠른 실행">＋</button>'); }
@@ -4214,7 +4208,7 @@ document.addEventListener('click', e => {
   if (a === 'u-homeedit') { closeSheet(); S.tab = 'home'; S.homeEdit = 1; return render(); }
   if (a === 'u-ord') { const box = b.closest('.hmain, .hside'), keys = [...box.querySelectorAll(':scope > .card')].map(c => c.dataset.ck).filter(Boolean), i = keys.indexOf(v), j = i + +b.dataset.d; if (i < 0 || j < 0 || j >= keys.length) return; [keys[i], keys[j]] = [keys[j], keys[i]]; uiSet({ order: [...keys, ...(U.order || []).filter(k => !keys.includes(k))] }); return render(); }
   if (a === 'u-fab') { const L = U.fabs || ['say', 'close', 'guest', 'note']; return openSheet(`<h2>빠른 실행</h2><div class="u-fabs">${L.filter(k => FABA[k]).map(k => `<button class="btn" data-act="u-fabgo" data-v="${k}"><b style="font-size:22px">${FABA[k][0]}</b><span>${FABA[k][1]}</span></button>`).join('')}</div><p class="note"><button class="tlink" data-act="u-set">버튼 고르기 ›</button></p>`); }
-  if (a === 'u-fabgo') { const [t, x] = FABA[v][2].split(':'); if (t === 'x') return; closeSheet(); if (t === 't') { S.tab = x; S.sub = null; render(); if (v === 'exp') setTimeout(() => { const d = $('#report-form details.more'); if (d) { d.open = true; d.scrollIntoView({ block: 'center' }); $('[data-act=xrow-add]')?.click(); } }, 80); return; }
+  if (a === 'u-fabgo') { if (!FABA[v]) return; const [t, x] = FABA[v][2].split(':'); if (t === 'x') return; closeSheet(); if (t === 't') { S.tab = x; S.sub = null; render(); if (v === 'exp') setTimeout(() => { const d = $('#report-form details.more'); if (d) { d.open = true; d.scrollIntoView({ block: 'center' }); $('[data-act=xrow-add]')?.click(); } }, 80); return; }
     if (t === 'p') { S.tab = 'sales'; render(); return setTimeout(() => $('#' + x)?.click(), 80); }
     const k = document.createElement('button'); k.dataset.act = x; k.hidden = true; document.body.append(k); k.click(); k.remove(); return; }
   if (a === 'u-unit') { const n = +$('#report-form [name=entries]')?.value || 0, s = $('#report-form [name=sales]'); if (!n) return toast('엔트리 수를 먼저 넣어주세요'); if (s) { s.value = n * CFG().unit; s.dispatchEvent(new Event('input', { bubbles: true })); } return toast('총매출에 넣었어요 · 음료 매출이 있으면 더해 주세요'); }
