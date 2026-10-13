@@ -1,0 +1,10 @@
+import assert from 'node:assert/strict';
+import {weekCopyPlan,jobDefaults} from './workflow-policy.js';
+const source={member_id:'m',work_date:'2026-09-28',start_t:'18:00',end_t:'02:00',break_min:30};
+let r=weekCopyPlan({sourceWeek:'2026-09-28',targetWeek:'2026-10-05',memberIds:['m'],existing:[source],locked:false});
+assert.equal(r.rows[0].work_date,'2026-10-05');
+r=weekCopyPlan({sourceWeek:'2026-09-28',targetWeek:'2026-10-05',memberIds:['m'],existing:[source,{...source,work_date:'2026-10-05'}],locked:false});assert.equal(r.rows.length,0);assert.equal(r.conflicts.length,1);
+assert.throws(()=>weekCopyPlan({sourceWeek:'2026-09-28',targetWeek:'2026-10-05',memberIds:['m'],existing:[source],locked:true}));
+assert.equal(jobDefaults({store:{id:'b',address:'새 매장'},shift:{s:'18:00',e:'02:00'}}).store_id,'b');
+assert.equal(jobDefaults({store:{id:'b'},shift:{}}).flash,false);
+console.log('Workflow policy: cross-month copy, conflicts, lock, store defaults and optional ads passed');

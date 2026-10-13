@@ -1,0 +1,10 @@
+import assert from 'node:assert/strict';
+import { cashSales, reportPatch } from './ui-policy.js';
+assert.equal(cashSales({sales:300000,card:200000,transfer:50000}),50000);
+assert.throws(()=>cashSales({sales:100,card:200,transfer:0}));
+assert.throws(()=>cashSales({sales:-1}));
+assert.throws(()=>cashSales({sales:0.5}));
+assert.equal(reportPatch({sales:300000},{entries:17}).entries,17);
+assert.equal(reportPatch({sales:300000},{}).entries,null);
+assert.equal(reportPatch({sales:300000},{entries:0}).entries,0);
+console.log('Sales inputs: cash validation and historical entry preservation passed');

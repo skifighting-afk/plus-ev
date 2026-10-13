@@ -1,0 +1,17 @@
+import assert from 'node:assert/strict';
+globalThis.window={};
+const {createClient}=await import('./demo/mock-sb.js');
+const db=window.__DB,c=createClient();window.__USERS['owner@ledger']={id:'owner'};window.__USERS['staff@ledger']={id:'staff'};
+db.companies.push({id:'company',created_at:new Date().toISOString()});db.stores.push({id:'store',company_id:'company'});
+db.members.push({id:'owner-m',user_id:'owner',company_id:'company',role:'owner',active:true},{id:'worker',user_id:'staff',company_id:'company',store_id:'store',role:'staff',active:true,hourly_rate:12000,contract:'3.3',night_pay:false});
+await c.auth.signInWithPassword({email:'owner@ledger'});
+const args={p_request:'request',p_store:'store',p_member:'worker',p_date:'2026-10-13',p_start:'2026-10-13T09:00:00Z',p_end:'2026-10-13T13:00:00Z',p_break:30};
+const r=await c.rpc('record_work',args);assert.ok(r.data,'work record created');assert.equal(r.error,null);
+assert.equal((await c.rpc('record_work',args)).data,r.data,'retry returns original');
+assert.ok((await c.rpc('record_work',{...args,p_request:'dup'})).error,'overlap blocked');
+assert.equal(db.work_records.length,1);
+await c.auth.signInWithPassword({email:'staff@ledger'});assert.ok((await c.rpc('record_work',{...args,p_request:'staff'})).error);
+await c.auth.signInWithPassword({email:'owner@ledger'});
+db.pay_locks.push({store_id:'store',month:'2026-10-01',on_:true});
+assert.ok((await c.rpc('record_work',{...args,p_request:'locked'})).error);
+console.log('Ledger RPC: authorization, overlap, retry and locked-period protection passed');

@@ -1,3 +1,4 @@
+import { installERP } from './erp-mock.js';
 import { PRICING } from '../pricing.js';
 import { companyOffer } from '../company-offer.js';
 // 테스트용 가짜 Supabase — 실제 DB 규칙(RPC)을 간단히 흉내냄
@@ -22,6 +23,9 @@ function builder(t) {
     insert(p) { op = 'insert'; payload = p; return b }, update(p) { op = 'update'; payload = p; return b }, upsert(p) { op = 'upsert'; payload = p; return b }, delete() { op = 'delete'; return b },
     then(res, rej) { try { res(run()) } catch (e) { res({ data: null, error: e }) } } };
   function run() {
+    const financial=['work_records','work_payments','cash_movements'].includes(t);
+    if(financial&&op!=='select')throw {message:'이 기록은 전용 저장 기능으로만 변경할 수 있어요'};
+
     const T = t === 'franchise_public' ? DB.franchise_postings.filter(r => r.status === 'active') : DB[t]; if (!T) return { data: single ? null : [], error: null }; const match = r => filters.every(f => f(r));
     if (['insert', 'upsert'].includes(op) && ['daily_reports', 'expenses', 'shift_templates', 'shift_overrides', 'members'].includes(t)) { const r0 = [].concat(payload)[0] || {}; const sid = r0.store_id || DB.members.find(m => m.id === r0.member_id)?.store_id; const co = DB.companies.find(c => c.id === (r0.company_id || DB.stores.find(x => x.id === sid)?.company_id)); if (co && !compActive(co) && !DB.profiles.find(p => p.id === user?.id)?.is_hq) throw { message: '무료 체험이 끝났어요. 프로로 계속 쓰면 바로 이어서 입력할 수 있어요' }; }
     if (op === 'insert') { const ins = []; [].concat(payload).forEach(p => { const row = { id: uid(), active: true, created_at: now(), ...p }; if (t === 'shift_reqs' || t === 'att_fix') row.status = row.status || 'wait'; if (t === 'store_items') { row.created_by = row.created_by || user?.id; row.status = row.status ?? null; } if (t === 'shift_swaps') row.status = row.status || 'peer'; if (t === 'franchise_postings') Object.assign(row, { owner_user: me(), status: 'draft', monthly_fee: 300000 }); if (t === 'orders') { row.status = row.status || '접수'; DB.profiles.filter(x => x.is_hq).forEach(h => noti(h.id, '새 발주 요청')); } if (t === 'stores') Object.assign(row, { join_code: 'D-' + uid().slice(1, 7).toUpperCase(), need_by_wd: [3, 4, 3, 4, 6, 7, 2], night_start: '22:00:00', night_end: '06:00:00' }); T.push(row); ins.push(row); }); return { data: single ? ins[0] : ins, error: null } }
@@ -29,6 +33,7 @@ function builder(t) {
     if (op === 'delete') { for (let i = T.length - 1; i >= 0; i--)if (match(T[i])) { if (['expenses', 'daily_reports'].includes(t) && !(t === 'expenses' && T[i].source === 'close')) DB.bin_rows.push({ id: DB.bin_rows.length + 1, store_id: T[i].store_id, tbl: t, row: { ...T[i] }, removed_by: me(), removed_at: now() }); T.splice(i, 1); } return { data: null, error: null } }
     if (op === 'upsert') { const k = PK[t]; for (const pl of [].concat(payload)) { if (t === 'day_opens' && !pl.opened_at) pl.opened_at = now(); const ex = T.find(r => k.every(c => r[c] === pl[c])); ex ? Object.assign(ex, pl) : T.push({ ...pl }); } return { data: null, error: null } }
     let out = T.filter(match).filter(r => !OWNED[t] || (t === 'inquiries' && DB.profiles.find(p => p.id === user?.id)?.is_hq) || r[OWNED[t]] === user?.id).map(r => ({ ...r }));
+    if(financial)out=out.filter(r=>{const st=DB.stores.find(s=>s.id===r.store_id);const owner=DB.members.some(m=>m.user_id===me()&&m.role==='owner'&&m.company_id===st?.company_id);const manager=DB.members.some(m=>m.user_id===me()&&m.role==='manager'&&m.store_id===r.store_id&&m.perms?.pay!==false);const own=t!=='cash_movements'&&DB.members.some(m=>m.id===r.member_id&&m.user_id===me());return owner||manager||own;});
     if (t === 'attendance') out = out.filter(a => DB.members.find(m => m.id === a.member_id)?.user_id === user?.id);
     if (order) out.sort((a, b) => (a[order[0]] > b[order[0]] ? 1 : -1) * (order[1] ? 1 : -1)); if (lim) out = out.slice(0, lim);
     return { data: single ? (out[0] || null) : out, error: null };
@@ -196,6 +201,7 @@ const RPC = window.__RPC = {
   store_rank(a) { return [{ sales_pct: 18, stores: 23 }] },
   hq_store_stats() { if (!DB.profiles.find(p => p.id === me())?.is_hq) return []; return DB.stores.map(s => { const c = DB.companies.find(c => c.id === s.company_id); return { company: c.name, brand: c.brand, store_id: s.id, store: s.name, area: s.area, verified: c.biz_verified, plan: c.plan, sales: DB.daily_reports.filter(r => r.store_id === s.id).reduce((a, r) => a + r.sales, 0), days: DB.daily_reports.filter(r => r.store_id === s.id).length, expenses: DB.expenses.filter(e => e.store_id === s.id).reduce((a, e) => a + e.amount, 0), staff: DB.members.filter(m => m.store_id === s.id).length } }) }
 };
+installERP({ DB, RPC, me, canManage, uid });
 export function createClient() {
   return {
     auth: {
