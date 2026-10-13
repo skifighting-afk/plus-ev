@@ -14,7 +14,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 async function seedance(prompt, file, seconds, attempt = 0) {
   if (!KEY) { ff(["-f", "lavfi", "-i", `color=c=0x1d3a2a:s=${W}x${H}:d=${seconds}:r=${FPS}`, "-pix_fmt", "yuv420p", file]); return "dry"; }
   const Hd = { Authorization: `Key ${KEY}`, "Content-Type": "application/json" };
-  const idem = "anim-" + crypto.createHash("sha1").update(prompt + attempt).digest("hex").slice(0, 16);
+  const idem = "anim-" + crypto.createHash("sha1").update(prompt + attempt + (process.env.CLIP_RES || "")).digest("hex").slice(0, 16);
   const r = await fetch("https://api.higgsfield.ai/bytedance/seedance-2.5/text-to-video", { method: "POST", headers: { ...Hd, "Idempotency-Key": idem }, body: JSON.stringify({ prompt, duration: seconds, resolution: process.env.CLIP_RES || "1080p", aspect_ratio: "9:16", generate_audio: false }) });
   const sub = await r.json(); if (!r.ok) throw new Error("seedance " + r.status + " " + JSON.stringify(sub).slice(0, 200));
   for (let i = 0; i < 150; i++) {
