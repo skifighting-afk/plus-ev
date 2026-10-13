@@ -11,17 +11,17 @@ const BGM_URL = "https://d2ol7oe51mr4n9.cloudfront.net/user_3JmZNKTZQ2jvOCOpKVIQ
 const ff = (a) => execFileSync("ffmpeg", ["-v", "error", "-y", ...a], { stdio: "inherit" });
 const dur = (f) => Number(execFileSync("ffprobe", ["-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", f]).toString().trim());
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-async function seedance(prompt, file, seconds) {
+async function seedance(prompt, file, seconds, attempt = 0) {
   if (!KEY) { ff(["-f", "lavfi", "-i", `color=c=0x1d3a2a:s=${W}x${H}:d=${seconds}:r=${FPS}`, "-pix_fmt", "yuv420p", file]); return "dry"; }
   const Hd = { Authorization: `Key ${KEY}`, "Content-Type": "application/json" };
-  const idem = "anim-" + crypto.createHash("sha1").update(prompt).digest("hex").slice(0, 16);
+  const idem = "anim-" + crypto.createHash("sha1").update(prompt + attempt).digest("hex").slice(0, 16);
   const r = await fetch("https://api.higgsfield.ai/bytedance/seedance-2.5/text-to-video", { method: "POST", headers: { ...Hd, "Idempotency-Key": idem }, body: JSON.stringify({ prompt, duration: seconds, resolution: "1080p", aspect_ratio: "9:16", generate_audio: false }) });
   const sub = await r.json(); if (!r.ok) throw new Error("seedance " + r.status + " " + JSON.stringify(sub).slice(0, 200));
   for (let i = 0; i < 150; i++) {
     await sleep(8000);
     const st = await (await fetch(sub.status_url || `https://api.higgsfield.ai/requests/${sub.request_id}/status`, { headers: Hd })).json();
     if (st.status === "completed") { fs.writeFileSync(file, Buffer.from(await (await fetch(st.video.url)).arrayBuffer())); return sub.request_id; }
-    if (["failed", "nsfw", "canceled"].includes(st.status)) throw new Error("seedance " + st.status);
+    if (["failed", "nsfw", "canceled"].includes(st.status)) throw new Error("seedance " + st.status + " " + JSON.stringify(st).slice(0, 300));
   }
   throw new Error("seedance 시간 초과");
 }
@@ -44,7 +44,7 @@ for (const L of LESSONS) {
     const keep = path.join(cd, `${L.id}-${i}-${crypto.createHash("sha1").update(s.prompt).digest("hex").slice(0, 8)}.mp4`), dst = path.join(w, `clip${i}.mp4`);
     if (fs.existsSync(keep)) { fs.copyFileSync(keep, dst); return "cached"; }
     let err;
-    for (let t = 0; t < 2; t++) { try { const id = await seedance(s.prompt, dst, s.dur); if (KEY) fs.copyFileSync(dst, keep); return id; } catch (e) { err = e; console.log("클립", i, "실패", String(e).slice(0, 300)); } }
+    for (let t = 0; t < 2; t++) { try { const id = await seedance(s.prompt, dst, s.dur, t); if (KEY) fs.copyFileSync(dst, keep); return id; } catch (e) { err = e; console.log("클립", i, "실패", String(e).slice(0, 300)); } }
     throw err;
   }));
   console.log(L.id, "클립", jobs.filter(Boolean).length);

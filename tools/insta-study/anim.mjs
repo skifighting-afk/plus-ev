@@ -6,7 +6,7 @@ const CAST = "Characters: KIM is a small round mint-green blob character with hu
 export const LESSONS = [
 { id: "a01", title: "셋 슬로우플레이의 최후", tag: "ANIMATION",
   scenes: [
-    { t: "clip", dur: 8, prompt: STYLE + CAST + "Shot 1 (0-4s): close-up of KIM secretly peeking at two face-down cards on the felt, eyes start to sparkle, a huge excited grin spreads. Shot 2 (4-8s): KIM tries to look calm, whistles innocently and gently taps the table twice with a tiny hand to check, sweating with excitement.",
+    { t: "clip", dur: 8, prompt: STYLE + CAST + "Shot 1 (0-4s): close-up of KIM sitting at the poker table, lifting the corner of two cards lying on the felt, his big eyes light up with joy and a wide happy grin appears. Shot 2 (4-8s): KIM quickly puts on a calm poker face, looks away innocently and gently taps the table twice with his tiny hand, a little nervous and excited.",
       cap: ["셋 잡았다…", "[조용히 체크]"], hand: "9s 9d", board: "9h 8h 2c",
       say: "플랍에서 나인 셋을 잡은 킴. 들킬까 봐 조용히 체크합니다." },
     { t: "clip", dur: 8, prompt: STYLE + CAST + "Shot 1 (0-4s): across the table RIVAL leans back lazily, one eyebrow raised, and taps the table to check with a sly little smile. Shot 2 (4-8s): close-up of RIVAL's smug face, eyes narrowing, a tiny knowing smirk, the camera slowly pushes in.",
