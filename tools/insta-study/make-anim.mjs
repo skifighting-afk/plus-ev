@@ -87,9 +87,15 @@ for (const L of LESSONS) {
   const silent = path.join(w, "v.mp4"); ff(["-f", "concat", "-safe", "0", "-i", list, "-c", "copy", silent]);
   // 4) 소리
   const T = lens.reduce((a, x) => a + x, 0); const ain = [], af = [], mix = []; let k = 1, at = 0;
-  if (fs.existsSync(bgm)) { ain.push("-stream_loop", "-1", "-i", bgm); af.push(`[${k}]aformat=sample_rates=48000:channel_layouts=stereo,volume=${L.mute ? 0.55 : 0.16},atrim=0:${T.toFixed(2)},afade=t=out:st=${(T - 1.5).toFixed(2)}:d=1.5[a${k}]`); }
+  // 장면별 음악 볼륨 (s.music: 0 = 정적, 1.6 = 폭발)
+  let acc = 0; const env = L.scenes.map((sc, i) => { const a = acc; acc += lens[i]; return `between(t,${a.toFixed(2)},${acc.toFixed(2)})*${sc.music ?? 1}`; }).join("+");
+  const base = L.mute ? 0.55 : 0.16;
+  if (fs.existsSync(bgm)) { ain.push("-stream_loop", "-1", "-i", bgm); af.push(`[${k}]aformat=sample_rates=48000:channel_layouts=stereo,volume=${base},volume='${env}':eval=frame,atrim=0:${T.toFixed(2)},afade=t=out:st=${(T - 1.5).toFixed(2)}:d=1.5[a${k}]`); }
   else { ain.push("-f", "lavfi", "-i", `anullsrc=r=48000:cl=stereo:d=${T.toFixed(2)}`); af.push(`[${k}]anull[a${k}]`); }
   mix.push(`[a${k}]`); k++;
+  // 효과음 (ffmpeg 합성): tick 딱 · whoosh 휙 · wobble 부웅부웅 · shuffle 촤르륵 · howl 하울링 · pop 뾰롱
+  const SFX = { tick: "sine=f=1800:d=0.06,afade=t=out:d=0.06,volume=2.5", whoosh: "anoisesrc=d=0.35:c=pink,bandpass=f=1200:w=900,afade=t=in:d=0.12,afade=t=out:st=0.15:d=0.2,volume=3", wobble: "sine=f=95:d=0.9,tremolo=f=7:d=0.9,volume=4", shuffle: "anoisesrc=d=0.5:c=white,highpass=f=2500,tremolo=f=28:d=1,afade=t=out:st=0.2:d=0.3,volume=1.6", howl: "aevalsrc='0.6*sin(2*PI*(420*t+120*t*t+6*sin(2*PI*5*t)))':d=1.6,afade=t=in:d=0.2,afade=t=out:st=1.1:d=0.5", pop: "sine=f=880:d=0.12,afade=t=out:d=0.12,volume=1.5" };
+  { let at2 = 0; L.scenes.forEach((sc, i) => { for (const [ty, off] of (sc.sfx || [])) { const f = path.join(w, `sfx-${ty}.wav`); if (!fs.existsSync(f)) ff(["-f", "lavfi", "-i", SFX[ty], "-ar", "48000", "-ac", "2", f]); const ms = Math.round((at2 + off) * 1000); ain.push("-i", f); af.push(`[${k}]aformat=sample_rates=48000:channel_layouts=stereo,adelay=${ms}|${ms}[a${k}]`); mix.push(`[a${k}]`); k++; } at2 += lens[i]; }); }
   L.scenes.forEach((_, i) => { const v = voices[i]; if (v) { const ms = Math.round((at + (L.fast ? 0.1 : 0.3)) * 1000); ain.push("-i", v); af.push(`[${k}]aformat=sample_rates=48000:channel_layouts=stereo,volume=1.5,adelay=${ms}|${ms}[a${k}]`); mix.push(`[a${k}]`); k++; } at += lens[i]; });
   af.push(`${mix.join("")}amix=inputs=${mix.length}:normalize=0:duration=first,alimiter=limit=0.95[a]`);
   ff(["-i", silent, ...ain, "-filter_complex", af.join(";"), "-map", "0:v", "-map", "[a]", "-c:v", "copy", "-c:a", "aac", "-b:a", "160k", "-t", T.toFixed(2), "-movflags", "+faststart", path.join(out, `${L.id}.mp4`)]);
