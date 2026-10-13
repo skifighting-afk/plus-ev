@@ -19,7 +19,7 @@ on:
         default: false
 
 concurrency:
-  group: insta-reels
+  group: insta-media
   cancel-in-progress: false
 
 permissions:
