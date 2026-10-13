@@ -2,6 +2,7 @@ import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js
 import * as E from './engine.js?v=95-urgent-offer';
 import { PRICING, applyPricing } from './pricing.js';
 import { companyOffer } from './company-offer.js';
+import { hasCompanyPro, nextAttendance } from './feature-policy.js';
 import { scanAttendance } from './qr-attendance.js';
 import { laborBody, payslipBody, sigPad } from './docs.js';
 
@@ -166,13 +167,14 @@ const whtAll = () => [...whtRows(), ...(S.whtU || []).map(u => ({ p: { real_name
 // 출퇴근 기록: 새벽 8시 전 기록은 전날 근무로 묶음
 // 출퇴근 위치 확인: 매장 위치가 저장된 매장만 서버가 [GEO]로 위치를 요구 → 그때만 폰 위치를 물어봄
 const getPos = () => new Promise(ok => { if (!navigator.geolocation) return ok(null); navigator.geolocation.getCurrentPosition(p => ok({ lat: p.coords.latitude, lng: p.coords.longitude }), () => ok(null), { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 }); });
-async function attendGeo(code) {
-  const r = await sb.rpc('attend', { p_code: code });
+async function attendGeo(code, kind) {
+  const rpc = kind ? 'attend_selected' : 'attend', args = { p_code: code, ...(kind ? { p_kind: kind, p_store: S.store.id } : {}) };
+  const r = await sb.rpc(rpc, args);
   if (!/\[GEO\]/.test(r.error?.message || '')) return r;
   if (!lsGet('ev_geo_ok') && !confirm('출퇴근 확인을 위해 지금 위치를 한 번 확인해요.\n좌표는 저장하지 않고 매장과의 거리만 남겨요. 동의할까요?')) return { error: { message: '위치 확인에 동의해야 출퇴근할 수 있어요' } };
   lsSet('ev_geo_ok', '1'); const p = await getPos();
   if (!p) return { error: { message: '위치를 못 가져왔어요. 폰 설정에서 위치 권한을 켜주세요' } };
-  return sb.rpc('attend', { p_code: code, p_lat: p.lat, p_lng: p.lng });
+  return sb.rpc(rpc, { ...args, p_lat: p.lat, p_lng: p.lng });
 }
 function attLogCard() {
   const by = {};
@@ -291,7 +293,7 @@ async function loadStaff() {
   S.myStores = S.my.length > 1 ? Object.fromEntries((await q(sb.from('stores').select('id,name').in('id', S.my.map(m => m.store_id)))).map(s => [s.id, s.name])) : {};
   S.inc = await q(sb.from('incentives').select('*').in('member_id', S.my.map(m => m.id)).eq('month', first));
   [S.marks, S.adv] = (await Promise.all([sb.from('pay_marks').select('*').in('member_id', S.my.map(m => m.id)), sb.from('advances').select('*').in('member_id', S.my.map(m => m.id)).eq('month', first)])).map(r => r.data || []);
-  S.att = await q(sb.from('attendance').select('*').order('at', { ascending: false }).limit(10));
+  S.att = await q(sb.from('attendance').select('*').eq('member_id', mine.id).order('at', { ascending: false }).limit(10));
   S.academy = await q(sb.rpc('my_academy')); S.lessons = await q(sb.from('lesson_progress').select('lesson'));
   S.quizRes = (await q(sb.from('quiz_results').select('score,passed,total').order('created_at', { ascending: false }).limit(1)))[0] || null;
   S.myQuiz = S.academy ? await q(sb.rpc('my_quiz')) : null;
@@ -299,7 +301,7 @@ async function loadStaff() {
   await loadDealer();
 }
 async function loadDealer() {
-  if (lsGet('ev_att') && S.mode === 'staff') { const c = lsGet('ev_att'); lsSet('ev_att', ''); try { const { data: k, error } = await attendGeo(c); setTimeout(() => toast(error ? (/코드가 맞지/.test(error.message) ? 'QR이 지났어요. 매장 화면의 새 QR을 찍거나 번호를 넣어주세요' : koErr(error.message)) : k === 'in' ? 'QR로 출근했어요. 오늘도 화이팅!' : 'QR로 퇴근했어요. 수고하셨어요'), 700); } catch { } }
+  if (lsGet('ev_att') && S.mode === 'staff') { S.pendingAttCode = lsGet('ev_att'); lsSet('ev_att', ''); S.tab = 'work'; }
   if (lsGet('ev_join') && S.mode === 'dealer') { const c = lsGet('ev_join'); lsSet('ev_join', ''); try { const { data: nm, error } = await sb.rpc('request_join', { p_code: c }); if (!error) setTimeout(() => toast(`초대받은 ${nm}에 소속 신청했어요. 승인되면 알림이 와요`), 600); } catch { } }
   if (lsGet('ev_post')) { S.hlPost = lsGet('ev_post'); lsSet('ev_post', ''); S.tab = 'jobs'; }
   S.board = (await q(sb.rpc('job_board'))).filter(j => !j.expires_at || new Date(j.expires_at) > Date.now());
@@ -428,7 +430,7 @@ const SUB_GROUP = { pricing: 'home', franchise: 'market', board: 'jobs', notice:
 const groupOf = () => S.tab === 'more' ? SUB_GROUP[S.sub] || null : S.tab === 'improve' ? 'home' : S.tab;
 function subnav() {
   const items = (SUBNAV[groupOf()] || []).filter(([, s]) => s !== 'transfer' || isOwner()); if (items.length < 2) return '';
-  return `<nav class="subnav">${items.map(([t, s, l]) => { const on = t === 'more' ? S.tab === 'more' && S.sub === s : S.tab === t; return `<button ${t === 'more' ? `data-act="sub" data-v="${s}"` : `data-tab="${t}"`} ${on ? 'aria-current="page"' : ''}>${l}</button>`; }).join('')}</nav>`;
+  return `<nav class="subnav">${items.map(([t, s, l]) => { const on = t === 'more' ? S.tab === 'more' && S.sub === s : S.tab === t; return `<button ${t === 'more' ? `data-act="sub" data-v="${s}"` : `data-tab="${t}"`} ${on ? 'aria-current="page"' : ''}>${l}${t === 'improve' ? ' <span class="pro-tag">PRO</span>' : ''}</button>`; }).join('')}</nav>`;
 }
 function storeHead(title) {
   return `<div class="row between sh"><div><h1>${title}</h1><p class="sub" style="margin:0">${esc(S.company?.name || '')} · ${esc(S.store?.name)}${S.company && !S.company.biz_verified ? ' · <button class="tlink warn" data-act="goto" data-t="more" data-s="settings">사업자번호 확인 필요</button>' : ''}</p></div>
@@ -582,12 +584,12 @@ function todayTodo(M, goal) {
   if (goal && S.y === y && S.m === m) {
     const need = Math.max(0, goal - M.sales) / left;
     if (!need) T.push(['', '이번 달 목표를 이미 넘었어요', `지금부터 버는 건 전부 목표 초과분이에요`]);
-    else if (avgW && need > avgW * 1.05) { const r = S.bench?.ready && !S.bench.locked ? rxOf(S.bench).rev[0] : null;
+    else if (avgW && need > avgW * 1.05) { const r = hasCompanyPro(S.company) && S.bench?.ready && !S.bench.locked ? rxOf(S.bench).rev[0] : null;
       T.push(['', `오늘 매출 ₩${man(need)} 만들기`, `평소 ${E.WD[w]}요일보다 ₩${man(need - avgW)} 더 필요해요 · ${r ? esc(r[1]) : '단골 손님께 오늘 게임 안내 문자 보내기'}`, r ? 'improve' : null]); }
     else T.push(['', `오늘 매출 ₩${man(need)}이면 목표 페이스예요`, avgW ? `평소 ${E.WD[w]}요일 ₩${man(avgW)} — 지금처럼만 하면 돼요` : '매일 마감을 넣으면 요일별로 알려드려요']);
   }
   const low = S.stock.filter(s => s.qty < s.min).length; if (low) T.push(['', `재고 부족 ${low}개 발주하기`, S.stock.filter(s => s.qty < s.min).map(s => item(s.item_id)?.n).slice(0, 2).join(', '), 'order']);
-  const B = S.bench; if (B?.ready && !B.locked) { const rx = rxOf(B), mon = thisMonth(), undone = [...rx.rev, ...rx.cost].filter(r => !S.quests.some(q => q.month === mon && q.key === r[0]));
+  const B = S.bench; if (hasCompanyPro(S.company) && B?.ready && !B.locked) { const rx = rxOf(B), mon = thisMonth(), undone = [...rx.rev, ...rx.cost].filter(r => !S.quests.some(q => q.month === mon && q.key === r[0]));
     if (undone.length) T.push(['', `이번 달 꼭 할 일 ${undone.length}개 남음`, `${esc(undone[0][1])} · 월 ₩${man(undone[0][3])}`, 'improve']); }
   return T;
 }
@@ -630,7 +632,7 @@ function fixedYearSheet(y) {
 function topStrip(M) {
   const [y, m, d] = TODAY.split('-').map(Number), r0 = S.reports.find(r => r.report_date === TODAY), staffN = S.members.filter(p => p.role !== 'owner' && E.shiftOn(p.id, y, m, d, S.tpl, S.ov)).length, need = needOn(TODAY, S.store.need_by_wd || [3, 4, 3, 4, 6, 7, 2]);
   const today = r0 ? [`₩${man(r0.sales)}`, `마감 완료 · 엔트리 ${r0.entries || 0}`, 'up'] : S.open ? [`${staffN}명 근무`, `${fmtDT(S.open.opened_at).split(' ').slice(-2).join(' ')} 오픈 · 적정 ${need}명`, staffN < need ? 'down' : ''] : [`${staffN}명 근무 예정`, `아직 오픈 전 · 적정 ${need}명`, staffN < need ? 'down' : ''];
-  const B = S.bench, L = B?.ready && !B.locked ? lightsOf(B).filter(x => x.lv === 'r' || x.lv === 'y').sort((a, b) => (a.lv === 'r' ? 0 : 1) - (b.lv === 'r' ? 0 : 1)) : [], rx = L.length ? [...rxOf(B).rev, ...rxOf(B).cost].find(r => r[0] === LIGHT_RX[L[0].key]) : null;
+  const B = S.bench, L = hasCompanyPro(S.company) && B?.ready && !B.locked ? lightsOf(B).filter(x => x.lv === 'r' || x.lv === 'y').sort((a, b) => (a.lv === 'r' ? 0 : 1) - (b.lv === 'r' ? 0 : 1)) : [], rx = L.length ? [...rxOf(B).rev, ...rxOf(B).cost].find(r => r[0] === LIGHT_RX[L[0].key]) : null;
   const goal = goalOf(S.y, S.m), gap = goal ? M.proj - goal : 0, D = E.daysIn(y, m), short = Array.from({ length: D - d + 1 }, (_, i) => E.ymd(y, m, d + i)).filter(k => S.members.filter(p => p.role !== 'owner' && E.shiftOn(p.id, y, m, +k.slice(8), S.tpl, S.ov)).length < needOn(k, S.store.need_by_wd || [3, 4, 3, 4, 6, 7, 2])).length;
   const prob = L.length ? [L[0].n, rx ? `고치면 월 ${rx[0].startsWith('rev') ? '+' : '−'}₩${man(rx[3])}` : '평균보다 나빠요', 'down', 'improve'] : goal && gap < 0 ? [`목표 ₩${man(-gap)} 부족`, '월말 예상 기준', 'down', 'home'] : short && !S.members.some(p => p.role !== 'owner') ? ['직원 0명', '직원 초대부터 해주세요', 'down', 'staff'] : short ? [`인원 부족 ${short}일`, '이번 달 남은 날 중', 'down', 'sched'] : M.left < 0 ? ['이번 달 적자', '비용이 매출보다 커요', 'down', 'home'] : ['없어요', '지금처럼만 하세요', 'up', null];
   return `<div class="top3"><button class="card kpi go" data-tab="staff"><div class="l">오늘 현황</div><div class="v num ${today[2]}">${today[0]}</div><small class="mut">${today[1]} ›</small></button>
@@ -645,7 +647,7 @@ function vHome() {
   // 주 컬럼: 오늘·이번 달 판단에 필요한 것 / 보조 컬럼: 참고 정보 (모바일에선 같은 순서로 세로)
   return `<div class="home">${setupCard()}<div class="hhead">${storeHead('브리핑')}${newN ? `<button class="card nbanner" data-act="sub" data-v="notice"><span class="ntag">공지</span><div><small>운영사에서 새 소식이 왔어요</small><b>${esc(nt.title)}</b></div><span class="mut">›</span></button>` : ''}</div>
   <div class="hmain">${coCard()}
-  ${cur ? noShowCard() + liveCard() + forecastCard() + payDayCard() + iosCard() + startCard() + todoCard() + upcomingCard() + laborCard() + noticeCard() + `<button class="card nowline" data-act="poster"><small>홍보</small><b>🎨 포스터 스튜디오 · 템플릿 6종</b><span class="mut">›</span></button>` : ''}${cur && isOwner() ? `<div class="card"><h3>AI 비서 <span class="pill g">PRO</span> <small>우리 매장 숫자로 답하고, 글도 써요</small></h3><div class="row" style="gap:6px"><input id="ai-q" placeholder="질문, 또는 공지·홍보할 내용 (예: 토요일 8시 토너먼트 바인 3만)" style="flex:1;min-width:0"><button class="btn sm pri" data-act="ai-ask">묻기</button></div><div class="row" style="gap:6px;flex-wrap:wrap;margin-top:8px"><button class="chip" data-act="ai-ask" data-q="1">📊 이번 달 총평</button><button class="chip" data-act="ai-write" data-k="notice">📢 직원 공지 쓰기</button><button class="chip" data-act="ai-write" data-k="promo">🎉 손님 홍보글 쓰기</button></div><p class="note" id="ai-a" style="white-space:pre-wrap"></p><button class="btn sm" id="ai-copy" data-act="ai-copy" hidden>복사</button></div>` : ''}${cur ? topStrip(M) : ''}
+  ${cur ? noShowCard() + liveCard() + forecastCard() + payDayCard() + iosCard() + startCard() + todoCard() + upcomingCard() + laborCard() + noticeCard() + `<button class="card nowline" data-act="poster"><small>홍보</small><b>🎨 포스터 스튜디오 · 템플릿 6종</b><span class="mut">›</span></button>` : ''}${cur && isOwner() ? (!hasCompanyPro(S.company) ? proFeatureCard('ai') : `<div class="card"><h3>AI 비서 <span class="pro-tag">PRO 전용</span> <small>우리 매장 숫자로 답하고, 글도 써요</small></h3><div class="row" style="gap:6px"><input id="ai-q" placeholder="질문, 또는 공지·홍보할 내용 (예: 토요일 8시 토너먼트 바인 3만)" style="flex:1;min-width:0"><button class="btn sm pri" data-act="ai-ask">묻기</button></div><div class="row" style="gap:6px;flex-wrap:wrap;margin-top:8px"><button class="chip" data-act="ai-ask" data-q="1">📊 이번 달 총평</button><button class="chip" data-act="ai-write" data-k="notice">📢 직원 공지 쓰기</button><button class="chip" data-act="ai-write" data-k="promo">🎉 손님 홍보글 쓰기</button></div><p class="note" id="ai-a" style="white-space:pre-wrap"></p><button class="btn sm" id="ai-copy" data-act="ai-copy" hidden>복사</button></div>`) : ''}${cur ? topStrip(M) : ''}
   ${(() => { const g = goalOf(S.y, S.m), T = cur && g ? todayTodo(M, g) : []; return T.length ? `<button class="card nowline" ${T[0][3] ? `data-act="goto" data-t="${T[0][3] === 'order' ? 'more' : T[0][3]}" ${T[0][3] === 'order' ? 'data-s="order"' : ''}` : ''}><small>지금 할 일</small><b>${T[0][1]}</b><span class="mut">›</span></button>` : ''; })()}
   ${rankBar()}
   <div class="sech"><h2>${S.m}월 손익</h2>${monthNav()}</div>
@@ -697,19 +699,21 @@ function rxOf(B) {
   return { rev: top(R), cost: top(C) };
 }
 function rankBar() {
+  if (!hasCompanyPro(S.company)) return proFeatureCard('compare');
   const B = S.bench; if (!B) return '';
-  if (!B.ready) return `<div class="card rankbar"><div><b>우리 매장 순위</b><small class="mut" style="display:block">${B.why === 'mine' ? '매출 보고가 7일 쌓이면 비슷한 매장과 비교해 드려요' : '비교할 매장이 3곳 이상 모이면 보여요'}</small></div></div>`;
+  if (!B.ready) return `<div class="card rankbar"><div><b>우리 매장 순위 <span class="pro-tag">PRO</span></b><small class="mut" style="display:block">${B.why === 'mine' ? '매출 보고가 7일 쌓이면 비슷한 매장과 비교해 드려요' : '비교할 매장이 3곳 이상 모이면 보여요'}</small></div></div>`;
   if (B.locked) return `<div class="card tease"><div class="row between"><span class="pill y">주변 매장 ${B.n}곳과 비교</span><small class="mut">${+B.month.slice(5, 7)}월 기준 · 계산 끝</small></div>
     <div class="tz"><div><small>매출 순위</small><b class="num mosaic">상위 23%</b></div><div><small>순이익 순위</small><b class="num mosaic">상위 41%</b></div><div><small>주변보다 새는 돈</small><b class="num mosaic down">월 ₩87만</b></div></div>
     <p class="tzm">우리 매장이 주변보다 <b>어디서 돈이 새는지</b> 이미 계산해 뒀어요. 열어보기만 하면 돼요.</p>
     ${isOwner() ? `<button class="btn gold full" data-act="plan" data-v="pro">프로로 업그레이드하고 바로 보기 · 매장당 월 ₩${E.won(PRICE.pro)}</button>` : '<button class="btn sm" data-act="ask-pro">대표님께 요청</button>'}</div>`;
-  return `<div class="card rankbar"><div><b>우리 매장 순위</b><small class="mut" style="display:block">비슷한 매장 ${B.n}곳 중 · ${+B.month.slice(5, 7)}월 <button class="tlink" data-act="bench-why">기준?</button></small></div>
+  return `<div class="card rankbar"><div><b>우리 매장 순위 <span class="pro-tag">PRO</span></b><small class="mut" style="display:block">비슷한 매장 ${B.n}곳 중 · ${+B.month.slice(5, 7)}월 <button class="tlink" data-act="bench-why">기준?</button></small></div>
     <div class="rkv"><small>매출</small><b class="num">상위 ${B.s_pct}%</b></div><div class="rkv"><small>순이익</small><b class="num">상위 ${B.h_pct}%</b></div>
     <button class="btn sm" data-tab="improve">매장 개선 →</button></div>`;
 }
 const LIGHT_RX = { util: 'rev_util', elec: 'cost_elec', lr: 'cost_lr', sr: 'cost_sr', gr: 'cost_gr', npy: 'cost_net' };
 // full=false(홈): 내 숫자·얼마 아낄 수 있는지만. 평균과 고치는 법은 매장 개선(프로)에서
 function lightsCard(full) {
+  if (!hasCompanyPro(S.company)) return full ? '' : proFeatureCard('improve');
   const B = S.bench; if (!B?.ready || B.locked) return '';
   const L = lightsOf(B), rx = rxOf(B), all = [...rx.rev, ...rx.cost], bad = L.filter(x => x.lv && x.lv !== 'g'), gain = all.reduce((a, r) => a + r[3], 0);
   const val = (v, u) => u === '원' ? '₩' + E.won(v) : v.toFixed(1) + '%', fix = x => all.find(r => r[0] === LIGHT_RX[x.key]);
@@ -737,7 +741,8 @@ function radar(sc) {
     <div>${K.map(([k, l], i) => `<div class="sbar"><span>${l}</span><i><b style="width:${mine[i]}%"></b><em></em></i><span class="num">${mine[i]}</span></div>`).join('')}</div></div>`;
 }
 function vImprove() {
-  const B = S.bench, head = storeHead('매장 개선');
+  const B = S.bench, head = storeHead('매장 개선') + '<p class="sub"><span class="pro-tag">PRO 전용</span> 비교 · 처방 · 3개월 예측</p>';
+  if (!hasCompanyPro(S.company)) return head + proFeatureCard('improve') + proFeatureCard('report');
   if (!B?.ready) return `${head}${rankBar()}<div class="card empty">${B?.why === 'mine' ? '매출 보고가 7일 이상 쌓이면 비슷한 매장과 비교해서 처방을 드려요.' : '비교할 매장이 모이는 중이에요.'}</div>`;
   if (B.locked) return `${head}<div class="paywall"><div class="blurme" aria-hidden="true">${radar({ s_sales: 70, s_profit: 55, s_labor: 40, s_fixed: 65, s_util: 50 })}<div class="card"><h3>이번 달 처방</h3><div class="li">매출 늘리기 ··· 월 +₩···만</div><div class="li">비용 줄이기 ··· 월 −₩···만</div></div></div>
     <div class="over"><div class="card"><div class="mut" style="font-size:12px">매장 개선 · 프로 요금제(월 ${E.won(PRICE.pro)}원)</div><h2 style="margin:10px 0 4px">내 매장은 비슷한 매장 ${B.n}곳 중<br>상위 몇 %일까요?</h2><div class="num mosaic" style="font-size:30px;font-weight:800;margin:6px 0">상위 ??%</div>
@@ -1677,8 +1682,8 @@ function vWork() {
 }
 function vAttend() {
   const last = S.att?.[0], stale = last?.kind === 'in' && Date.now() - new Date(last.at) > 16 * 3600e3;
-  return `<h1>출퇴근</h1><p class="sub">매장 출퇴근 화면의 QR을 스캔해 주세요.</p>${stale ? `<div class="card warnc"><b>${new Date(last.at).toLocaleDateString('ko-KR', { month: 'numeric', day: 'numeric' })} 퇴근이 안 찍혀 있어요</b><small class="mut" style="display:block">먼저 고치기 요청을 보내고, 오늘은 출근을 찍어주세요</small><button class="btn sm pri" data-act="fix-new" style="margin-top:6px">퇴근 기록 고치기</button></div>` : ''}
-  <div class="card"><button class="btn pri full" type="button" data-act="qr-attend">📷 QR 스캔하고 ${last?.kind === 'in' && !stale ? '퇴근하기' : '출근하기'}</button><p class="note">휴대폰 기본 카메라로 매장 QR을 찍어도 돼요. QR은 30초마다 바뀝니다.</p></div>
+  return `<h1>출퇴근</h1><p class="sub">매장 출퇴근 화면의 QR을 스캔해 주세요.</p>${stale ? `<div class="card warnc"><b>${new Date(last.at).toLocaleDateString('ko-KR', { month: 'numeric', day: 'numeric' })} 퇴근이 안 찍혀 있어요</b><small class="mut" style="display:block">퇴근 기록을 확인해 주세요. 잘못된 기록은 고치기를 요청할 수 있어요</small><button class="btn sm pri" data-act="fix-new" style="margin-top:6px">퇴근 기록 고치기</button></div>` : ''}
+  ${attendanceCard()}
   <div class="card"><h3>최근 기록</h3>${(S.att || []).map(a => `<div class="li"><span>${a.kind === 'in' ? '🟢 출근' : '⚪ 퇴근'}</span><span class="num">${fmtDT(a.at)}</span></div>`).join('') || '<div class="empty">아직 기록이 없어요</div>'}</div>`;
 }
 
@@ -2556,7 +2561,7 @@ function reportSheet() {
 // ===== 사용성: 오프라인 마감 · 홈 꾸미기 · 즐겨찾기 · 색약 · 첫 화면 · 단축키 · 기기 목록 · 지난해 =====
 const FAVS = [['sales', '마감', 'tab'], ['sched', '스케줄', 'tab'], ['staff', '직원·급여', 'tab'], ['jobs', '구인', 'tab'], ['order', '발주', 'sub'], ['qr', '출퇴근 QR', 'sub'], ['daily', '일 매출', 'sub']];
 const favs = () => (lsGet('ev_favs') || 'sales,sched').split(',').filter(Boolean);
-function favBar() { if (S.mode !== 'store') return ''; const F = FAVS.filter(([k]) => favs().includes(k)); return `<div class="favbar">${F.map(([k, l, t]) => t === 'tab' ? `<button class="fchip" data-tab="${k}">${l}</button>` : t === 'sub' ? `<button class="fchip" data-act="sub" data-v="${k}">${l}</button>` : `<button class="fchip" data-act="${t}">${l}</button>`).join('')}<button class="fchip" data-act="fav-set" aria-label="바로가기 고르기">＋</button><button class="fchip" data-act="home-edit">${S.homeEdit ? '✓ 다 꾸몄어요' : '홈 꾸미기'}</button><button class="fchip" data-act="u-set">🎛 맞춤 설정</button>${new Date().getDate() <= 7 ? '<button class="fchip" data-act="mrep">지난달 리포트</button>' : ''}</div>`; }
+function favBar() { if (S.mode !== 'store') return ''; const F = FAVS.filter(([k]) => favs().includes(k)); return `<div class="favbar">${F.map(([k, l, t]) => t === 'tab' ? `<button class="fchip" data-tab="${k}">${l}</button>` : t === 'sub' ? `<button class="fchip" data-act="sub" data-v="${k}">${l}</button>` : `<button class="fchip" data-act="${t}">${l}</button>`).join('')}<button class="fchip" data-act="fav-set" aria-label="바로가기 고르기">＋</button><button class="fchip" data-act="home-edit">${S.homeEdit ? '✓ 다 꾸몄어요' : '홈 꾸미기'}</button><button class="fchip" data-act="u-set">🎛 맞춤 설정</button>${new Date().getDate() <= 7 ? '<button class="fchip" data-act="mrep">지난달 리포트 <span class="pro-tag">PRO</span></button>' : ''}</div>`; }
 const hideL = () => (lsGet('ev_hide') || '').split('|').filter(Boolean), pinL = () => (lsGet('ev_pin2') || '').split('|').filter(Boolean);
 const cardKey = c => (c.querySelector('h3,b')?.firstChild?.textContent || c.querySelector('h3,b')?.textContent || '').replace(/[\d,.₩%()·:/~+−-]|월|일|개|명|건|원|만/g, '').replace(/\s+/g, '').slice(0, 12);
 function homeTune() {
@@ -2620,7 +2625,7 @@ const noticeOk = t => !t || ((!t.area || (S.store?.area || '').startsWith(t.area
 { const o = vHqDash; vHqDash = () => o() + hqOpsCard(); }
 { const o = vHqInq; vHqInq = () => tplCard() + o(); }
 { const o = vHqNotice; vHqNotice = () => o().replace('<button class="btn pri full">', noticeTgt + '<button class="btn pri full">'); }
-{ const o = render; render = function () { if (!S.start68 && ['store', 'staff', 'dealer'].includes(S.mode) && S.user) { S.start68 = 1; const st = lsGet('ev_start_' + S.mode) || (S.mode === 'store' ? lsGet('ev_start') : ''); if (st && !/go=/.test(location.search)) S.tab = st; } o(); after68(); }; }
+{ const o = render; render = function () { if (!S.start68 && ['store', 'staff', 'dealer'].includes(S.mode) && S.user) { S.start68 = 1; const st = lsGet('ev_start_' + S.mode) || (S.mode === 'store' ? lsGet('ev_start') : ''); if (st && !S.pendingAttCode && !/go=/.test(location.search)) S.tab = st; } o(); after68(); }; }
 { const o = loadStore; loadStore = async () => { await o(); const [f, l] = monthRange(); const [, op, pr] = await Promise.all([itemsLoad(), sb.from('day_opens').select('day,opened_at,start_cash').eq('store_id', S.store.id).gte('day', addDay(f, -31)).lte('day', l), sb.from('store_notes').select('id,target,created_at').eq('store_id', S.store.id).eq('kind', 'praise').gte('created_at', f), kpiLoad()]); S.opens = op.data || []; S.praise = pr.data || [];
   if (S.noticeTop) { const t = (await sb.from('notices').select('target').eq('id', S.noticeTop.id).maybeSingle()).data?.target; if (!noticeOk(t)) S.noticeTop = null; }
   if (S.lastStart == null) { const c = carryCash(); if (c) S.lastStart = c.v; } await signUrls(); dev68(); }; }
@@ -2751,7 +2756,7 @@ function gradeSheet() { const g = gradeRule(); openSheet(`<h2>등급 조건</h2>
 // 두루누리: 10명 미만 · 월 보수 270만 원 미만 · 국민연금·고용보험 80% (신규 가입 최대 36개월)
 const duru = g => (S.members || []).filter(x => x.role !== 'owner').length < 10 && g > 0 && g < 2700000;
 // 지난달 리포트 카드 (1~7일)
-function mrepCard() { const d = +TODAY.slice(8); if (!isOwner() || d > 7 || lsGet('ev_mrep') === TODAY.slice(0, 7) || (S.store?.created_at || '') >= TODAY.slice(0, 8) + '01') return ''; /* 이번 달에 만든 매장은 지난달 리포트 없음 */ const pm = new Date(S.y, S.m - 2, 1); return `<div class="card lbud"><div><b>📊 ${pm.getMonth() + 1}월 리포트가 나왔어요</b><small>매출·비용·남은 돈 한 장 · PDF 저장</small></div><span class="row"><button class="btn sm pri" data-act="mrep">보기</button><button class="btn sm" data-act="mrep-x" aria-label="닫기">✕</button></span></div>`; }
+function mrepCard() { if (!hasCompanyPro(S.company)) return isOwner() ? proFeatureCard('report') : ''; const d = +TODAY.slice(8); if (!isOwner() || d > 7 || lsGet('ev_mrep') === TODAY.slice(0, 7) || (S.store?.created_at || '') >= TODAY.slice(0, 8) + '01') return ''; /* 이번 달에 만든 매장은 지난달 리포트 없음 */ const pm = new Date(S.y, S.m - 2, 1); return `<div class="card lbud"><div><b>📊 ${pm.getMonth() + 1}월 리포트가 나왔어요 <span class="pro-tag">PRO</span></b><small>매출·비용·남은 돈 한 장 · PDF 저장</small></div><span class="row"><button class="btn sm pri" data-act="mrep">보기</button><button class="btn sm" data-act="mrep-x" aria-label="닫기">✕</button></span></div>`; }
 // 직원 앱 바로가기
 function staffFav() { return `<div class="favbar">${[['attend', '출퇴근', 'tab'], ['ics', '📅 캘린더', 'act'], ['rq-new', '조기 퇴근', 'act', 'early']].map(([k, l, t, v]) => t === 'tab' ? `<button class="fchip" data-tab="${k}">${l}</button>` : `<button class="fchip" data-act="${k}" ${v ? `data-v="${v}"` : ''}>${l}</button>`).join('')}</div>`; }
 const EVK = { sales_entry: '마감 입력', schedule_created: '스케줄 저장', job_applied: '딜러 지원', store_created: '매장 생성', dealer_signup: '딜러 가입', staff_added: '직원 등록', order: '발주', contract_sent: '계약서 발송' };
@@ -2927,9 +2932,19 @@ A68['ins-help'] = () => { const L = S.members.filter(p => p.role !== 'owner' && 
 { const o = vStaff; vStaff = () => o().replace('<button class="btn sm" data-act="pay-copy">이체 목록 복사</button>', '<button class="btn sm" data-act="pay-copy">이체 목록 복사</button><button class="btn sm" data-act="pay-csv">CSV</button><button class="btn sm" data-act="ins-help">4대보험</button>'); }
 document.addEventListener('click', e => {
   const b = e.target.closest?.('[data-tab],[data-act]'); if (!b) return; const d = b.dataset;
+  if (d.tab === 'improve' && !hasCompanyPro(S.company)) return proInfo('improve');
   if (d.tab) { S.tab = d.tab; S.sub = null; closeSheet(); render(); scrollTo(0, 0); return; }
   const a = d.act;
-  if (a === 'qr-attend') return scanAttendance({ openSheet, closeSheet, label: S.att?.[0]?.kind === 'in' ? '퇴근 확인' : '출근 확인', submit: async code => { const kind = await q(attendGeo(code)); toast(kind === 'in' ? 'QR로 출근했어요' : 'QR로 퇴근했어요'); await reload(); } });
+  if (a === 'att-choice') { S.attChoice = d.v; render(); return; }
+  if (a === 'pro-info') return proInfo(d.v);
+  if (!hasCompanyPro(S.company) && ['ai-ask', 'ai-write', 'mrep'].includes(a)) return proInfo(a === 'mrep' ? 'report' : 'ai');
+  if (a === 'goto' && d.t === 'improve' && !hasCompanyPro(S.company)) return proInfo('improve');
+  if (a === 'qr-attend') {
+    const selected = attendanceChoice();
+    const submit = async code => { const kind = await q(attendGeo(code, selected)); S.pendingAttCode = null; toast(kind === 'in' ? 'QR로 출근했어요' : 'QR로 퇴근했어요'); await reload(); };
+    if (S.pendingAttCode) { submit(S.pendingAttCode).catch(e => { S.pendingAttCode = null; toast(koErr(e.message || String(e))); render(); }); return; }
+    return scanAttendance({ openSheet, closeSheet, label: selected === 'in' ? '출근 확인' : '퇴근 확인', submit });
+  }
   if (A68[a] && A68[a](b, d) !== false) return;
   if (a === 'authmode') { S.authMode = d.v; render(); }
   if (a === 'menu') return menuSheet();
@@ -4515,6 +4530,30 @@ document.addEventListener('click', e => {
   if (a === 's5-paid') return busy(async () => { await q(sb.rpc('hq_signup_paid', { p_id: +b.dataset.v, p_to: b.dataset.to })); S.hqSign = null; S.hqSignBusy = 0; await hqSignLoad(); toast('바꿨어요'); });
   if (a === 's5-csv') { const L = S.hqSign?.recent || []; return download(`선착순입점_${TODAY}.csv`, [['날짜', '시각', '회사', '매장', '지역', '대표', '추천인', '추천인 연락처', '지급', '지급 대상'], ...L.map(x => [x.day, fmtDT(x.created_at), x.company_name, x.store_name, x.area, x.owner_name, x.ref_name, x.ref_phone, x.paid_at ? fmtDT(x.paid_at) : '', x.paid_to])]); }
 });
+
+// PRO 표시는 서버의 유료 프로 만료 기준과 동일하게 판단해요.
+const PRO_FEATURES = {
+  compare: ['주변 매장 비교', '비슷한 매장과 매출·순이익 순위를 비교해요.'],
+  improve: ['매장 개선 · 3개월 예측', '이번 달 처방과 앞으로의 운영 흐름을 확인해요.'],
+  ai: ['AI 비서', '매장 숫자로 총평을 받고 공지·홍보글을 작성해요.'],
+  report: ['월간 리포트', '매출·비용·남은 돈을 한 장으로 보고 PDF로 저장해요.']
+};
+function proFeatureCard(key) { const [title, desc] = PRO_FEATURES[key]; return `<div class="card pro-feature"><div><h3>${title} <span class="pro-tag">PRO 전용</span></h3><p class="note">${desc}</p></div><button class="btn sm gold" data-act="pro-info" data-v="${key}">기능 보기</button></div>`; }
+function proInfo(key) {
+  const [title, desc] = PRO_FEATURES[key] || PRO_FEATURES.improve;
+  const offer = companyOffer(S.company, TODAY);
+  openSheet(`<span class="pro-tag">PRO 전용</span><h2>${title}</h2><p>${desc}</p><div class="card"><b>프로 월 ₩${E.won(PRICE.pro)}</b><p class="note">${offer.active ? `가입일로부터 6개월 · ${offer.endsOn} 전까지 월 9,900원, 이후 월 ₩${E.won(PRICING.proMonthly)}` : '회사당 월 요금 · 일반 기능 포함'}</p></div>${isOwner() ? '<button class="btn gold full" data-act="sub" data-v="pricing">요금제 확인하기</button>' : '<button class="btn gold full" data-act="ask-pro">대표님께 요청하기</button>'}<button class="btn full" data-act="close">닫기</button>`);
+}
+function attendanceChoice() {
+  const last = S.att?.[0], key = `${S.my?.[S.mi || 0]?.id || ''}:${last?.id || ''}:${last?.at || ''}`;
+  if (S.attChoiceKey !== key) { S.attChoiceKey = key; S.attChoice = nextAttendance(last); }
+  return S.attChoice;
+}
+function attendanceCard() {
+  const last = S.att?.[0], selected = attendanceChoice(), label = selected === 'in' ? '출근' : '퇴근';
+  return `<aside class="card attendance-card"><h2>출퇴근</h2><p class="note">현재 <b>${last?.kind === 'in' ? '근무 중' : '출근 전'}</b>${last ? ` · 마지막 ${last.kind === 'in' ? '출근' : '퇴근'} ${fmtDT(last.at)}` : ''}</p><div class="attendance-choices" role="group" aria-label="출근 또는 퇴근 선택">${[['in','출근'],['out','퇴근']].map(([v,t]) => `<button type="button" class="btn ${selected === v ? 'pri' : ''}" data-act="att-choice" data-v="${v}" aria-pressed="${selected === v}">${t}</button>`).join('')}</div><button class="btn pri full" type="button" data-act="qr-attend">${S.pendingAttCode ? '✓ QR 확인 · ' : '📷 QR 스캔하고 '}${label}하기</button><p class="note">${S.pendingAttCode ? '읽은 QR로 선택한 출퇴근을 기록해요. 만료되면 새 QR을 찍어주세요.' : '매장 화면의 QR을 스캔해 주세요. QR은 30초마다 바뀝니다.'}</p><button class="tlink" data-tab="attend">최근 출퇴근 기록 보기 →</button></aside>`;
+}
+{ const old = vWork; vWork = () => `<div class="staff-home-layout"><section class="staff-main">${old()}</section>${attendanceCard()}</div>`; }
 
 // ===== 홈 간편보기 (기존 홈 유지) =====
 // 기본은 기존 화면. 기기별 보기 선택만 저장하고 매장 데이터는 변경하지 않는다.
