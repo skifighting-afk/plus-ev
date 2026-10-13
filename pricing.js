@@ -20,3 +20,5 @@ const MAP = {
 export function applyPricing(rows) {
   for (const { key, amount } of rows || []) { const p = MAP[key]; if (!p) continue; let o = PRICING; for (const k of p.slice(0, -1)) o = o[k]; o[p.at(-1)] = amount; }
 }
+
+export { companyOffer } from './company-offer.js';
