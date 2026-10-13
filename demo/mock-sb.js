@@ -1,3 +1,4 @@
+import { companyOffer } from '../company-offer.js';
 // 테스트용 가짜 Supabase — 실제 DB 규칙(RPC)을 간단히 흉내냄
 const uid = () => 'u' + Math.random().toString(36).slice(2, 11);
 const now = () => new Date().toISOString();
@@ -11,7 +12,7 @@ const canManage = st => managers(st).includes(user?.id);
 const tickets = u => DB.ticket_ledger.filter(x => x.user_id === u).reduce((a, x) => a + x.delta, 0);
 const OWNED = { notifications: 'user_id', inquiries: 'from_user', lesson_progress: 'user_id', quiz_results: 'user_id', course_interest: 'user_id' };
 const TODAY0 = () => new Date().toISOString().slice(0, 10);
-const compActive = co => !!co && ((co.plan === 'pro' && co.paid_until && new Date(co.paid_until) > new Date()) || (co.trial_ends && co.trial_ends >= TODAY0()) || (co.diag_until && new Date(co.diag_until) > new Date()));
+const compActive = co => !!co && (companyOffer(co).active || (co.plan === 'pro' && co.paid_until && new Date(co.paid_until) > new Date()) || (co.trial_ends && co.trial_ends >= TODAY0()) || (co.diag_until && new Date(co.diag_until) > new Date()));
 function builder(t) {
   DB[t] = DB[t] || [];
   let op = 'select', payload = null, filters = [], single = false, order = null, lim = 0;
@@ -138,7 +139,7 @@ const RPC = window.__RPC = {
   pay_start(a) { const k = a.p_kind, g = a.p_arg || {}; let amt, nm, comp = null; const own = DB.members.find(m => m.user_id === me() && m.role === 'owner');
     if (k === 'tickets') { amt = [0, 5500, 24900, 44000][g.pack]; nm = '지원권'; } else if (k === 'pro') { amt = 9900; nm = 'PRO'; }
     else if (k === 'store') { if (!own) throw { message: '대표님만 결제할 수 있어요' }; comp = own.company_id; amt = 35000; nm = '매장 추가'; }
-    else if (k === 'academy' || k === 'plan') { if (!own) throw { message: '대표님만 결제할 수 있어요' }; comp = own.company_id; amt = k === 'academy' ? 159000 : (g.plan === 'basic' ? 25000 : 35000); nm = k === 'academy' ? '+EV 딜러 교육 (매장 패키지)' : '+EV 프로 요금제 30일'; }
+    else if (k === 'academy' || k === 'plan') { if (!own) throw { message: '대표님만 결제할 수 있어요' }; comp = own.company_id; amt = k === 'academy' ? 159000 : (g.plan === 'basic' ? companyOffer(DB.companies.find(c => c.id === comp)).basic : companyOffer(DB.companies.find(c => c.id === comp)).pro); nm = k === 'academy' ? '+EV 딜러 교육 (매장 패키지)' : '+EV 프로 요금제 30일'; }
     else if (k === 'diag') { if (!own) throw { message: '대표님만 결제할 수 있어요' }; comp = own.company_id; amt = 10000; nm = '+EV 주변 매장 비교 진단 (30일)'; }
     else if (k === 'franchise') { const f = DB.franchise_postings.find(x => x.id === g.post); if (!f || f.owner_user !== me()) throw { message: '내 가맹 공고만' }; amt = 300000; nm = '가맹 모집 공고 30일: ' + f.brand; }
     else if (k === 'fr_bill') { const b = DB.payments.find(x => x.order_id === g.order && x.user_id === me() && x.status === 'due'); if (!b) throw { message: '청구서 없음' }; b.status = 'ready'; return [{ order_id: b.order_id, amount: b.amount, order_name: b.order_name }]; }
