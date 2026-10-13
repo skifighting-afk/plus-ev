@@ -1,0 +1,24 @@
+클립 22 실패 Error: seedance failed {"status":"failed","error":"Your credit balance is too low to complete this request. Please top up your balance and try again.","request_id":"e69d26cb-c07f-4229-8d52-3953e7dd6216","status_url":"https://api.higgsfield.ai/requests/e69d26cb-c07f-4229-8d52-3953e7dd6216/status","ca
+클립 13 실패 Error: seedance failed {"status":"failed","error":"Your credit balance is too low to complete this request. Please top up your balance and try again.","request_id":"3e3731df-daaa-4827-ae30-b5a4b4dba322","status_url":"https://api.higgsfield.ai/requests/3e3731df-daaa-4827-ae30-b5a4b4dba322/status","ca
+클립 16 실패 Error: seedance failed {"status":"failed","error":"Your credit balance is too low to complete this request. Please top up your balance and try again.","request_id":"240b6755-c129-444f-bfdc-83483c693985","status_url":"https://api.higgsfield.ai/requests/240b6755-c129-444f-bfdc-83483c693985/status","ca
+클립 20 실패 Error: seedance failed {"status":"failed","error":"Your credit balance is too low to complete this request. Please top up your balance and try again.","request_id":"22ba4d17-d362-48bd-90f6-6667bbca841f","status_url":"https://api.higgsfield.ai/requests/22ba4d17-d362-48bd-90f6-6667bbca841f/status","ca
+클립 10 실패 Error: seedance failed {"status":"failed","error":"Your credit balance is too low to complete this request. Please top up your balance and try again.","request_id":"1bb6c0dc-2c1e-473c-be3d-1eb3120df6ba","status_url":"https://api.higgsfield.ai/requests/1bb6c0dc-2c1e-473c-be3d-1eb3120df6ba/status","ca
+클립 0 실패 Error: seedance failed {"status":"failed","error":"Your credit balance is too low to complete this request. Please top up your balance and try again.","request_id":"9085b19b-3929-4263-87db-1b4f7583d7cf","status_url":"https://api.higgsfield.ai/requests/9085b19b-3929-4263-87db-1b4f7583d7cf/status","ca
+클립 4 실패 Error: seedance failed {"status":"failed","error":"Your credit balance is too low to complete this request. Please top up your balance and try again.","request_id":"1d827c5b-ca1a-4876-bca6-b8ceaa642eb2","status_url":"https://api.higgsfield.ai/requests/1d827c5b-ca1a-4876-bca6-b8ceaa642eb2/status","ca
+클립 5 실패 Error: seedance failed {"status":"failed","error":"Your credit balance is too low to complete this request. Please top up your balance and try again.","request_id":"468d8e8b-b507-4d22-9f3c-eed8b6f62d34","status_url":"https://api.higgsfield.ai/requests/468d8e8b-b507-4d22-9f3c-eed8b6f62d34/status","ca
+클립 14 실패 Error: seedance failed {"status":"failed","error":"Your credit balance is too low to complete this request. Please top up your balance and try again.","request_id":"a53747c8-53ff-4431-90d6-2bd43bf1927a","status_url":"https://api.higgsfield.ai/requests/a53747c8-53ff-4431-90d6-2bd43bf1927a/status","ca
+클립 8 실패 Error: seedance failed {"status":"failed","error":"Your credit balance is too low to complete this request. Please top up your balance and try again.","request_id":"cec3a3db-65be-47e6-97e4-39c685a76161","status_url":"https://api.higgsfield.ai/requests/cec3a3db-65be-47e6-97e4-39c685a76161/status","ca
+클립 11 실패 Error: seedance failed {"status":"failed","error":"Your credit balance is too low to complete this request. Please top up your balance and try again.","request_id":"58c94ac6-b22b-4c28-b71b-a0d6cf4415ef","status_url":"https://api.higgsfield.ai/requests/58c94ac6-b22b-4c28-b71b-a0d6cf4415ef/status","ca
+클립 13 실패 Error: seedance failed {"status":"failed","error":"Your credit balance is too low to complete this request. Please top up your balance and try again.","request_id":"4ec751a3-d3a0-412e-8b24-7a8e0ba8bba9","status_url":"https://api.higgsfield.ai/requests/4ec751a3-d3a0-412e-8b24-7a8e0ba8bba9/status","ca
+file:///home/runner/work/plus-ev/plus-ev/tools/insta-study/make-anim.mjs:24
+    if (["failed", "nsfw", "canceled"].includes(st.status)) throw new Error("seedance " + st.status + " " + JSON.stringify(st).slice(0, 300));
+                                                                  ^
+
+Error: seedance failed {"status":"failed","error":"Your credit balance is too low to complete this request. Please top up your balance and try again.","request_id":"4ec751a3-d3a0-412e-8b24-7a8e0ba8bba9","status_url":"https://api.higgsfield.ai/requests/4ec751a3-d3a0-412e-8b24-7a8e0ba8bba9/status","cancel_url":"https://api.
+    at seedance (file:///home/runner/work/plus-ev/plus-ev/tools/insta-study/make-anim.mjs:24:67)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async file:///home/runner/work/plus-ev/plus-ev/tools/insta-study/make-anim.mjs:48:52
+    at async Promise.all (index 13)
+    at async file:///home/runner/work/plus-ev/plus-ev/tools/insta-study/make-anim.mjs:42:16
+
+Node.js v22.23.3
