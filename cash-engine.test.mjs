@@ -1,0 +1,10 @@
+import assert from 'node:assert/strict';
+import { expectedCash } from './cash-engine.js';
+const base={opening:300000,cashSales:50000,cashExpenses:0};
+assert.equal(expectedCash({...base,movements:[{id:'1',direction:'out',amount:100000,source:'owner'}]}),250000);
+assert.equal(expectedCash({...base,movements:[{id:'1',direction:'out',amount:100000,source:'payroll'},{id:'1',direction:'out',amount:100000,source:'payroll'}]}),250000);
+assert.equal(expectedCash({...base,movements:[{direction:'out',amount:100000,method:'transfer'}]}),350000);
+assert.equal(expectedCash({...base,movements:[{id:1,direction:'out',amount:100000},{id:2,direction:'in',amount:100000,reverses_id:1}]}),350000);
+assert.equal(expectedCash({...base,cashExpenses:20000,movements:[{source:'expense',already_in_expenses:true,direction:'out',amount:20000}]}),330000);
+assert.throws(()=>expectedCash({...base,movements:[{direction:'out',amount:-1}]}));
+console.log('Cash engine: owner/payroll, transfer, duplicate, reversal and expense deduplication passed');
