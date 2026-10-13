@@ -1,3 +1,4 @@
+import { PRICING } from '../pricing.js';
 import { companyOffer } from '../company-offer.js';
 // 테스트용 가짜 Supabase — 실제 DB 규칙(RPC)을 간단히 흉내냄
 const uid = () => 'u' + Math.random().toString(36).slice(2, 11);
@@ -37,7 +38,7 @@ function builder(t) {
 const code = (st) => String(Math.floor(Date.now() / 30000) * 7919 % 1000000).padStart(6, '0') ;
 
 const postFee = id => { const p = DB.job_posts.find(x => x.id === id), tp = DB.job_slots.filter(x => x.post_id === id).reduce((a, x) => a + x.pay, 0);
-  if (p.kind === 'urgent') return tp + 10000 + DB.job_slots.filter(x => x.post_id === id).reduce((a, x) => a + Math.floor(x.pay * .05 / 10) * 10, 0) + (p.flash ? 3300 : 0);
+  if (p.kind === 'urgent') { const free = companyOffer(DB.companies.find(c => c.id === DB.stores.find(st => st.id === p.store_id)?.company_id)).active; return tp + (free ? 0 : PRICING.jobs.urgent * Math.max(1,p.heads) + DB.job_slots.filter(x => x.post_id === id).reduce((a,x) => a + Math.floor(x.pay * PRICING.jobs.matchPct / 100 / 10) * 10,0)) + (p.flash ? PRICING.jobs.flashDay : 0); }
   const j = p.top ? 12000 : { 2: 3000, 5: 5000, 8: 7000 }[p.jump_per_day] || 0, d = p.ad_days, disc = d >= 30 ? .2 : d >= 15 ? .15 : d >= 7 ? .1 : 0;
   return base(d) + Math.round((j + (p.flash ? 3300 : 0)) * d * (1 - disc) / 100) * 100; };
 const base = d => d >= 30 ? 16500 : 8800;

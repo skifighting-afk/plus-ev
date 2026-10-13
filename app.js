@@ -1,5 +1,5 @@
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
-import * as E from './engine.js';
+import * as E from './engine.js?v=95-urgent-offer';
 import { PRICING, applyPricing } from './pricing.js';
 import { companyOffer } from './company-offer.js';
 import { laborBody, payslipBody, sigPad } from './docs.js';
@@ -1376,9 +1376,9 @@ function vJobs() {
 const postVals = f => { const fd = new FormData(f), v = formVals(f); return { ...v, wd: fd.getAll('wd'), pf: [...fd.getAll('pf'), ...(v.pf_etc ? [v.pf_etc.trim()] : [])].filter(Boolean), heads: +v.heads || 1, top: v.expo === 'top', jump: v.expo === 'top' ? 0 : +v.expo || 0 }; };
 function feeBox() {
   const f = $('#post-form'), box = $('#fee-box'); if (!f || !box) return; const v = postVals(f), urg = (S.postKind || 'urgent') === 'urgent';
-  const L = E.feeLines(urg ? 'urgent' : 'hire', { pay: +v.pay || 0, heads: v.heads, flash: !!v.flash, top: v.top, jump: v.jump, days: +v.days || 3 }), tot = L.reduce((a, x) => a + x[1], 0);
+  const L = E.feeLines(urg ? 'urgent' : 'hire', { pay: +v.pay || 0, heads: v.heads, flash: !!v.flash, top: v.top, jump: v.jump, days: +v.days || 3, urgentFree: urg && companyOffer(S.company, TODAY).active }), tot = L.reduce((a, x) => a + x[1], 0);
   box.innerHTML = `<div class="receipt"><div class="rh">결제 계산서</div>${L.map(([n, a]) => `<div class="rl"><span>${esc(n)}</span><span class="num ${a <= 0 ? 'up' : ''}">${a === 0 ? '무료' : `${a < 0 ? '−' : ''}₩${E.won(Math.abs(a))}`}</span></div>`).join('')}<div class="rl tot"><b>합계</b><b class="num">₩${E.won(tot)}</b></div>
-    ${urg ? `<small class="mut">딜러 급여 ₩${E.won((+v.pay || 0) * v.heads)}는 근무 후 딜러에게 가요 (3.3% 원천세는 매장에 돌려드려요 · 사장님이 홈택스 신고). 매칭 수수료 6%는 사람을 구했을 때만 받아요.</small>` : `<small class="mut">알바몬 기준: 즉시등록 8,800원 · 유료 공고 14일 · 끌올(점프) 하루 27,500~29,700원. +EV는 등록 ${E.won(E.postBase(+v.days || 14))}원에 끌올 하루 ${E.won(E.FEES.JUMP[v.jump] || 0)}원이에요. 올린 뒤에도 관리에서 기간·노출을 늘릴 수 있어요.</small>`}</div>`;
+    ${urg ? `<small class="mut">딜러 급여 ₩${E.won((+v.pay || 0) * v.heads)}는 근무 후 딜러에게 가요 (3.3% 원천세는 매장에 돌려드려요 · 사장님이 홈택스 신고). ${companyOffer(S.company, TODAY).active ? `회사 가입일부터 6개월간 공고비·매칭 수수료 무료 (${companyOffer(S.company, TODAY).endsOn} 전까지). 선택 광고 옵션은 별도예요.` : `매칭 수수료 ${PRICING.jobs.matchPct}%는 사람을 구했을 때만 받아요.`}</small>` : `<small class="mut">알바몬 기준: 즉시등록 8,800원 · 유료 공고 14일 · 끌올(점프) 하루 27,500~29,700원. +EV는 등록 ${E.won(E.postBase(+v.days || 14))}원에 끌올 하루 ${E.won(E.FEES.JUMP[v.jump] || 0)}원이에요. 올린 뒤에도 관리에서 기간·노출을 늘릴 수 있어요.</small>`}</div>`;
   const b = $('#post-btn'); if (b) b.textContent = tot ? `₩${E.won(tot)} 결제하고 공고 올리기` : '무료로 공고 올리기';
 }
 // 공고 수정 + 연장/옵션 추가 (추가 금액은 서버 post_extra_fee 와 같은 식)
