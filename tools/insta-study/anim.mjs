@@ -96,5 +96,22 @@ export const LESSONS = [
     { t: "quiz", q: "HJ(뒤에 4명)에서 K9o. 오픈? 폴드?", opts: ["오픈", "폴드"],
       say: "그럼 하이잭에서 킹 나인 오프는? 댓글로." },
     { t: "end" } ] },
+{ id: "a04", title: "90%가 틀리는 문제: AK vs 22", tag: "QUIZ · 승률", speed: 1.3, fast: true,
+  scenes: [
+    { t: "clip", dur: 5, prompt: STYLE + CAST + "Shot 1 (0-2.5s): KIM proudly pushes all his clay chips into the middle with both arms, grinning with total confidence. Shot 2 (2.5-5s): across the table RIVAL calmly flips over two small cards with a sly little smile, KIM's grin freezes and his eyes go wide.",
+      cap: ["AK vs 22", "[누가 유리할까?]"], hand: "As Kd", villain: "2h 2c", both: true,
+      say: "에이 킹 대 투 페어. 삼 초 안에 골라보세요." },
+    { t: "bars", title: "올인 승률 (정확 계산)", items: [["22", 51.3], ["AK (무늬 다름)", 48.7]], unit: "%",
+      say: "정답은 투 페어. 작은 페어가 이미 앞서 있어요." },
+    { t: "clip", dur: 5, prompt: STYLE + CAST + "Shot 1 (0-2.5s): PRO walks in, lowers his green sunglasses and taps KIM's two cards on the felt with one tiny finger. Shot 2 (2.5-5s): the two cards glow with a magical sparkle and KIM's face lights up with a huge hopeful smile, RIVAL raises an eyebrow nervously.",
+      cap: ["그런데 AK가", "[무늬까지 같다면?]"], hand: "As Ks", villain: "2h 2c", both: true,
+      say: "그런데 에이 킹이 같은 무늬라면?" },
+    { t: "bars", title: "같은 무늬 AK vs 22", items: [["AK (같은 무늬)", 51.7], ["22", 48.3]], unit: "%",
+      say: "승패가 뒤집힙니다. 무늬 하나에 삼 퍼센트." },
+    { t: "rule", title: "오늘의 한 줄", lines: ["AK는 페어가 아니라 [강한 드로우]", "같은 무늬면 플러시 몫 +3%"],
+      say: "에이 킹은 페어가 아니라 강한 드로우예요." },
+    { t: "quiz", q: "AK vs JT (무늬 다름). AK 승률은?", opts: ["약 50%", "약 63%", "약 80%"],
+      say: "그럼 에이 킹 대 잭 텐은? 댓글로." },
+    { t: "end" } ] },
 ];
-export const CAPTION = (L) => L.id === "a03" ? `같은 K9o인데 UTG에선 폴드, 버튼에선 오픈 🃏\nGTO 오픈 표는 "뒤에 몇 명 남았나"로 읽으면 끝.\nUTG ${P.UTG}% · HJ ${P.HJ}% · CO ${P.CO}% · BTN ${P.BTN}% (6맥스 100BB 근사)\nHJ에서 K9o는? 댓글로 👇 저장 📌\n📌 프로필 링크 plusev.co.kr · 홀덤펍 운영은 +EV\n#홀덤 #GTO #홀덤공부 #포커 #프리플랍 #오픈레인지 #홀덤펍 #플러스이브이` : L.id === "a02" ? `탑 페어 들고 또 폴드한 킴, 상대는 퀸 텐 블러프 🫠\nGTO 기준 팟 벳엔 최소 50%는 콜해야 합니다.\n1/3팟 75% · 1/2팟 67% · 팟 50% · 2배 33%\n하프 팟이면 몇 %? 댓글로 👇 저장 📌\n📌 프로필 링크 plusev.co.kr · 홀덤펍 운영은 +EV\n#홀덤 #GTO #홀덤공부 #포커 #MDF #홀덤펍 #플러스이브이` : `셋 잡고 진 킴, 탑 프로가 한숨 쉰 이유 😮‍💨\n플랍 승률 73.5% → 공짜 카드 한 장에 22.7%.\n젖은 보드에서 슬로우플레이는 이제 그만.\n마른 보드 K셋이면 베팅? 체크? 댓글로 👇 저장 📌\n📌 프로필 링크 plusev.co.kr · 홀덤펍 운영은 +EV\n#홀덤 #홀덤공부 #포커 #홀덤썰 #슬로우플레이 #홀덤펍 #플러스이브이`;
+export const CAPTION = (L) => L.id === "a04" ? `90%가 틀리는 문제 🃏 AK vs 22, 누가 유리할까?\n정답: 22 (51.3%). 그런데 AK가 같은 무늬면 51.7%로 역전.\n무늬 하나에 약 3%가 움직여요.\nAK vs JT는 몇 %? 댓글로 👇 저장 📌\n📌 프로필 링크 plusev.co.kr · 홀덤펍 운영은 +EV\n#홀덤 #홀덤공부 #포커 #홀덤퀴즈 #승률 #AK #홀덤펍 #플러스이브이` : L.id === "a03" ? `같은 K9o인데 UTG에선 폴드, 버튼에선 오픈 🃏\nGTO 오픈 표는 "뒤에 몇 명 남았나"로 읽으면 끝.\nUTG ${P.UTG}% · HJ ${P.HJ}% · CO ${P.CO}% · BTN ${P.BTN}% (6맥스 100BB 근사)\nHJ에서 K9o는? 댓글로 👇 저장 📌\n📌 프로필 링크 plusev.co.kr · 홀덤펍 운영은 +EV\n#홀덤 #GTO #홀덤공부 #포커 #프리플랍 #오픈레인지 #홀덤펍 #플러스이브이` : L.id === "a02" ? `탑 페어 들고 또 폴드한 킴, 상대는 퀸 텐 블러프 🫠\nGTO 기준 팟 벳엔 최소 50%는 콜해야 합니다.\n1/3팟 75% · 1/2팟 67% · 팟 50% · 2배 33%\n하프 팟이면 몇 %? 댓글로 👇 저장 📌\n📌 프로필 링크 plusev.co.kr · 홀덤펍 운영은 +EV\n#홀덤 #GTO #홀덤공부 #포커 #MDF #홀덤펍 #플러스이브이` : `셋 잡고 진 킴, 탑 프로가 한숨 쉰 이유 😮‍💨\n플랍 승률 73.5% → 공짜 카드 한 장에 22.7%.\n젖은 보드에서 슬로우플레이는 이제 그만.\n마른 보드 K셋이면 베팅? 체크? 댓글로 👇 저장 📌\n📌 프로필 링크 plusev.co.kr · 홀덤펍 운영은 +EV\n#홀덤 #홀덤공부 #포커 #홀덤썰 #슬로우플레이 #홀덤펍 #플러스이브이`;

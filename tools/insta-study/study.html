@@ -101,7 +101,7 @@ R.grid=(s,t)=>{const K='AKQJT98765432',on=new Set(s.hands);let c='';
   c+=`<div class="gc ${i===j?'pr':''} ${lit?'on':''} ${h===s.mark&&t>.75?'mk':''}">${h.replace('T','T')}</div>`}
  return `<div class="gpos" style="${IN(t,0,.3,30)}"><span class="p">${e(s.pos)}<small>${e(s.sub||'')}</small></span><span class="pc">${(s.pct*eo(seg(t,.1,.6))).toFixed(0)}%</span></div><div class="grid">${c}</div><div class="gv" style="${IN(t,.75,.25,30)}">${H(s.verdict||'')}</div><div class="gn">6맥스 100BB 오픈 · 솔버 근사(단순화) *예시 기준</div>`};
 R.clip=R.ov=(s,t)=>{const row=(lb,cs,a)=>cs?`<div class="ovbox" style="${IN(t,a,.3,30)}"><div class="lb">${lb}</div><div class="cards">${cs.split(' ').map((c,i)=>card(c,t,a+.05*i)).join('')}</div></div>`:'';
- return `<div class="ovtop"></div><div class="ovcap">${s.cap.map((l,i)=>`<div style="${IN(t,.05+i*.2)}">${H(l)}</div>`).join('')}</div><div class="ovbot">${row('BOARD',s.board,.3)}${row(s.villain?'RIVAL':'KIM',s.villain||s.hand,.45)}</div>`};
+ return `<div class="ovtop"></div><div class="ovcap">${s.cap.map((l,i)=>`<div style="${IN(t,.05+i*.2)}">${H(l)}</div>`).join('')}</div><div class="ovbot">${row('BOARD',s.board,.3)}${s.both?row('KIM',s.hand,.35)+row('RIVAL',s.villain,.5):row(s.villain?'RIVAL':'KIM',s.villain||s.hand,.45)}</div>`};
 function overlay(on){document.body.classList.toggle('ovmode',on);document.documentElement.classList.toggle('ovmode',on)}
 
 let L;
