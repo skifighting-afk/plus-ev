@@ -2,6 +2,7 @@ import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js
 import * as E from './engine.js?v=95-urgent-offer';
 import { PRICING, applyPricing } from './pricing.js';
 import { companyOffer } from './company-offer.js';
+import { scanAttendance } from './qr-attendance.js';
 import { laborBody, payslipBody, sigPad } from './docs.js';
 
 const sb = createClient('https://hkcmsjwuwopxritafreg.supabase.co', 'sb_publishable_X7cb5p4Ja9y4TxrjbVQZAQ_P8n3E_W_');
@@ -301,7 +302,7 @@ async function loadDealer() {
   if (lsGet('ev_att') && S.mode === 'staff') { const c = lsGet('ev_att'); lsSet('ev_att', ''); try { const { data: k, error } = await attendGeo(c); setTimeout(() => toast(error ? (/코드가 맞지/.test(error.message) ? 'QR이 지났어요. 매장 화면의 새 QR을 찍거나 번호를 넣어주세요' : koErr(error.message)) : k === 'in' ? 'QR로 출근했어요. 오늘도 화이팅!' : 'QR로 퇴근했어요. 수고하셨어요'), 700); } catch { } }
   if (lsGet('ev_join') && S.mode === 'dealer') { const c = lsGet('ev_join'); lsSet('ev_join', ''); try { const { data: nm, error } = await sb.rpc('request_join', { p_code: c }); if (!error) setTimeout(() => toast(`초대받은 ${nm}에 소속 신청했어요. 승인되면 알림이 와요`), 600); } catch { } }
   if (lsGet('ev_post')) { S.hlPost = lsGet('ev_post'); lsSet('ev_post', ''); S.tab = 'jobs'; }
-  S.board = (await q(sb.rpc('job_board'))).filter(j => !j.expires_at || new Date(j.expires_at) > Date.now()); S.tickets = await q(sb.rpc('ticket_balance'));
+  S.board = (await q(sb.rpc('job_board'))).filter(j => !j.expires_at || new Date(j.expires_at) > Date.now());
   S.apps = await q(sb.rpc('my_applications')); S.slots = await q(sb.rpc('my_slots2'));
   [S.saves, S.myBlocks] = (await Promise.all([sb.from('dealer_saves').select('*').eq('on_', true), sb.from('blocks').select('store_id,at').eq('by', 'dealer').eq('on_', true)])).map(r => r.data || []); S.slotDays = await sb.rpc('my_slot_days').then(r => r.data || [], () => []);
   S.wallet = (await q(sb.rpc('my_wallet')))?.[0] || { balance: 0, available: 0 }; if (S.mode === 'dealer') { if (lsGet('ev_ref') && !S.prof?.ref_by) { const c = lsGet('ev_ref'); lsSet('ev_ref', ''); sb.rpc('set_ref', { p_code: c }).then(({ data, error }) => { if (!error) { S.prof.ref_by = 1; toast(`${data}님 초대로 가입했어요`); } }); } S.spinN = await q(sb.rpc('spin_left')); S.spins = await q(sb.from('dealer_spins').select('hand,points,created_at').order('created_at', { ascending: false }).limit(5)); } S.rep = await q(sb.rpc('dealer_rep', { u: S.user.id })).catch(() => null);
@@ -1426,8 +1427,8 @@ function vMore() {
       <tr><td class="mut">손익분기 날</td>${months.map(x => `<td class="r num mut">${x.s.proj ? (x.s.bep <= E.daysIn(x.yy, x.mm) ? x.s.bep + '일' : '못 넘음') : '-'}</td>`).join('')}</tr></tbody></table></div>
       <p class="note">이번 달은 지금 속도로 계산한 월말 예상이에요.</p></div>`;
   }
-  if (sub === 'qr') return `${storeHead('출퇴근 코드')}${back}${mgrCard()}<div class="card" style="text-align:center"><p class="sub">직원은 앱의 <b>출퇴근</b> 탭에서 이 번호를 넣으면 기록돼요. 30초마다 바뀌어서 캡처해 보내도 못 써요.</p>
-    <div id="qr-code" class="num" style="font-size:56px;font-weight:800;letter-spacing:.18em;color:#A6EDD2">······</div><div class="mut" id="qr-left">불러오는 중</div><div id="qr-img" style="display:flex;justify-content:center;margin:14px 0 6px;background:#fff;padding:10px;border-radius:12px;width:max-content;margin-inline:auto"></div><p class="note">직원은 폰 카메라로 QR을 찍어도 출퇴근돼요</p><button class="btn pri full no-kiosk" data-act="kiosk">📟 태블릿 출퇴근 모드</button><button class="btn full only-kiosk" data-act="kiosk-off">태블릿 모드 끝내기 (대표 확인)</button></div><div class="card"><h3>📍 위치 확인 ${S.store.geo_lat != null ? '<span class="pill g">켜짐</span>' : ''}</h3><p class="sub">켜두면 매장 ${S.store.geo_m || 150}m 안에서만 출퇴근돼요. 직원 위치 좌표는 저장하지 않고 거리만 남겨요.</p><button class="btn full" data-act="geo-set">${S.store.geo_lat != null ? '매장 위치 다시 저장 (지금 여기)' : '지금 여기를 매장 위치로 저장'}</button>${S.store.geo_lat != null ? '<button class="btn full" data-act="geo-off" style="margin-top:6px">위치 확인 끄기</button>' : ''}</div>${attLogCard()}`;
+  if (sub === 'qr') return `${storeHead('출퇴근 코드')}${back}${mgrCard()}<div class="card" style="text-align:center"><p class="sub">직원은 앱의 <b>출퇴근 → QR 스캔</b>에서 아래 QR을 찍으면 기록돼요. 30초마다 바뀌어서 캡처해 보내도 못 써요.</p>
+    <div id="qr-code" hidden class="num" style="font-size:56px;font-weight:800;letter-spacing:.18em;color:#A6EDD2">······</div><div class="mut" id="qr-left">불러오는 중</div><div id="qr-img" style="display:flex;justify-content:center;margin:14px 0 6px;background:#fff;padding:10px;border-radius:12px;width:max-content;margin-inline:auto"></div><p class="note">직원은 폰 카메라로 QR을 찍어도 출퇴근돼요</p><button class="btn pri full no-kiosk" data-act="kiosk">📟 태블릿 출퇴근 모드</button><button class="btn full only-kiosk" data-act="kiosk-off">태블릿 모드 끝내기 (대표 확인)</button></div><div class="card"><h3>📍 위치 확인 ${S.store.geo_lat != null ? '<span class="pill g">켜짐</span>' : ''}</h3><p class="sub">켜두면 매장 ${S.store.geo_m || 150}m 안에서만 출퇴근돼요. 직원 위치 좌표는 저장하지 않고 거리만 남겨요.</p><button class="btn full" data-act="geo-set">${S.store.geo_lat != null ? '매장 위치 다시 저장 (지금 여기)' : '지금 여기를 매장 위치로 저장'}</button>${S.store.geo_lat != null ? '<button class="btn full" data-act="geo-off" style="margin-top:6px">위치 확인 끄기</button>' : ''}</div>${attLogCard()}`;
   if (sub === 'pricing') {
     const c = S.company || {}, offer = companyOffer(c, TODAY), paid = (c.plan === 'pro' || c.plan === 'basic') && c.paid_until && new Date(c.paid_until) > now, own = isOwner();
     const st = offer.active ? `<b>가입 혜택 적용 중</b> · ${offer.endsOn} 전까지 일반 무료 / 프로 월 9,900원` : paid ? `<b>${c.plan === 'pro' ? '프로' : '베이직'} 이용 중</b> · ${new Date(c.paid_until).toLocaleDateString('ko-KR')}까지` : S.active ? `<b>무료 체험 D-${trialLeft(c)}</b> · 끝나도 데이터는 그대로예요` : '<b class="warn">체험이 끝났어요</b> · 요금제를 고르면 바로 이어서 써요';
@@ -1676,8 +1677,8 @@ function vWork() {
 }
 function vAttend() {
   const last = S.att?.[0], stale = last?.kind === 'in' && Date.now() - new Date(last.at) > 16 * 3600e3;
-  return `<h1>출퇴근</h1><p class="sub">매장 화면에 뜬 6자리 번호를 넣어주세요.</p>${stale ? `<div class="card warnc"><b>${new Date(last.at).toLocaleDateString('ko-KR', { month: 'numeric', day: 'numeric' })} 퇴근이 안 찍혀 있어요</b><small class="mut" style="display:block">먼저 고치기 요청을 보내고, 오늘은 출근을 찍어주세요</small><button class="btn sm pri" data-act="fix-new" style="margin-top:6px">퇴근 기록 고치기</button></div>` : ''}
-  <form class="f card" id="attend-form"><input name="code" inputmode="numeric" maxlength="6" required placeholder="000000" style="font-size:32px;text-align:center;letter-spacing:.3em"><button class="btn pri full">${last?.kind === 'in' && !stale ? '퇴근하기' : last?.kind === 'in' ? '출근·퇴근 찍기' : '출근하기'}</button></form>
+  return `<h1>출퇴근</h1><p class="sub">매장 출퇴근 화면의 QR을 스캔해 주세요.</p>${stale ? `<div class="card warnc"><b>${new Date(last.at).toLocaleDateString('ko-KR', { month: 'numeric', day: 'numeric' })} 퇴근이 안 찍혀 있어요</b><small class="mut" style="display:block">먼저 고치기 요청을 보내고, 오늘은 출근을 찍어주세요</small><button class="btn sm pri" data-act="fix-new" style="margin-top:6px">퇴근 기록 고치기</button></div>` : ''}
+  <div class="card"><button class="btn pri full" type="button" data-act="qr-attend">📷 QR 스캔하고 ${last?.kind === 'in' && !stale ? '퇴근하기' : '출근하기'}</button><p class="note">휴대폰 기본 카메라로 매장 QR을 찍어도 돼요. QR은 30초마다 바뀝니다.</p></div>
   <div class="card"><h3>최근 기록</h3>${(S.att || []).map(a => `<div class="li"><span>${a.kind === 'in' ? '🟢 출근' : '⚪ 퇴근'}</span><span class="num">${fmtDT(a.at)}</span></div>`).join('') || '<div class="empty">아직 기록이 없어요</div>'}</div>`;
 }
 
@@ -1854,7 +1855,7 @@ function workCal() {
   <div class="wcal">${['월', '화', '수', '목', '금', '토', '일'].map(w => `<i class="h">${w}</i>`).join('')}${'<i></i>'.repeat(off)}${Array.from({ length: D }, (_, i) => { const k = key(i + 1), L = days[k]; return `<i class="${L ? st(L) : ''} ${k === TODAY ? 'today' : ''}" title="${L ? L.map(s => esc(s.store_name)).join(', ') : ''}">${i + 1}</i>`; }).join('')}</div>
   <div class="wleg"><span><i class="done"></i>근무 끝</span><span><i class="plan"></i>예정·근무 중</span>${sum ? `<b class="num">이달 받은 돈 ₩${E.won(sum)}</b>` : ''}</div></section>`;
 }
-const TICKET_PACKS = [1, 5, 10].map(n => [n, PRICING.dealer.tickets[n]]), PRO_PRICE = PRICING.dealer.pro, INSTANT_FEE = PRICING.dealer.instantFee;
+const PRO_PRICE = PRICING.dealer.pro, INSTANT_FEE = PRICING.dealer.instantFee;
 const isPro = () => S.prof?.pro_until && new Date(S.prof.pro_until) > now;
 const SKILLS = ['홀덤', '오마하', '토너먼트 진행', '캐시게임', '칩 정리 빠름', '영어 가능', '야간 가능', '매니저 경험'];
 const skillPick = cur => `<fieldset class="skills"><legend>할 수 있는 것 <small class="mut">매장이 지원자 목록에서 봐요</small></legend>${SKILLS.map(k => `<label><input type="checkbox" name="sk" value="${k}" ${cur.includes(k) ? 'checked' : ''}><span>${k}</span></label>`).join('')}</fieldset>`;
@@ -1872,8 +1873,7 @@ function vWallet() {
   ${earnCard()}
   <p class="wl-note">긴급 근무 급여는 매장 확인 후 5시간 뒤부터 출금할 수 있어요. 출금 가능한 돈 전부가 한 번에 나가요.</p>
   ${S.wds?.length ? `<section class="dv-sec"><h2>출금 내역</h2><div class="dv-list">${S.wds.map(x => `<div class="li"><div><b class="num">₩${E.won(x.amount)}</b><small>${x.instant ? '번개' : '일반'} · ${fmtDT(x.created_at)}${x.fee ? ` · 수수료 ${E.won(x.fee)}` : ''}</small></div><span class="pill ${x.status === '송금 완료' ? 'g' : 'y'}">${esc(x.status)}</span></div>`).join('')}</div></section>` : ''}
-  ${S.mode === 'dealer' ? spinCard() : ''}<div class="card" hidden><h3>지원권 <small>지금 ${S.tickets}장</small></h3><div class="plans">${TICKET_PACKS.map(([n, p], i) => `<div class="plan ${i === 1 ? 'cur' : ''}">${i === 1 ? '<span class="pill y">인기</span>' : ''}<b>${n}장</b><b class="num">₩${E.won(p)}</b><small>장당 ₩${E.won(p / n)}</small><button class="btn sm ${i === 1 ? 'pri' : ''}" data-act="tickets" data-v="${i + 1}">받기</button></div>`).join('')}</div>
-    <p class="note">지원하면 1장이 잠기고, 채용돼야 쓰여요. 안 뽑히면 돌아와요.</p>${payNote()}</div>`;
+  ${S.mode === 'dealer' ? spinCard() : ''}<p class="note">딜러 지원은 무료 · 횟수 제한 없이 지원할 수 있어요.</p>`;
 }
 function meTools() { return S.mode === 'dealer' ? `<section class="dv-sec"><h2>내 기록</h2><div class="mn-list metools"><button data-act="cert">📄 경력증명서 <small class="mut">인쇄·PDF</small><i>›</i></button><button data-act="cv-link">🔗 이력서 링크 복사 <small class="mut">매장에 보내기</small><i>›</i></button><button data-act="my-data">⬇️ 내 데이터 내려받기<i>›</i></button>${(S.myBlocks || []).length ? `<button data-act="my-blocks">🚫 안 보는 매장 ${S.myBlocks.length}곳<i>›</i></button>` : ''}${S.rep?.noshow ? `<button data-act="ns-appeal">⚖️ 노쇼 기록 이의 신청 <small class="mut">${S.rep.noshow}회</small><i>›</i></button>` : ''}</div></section>` : ''; }
 function vMe() {
@@ -2705,7 +2705,7 @@ const F68 = {
   'rq-form': async (f, v) => { const me = S.my[S.mi || 0]; await q(sb.from('store_items').insert({ store_id: me.store_id, kind: f.dataset.k, title: v.title || null, target: me.id, data: { date: v.date, time: v.time } })); closeSheet(); await itemsLoad(); render(); toast('요청했어요. 대표님께 알림이 갔어요'); },
   'pref-form': async (f, v) => { const me = S.my[S.mi || 0], wd = [...f.querySelectorAll('[name=wd]:checked')].map(x => +x.value), old = itemsOf('pref').find(x => x.created_by === S.user.id), row = { title: v.title || null, data: { wd, f: v.f, t: v.t } };
     if (old) await q(sb.from('store_items').update(row).eq('id', old.id)); else await q(sb.from('store_items').insert({ store_id: me.store_id, kind: 'pref', target: me.id, ...row })); closeSheet(); await itemsLoad(); render(); toast('선호 시간을 알렸어요'); },
-  'attend-form': async (f, v) => { if (S.att?.[0]?.kind !== 'in' || !closingNow() || S.hoOk) return false; const me = S.my[S.mi || 0], { data } = await sb.from('store_notes').select('id').eq('store_id', me.store_id).eq('kind', 'handover').eq('created_by', S.user.id).gte('created_at', new Date(Date.now() - 12 * 36e5).toISOString()).limit(1); if (data?.length) return false; hoSheet(v.code.trim()); },
+  'attend-form': async () => false, // 매장 노트 제거 후 인수인계 없이 기존 출퇴근 처리로 진행
   'ho-form': async (f, v) => { const me = S.my[S.mi || 0]; await q(sb.from('store_notes').insert({ store_id: me.store_id, kind: 'handover', body: v.body, data: { by: me.nick }, created_by: S.user.id })); closeSheet(); const k = await q(attendGeo(S.pendCode)); toast(k === 'out' ? '인수인계 남기고 퇴근했어요. 수고하셨어요' : '인수인계를 남겼어요'); await reload(); },
   'count-form': async (f, v) => { const diff = []; for (const s of S.stock) { const n = v['c' + s.item_id]; if (n == null || n === '' || +n === +s.qty) continue; diff.push([s.item_id, +s.qty, +n]); await q(sb.from('stock').update({ qty: +n }).match({ store_id: S.store.id, item_id: s.item_id })); }
     await q(sb.from('store_items').insert({ store_id: S.store.id, kind: 'count', title: `${TODAY} 실사`, data: { diff } })); closeSheet(); await reload(); toast(diff.length ? `${diff.length}품목 차이를 기록하고 수량을 맞췄어요` : '장부와 딱 맞아요 👍'); },
@@ -2929,6 +2929,7 @@ document.addEventListener('click', e => {
   const b = e.target.closest?.('[data-tab],[data-act]'); if (!b) return; const d = b.dataset;
   if (d.tab) { S.tab = d.tab; S.sub = null; closeSheet(); render(); scrollTo(0, 0); return; }
   const a = d.act;
+  if (a === 'qr-attend') return scanAttendance({ openSheet, closeSheet, label: S.att?.[0]?.kind === 'in' ? '퇴근 확인' : '출근 확인', submit: async code => { const kind = await q(attendGeo(code)); toast(kind === 'in' ? 'QR로 출근했어요' : 'QR로 퇴근했어요'); await reload(); } });
   if (A68[a] && A68[a](b, d) !== false) return;
   if (a === 'authmode') { S.authMode = d.v; render(); }
   if (a === 'menu') return menuSheet();
@@ -3263,7 +3264,7 @@ document.addEventListener('click', e => {
   if (a === 'plan' && (d.v === 'pro' || d.v === 'basic')) return pay('plan', { plan: d.v });
   if (a === 'ai-draft') { track('ai_schedule_click'); return toast('준비 중이에요. 신청이 많은 매장부터 먼저 열어드릴게요'); } // ponytail: fake door — 클릭 수요 확인 후 개발
   if (a === 'withdraw') busy(async () => { const n = await q(sb.rpc('withdraw', { p_instant: d.v === '1' })); await reload(); toast(d.v === '1' ? `₩${E.won(n)} 번개 출금을 요청했어요` : `₩${E.won(n)} 출금을 요청했어요. 다음 영업일에 들어가요`); });
-  if (a === 'tickets') busy(() => pay('tickets', { pack: +d.v }));
+  if (a === 'tickets') return toast('지원권 없이 무료로 무제한 지원할 수 있어요');
   if (a === 'pro') busy(() => pay('pro'));
   if (a === 'wd-done') busy(async () => { await q(sb.from('withdrawals').update({ status: '송금 완료' }).eq('id', d.v)); await reload(); toast('송금 완료로 바꿨어요'); });
   if (a === 'pay-go') busy(async () => { const o = S.payOrder; if (!o) return; closeSheet(); await payGo(o, d.v); });
