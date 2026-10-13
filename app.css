@@ -1,4 +1,19 @@
 [hidden]{display:none!important}
+/* 홈 간편보기: 기존 상세 화면 스타일과 독립 */
+.home-view-switch{display:flex;justify-content:flex-end;margin-bottom:14px}
+.home-view-switch .seg{width:auto;min-width:240px}
+.simple-home-stats{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:18px}
+.simple-home-stats .card{margin:0;min-width:0}
+.simple-home-stats .v{overflow-wrap:anywhere}
+.simple-home-stats .v small{font-size:15px;color:var(--muted)}
+.simple-home-actions{display:flex;gap:10px;margin:14px 0 20px}
+.simple-home-actions>.btn{flex:1;min-height:46px}
+.simple-home-grid{display:grid;grid-template-columns:minmax(0,1fr);gap:12px}
+.simple-home-grid>.card,.simple-home-grid>div>.card{margin:0 0 12px}
+.simple-home-month{display:flex;justify-content:space-between;align-items:center;gap:12px}
+.simple-home-month .num{font-size:24px}
+@media(min-width:900px){.simple-home-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:20px}.simple-home-stats{gap:20px}}
+@media(max-width:420px){.home-view-switch .seg{width:100%}.home-view-switch{justify-content:stretch}.simple-home-month{align-items:flex-start;flex-direction:column}.simple-home-stats .v{font-size:22px}}
 :root{--bg:#111417;--surface-1:#171B1F;--surface-2:#1A1F23;--surface-3:#22282D;--border-subtle:rgba(236,239,241,.06);--border:rgba(236,239,241,.11);--text-primary:#ECEFF1;--text-secondary:#B3BAC0;--text-muted:#8B949C;--brand:#8FE3C4;--positive:#8FE3C4;--warning:#E8C27A;--danger:#F08C7A;--info:#7FB2E5;--brand-2:#A6EDD2;--on-brand:#0B2A20;--brand-rgb:143,227,196;--gold-rgb:232,194,122;--danger-rgb:240,140,122;--bg-rgb:17,20,23;--r-lg:12px;--r-md:10px;--r-sm:8px;
 /* 별칭: 기존 화면 호환 (HOME 확정 후 새 토큰으로 옮김) */
 --card:var(--surface-2);--card2:var(--surface-3);--line:var(--border-subtle);--line2:var(--border);--text:var(--text-primary);--muted:var(--text-muted);--green:var(--brand);--gold:var(--warning);--red:var(--danger);--s2:var(--info);--r:var(--r-lg)}

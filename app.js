@@ -4535,3 +4535,43 @@ document.addEventListener('click', e => {
   if (a === 's5-paid') return busy(async () => { await q(sb.rpc('hq_signup_paid', { p_id: +b.dataset.v, p_to: b.dataset.to })); S.hqSign = null; S.hqSignBusy = 0; await hqSignLoad(); toast('바꿨어요'); });
   if (a === 's5-csv') { const L = S.hqSign?.recent || []; return download(`선착순입점_${TODAY}.csv`, [['날짜', '시각', '회사', '매장', '지역', '대표', '추천인', '추천인 연락처', '지급', '지급 대상'], ...L.map(x => [x.day, fmtDT(x.created_at), x.company_name, x.store_name, x.area, x.owner_name, x.ref_name, x.ref_phone, x.paid_at ? fmtDT(x.paid_at) : '', x.paid_to])]); }
 });
+
+// ===== 홈 간편보기 (기존 홈 유지) =====
+// 기본은 기존 화면. 기기별 보기 선택만 저장하고 매장 데이터는 변경하지 않는다.
+let homeView = lsGet('ev-home-view') === 'simple' ? 'simple' : 'detail';
+function homeViewSwitch() {
+  return `<div class="home-view-switch"><div class="seg" role="group" aria-label="홈 보기 방식">${[['simple', '간편보기'], ['detail', '자세히보기']].map(([k, label]) => `<button type="button" data-act="home-view" data-v="${k}" aria-pressed="${homeView === k}">${label}</button>`).join('')}</div></div>`;
+}
+function vSimpleHome() {
+  const [y, m, d] = TODAY.split('-').map(Number), report = S.reports.find(r => r.report_date === TODAY), staff = S.members.filter(p => p.role !== 'owner');
+  const planned = staff.filter(p => E.shiftOn(p.id, y, m, d, S.tpl, S.ov)), need = needOn(TODAY, S.store.need_by_wd || [3, 4, 3, 4, 6, 7, 2]);
+  const M = monthSummary(y, m), enough = M.n >= 3 || M.est;
+  return `<section class="simple-home">${storeHead('오늘 우리 매장')}<p class="sub">${m}월 ${d}일 (${E.WD[E.wdOf(y, m, d)]}) · ${report ? '마감 완료' : S.open ? '영업 중' : '영업 전'}</p>
+    <div class="simple-home-stats"><div class="card kpi"><div class="l">오늘 매출</div><div class="v num">${report ? '₩' + man(report.sales) : S.open ? '마감 전' : '영업 전'}</div><small class="mut">${report ? `마감 완료 · 엔트리 ${report.entries || 0}` : '확정 매출은 마감 후 표시돼요'}</small></div>
+    <div class="card kpi"><div class="l">오늘 배정 인원</div><div class="v num">${planned.length}<small> / ${need}명</small></div><small class="mut">${Math.max(0, need - planned.length) ? `${Math.max(0, need - planned.length)}명 부족 · 설정된 적정 인원 기준` : '설정된 적정 인원을 채웠어요'}</small></div></div>
+    <div class="simple-home-actions"><button class="btn pri" data-tab="sales">${report ? '마감 내역 확인' : S.open ? '마감하기' : '오픈하기'}</button><button class="btn" data-tab="sched">근무표 보기</button></div>
+    <div class="simple-home-grid"><div>${todoCard() || '<div class="card"><h3>오늘 할 일</h3><p class="sub">처리할 요청이 없어요.</p></div>'}
+    ${!staff.length ? '<div class="card"><h3>직원 등록</h3><p class="sub">직원을 등록하면 오늘 근무를 볼 수 있어요.</p><button class="btn" data-tab="staff">직원 등록</button></div>' : ''}</div>
+    <div class="card"><div class="row between"><h3>오늘 근무표</h3><button class="btn sm" data-act="day-open" data-d="${TODAY}">자세히</button></div>${planned.length ? planned.map(p => { const t = E.shiftOn(p.id, y, m, d, S.tpl, S.ov); return `<div class="li"><div><b>${esc(p.nick)}</b><small>${esc(p.job_role || '')}${t.brk ? ` · 휴게 ${t.brk}분` : ''}</small></div><button class="btn sm" data-act="edit-d" data-m="${esc(p.id)}" data-d="${TODAY}">${esc(t.s.slice(0, 5))}–${esc(t.e.slice(0, 5))}</button></div>`; }).join('') : '<p class="sub">오늘 배정된 근무가 없어요.</p>'}</div></div>
+    <div class="card simple-home-month"><div><h3>${m}월 예상 남는 돈</h3><b class="num">${enough ? `${M.left < 0 ? '−' : ''}₩${man(Math.abs(M.left))}` : '마감 3일부터'}</b><p class="sub">${enough ? '현재 월의 매출·비용 기준 추정' : '매출 기록이 쌓이면 보여드려요'}</p></div><button class="btn sm" data-act="home-view" data-v="detail">전체 현황 보기</button></div></section>`;
+}
+{
+  const detailedRender = render;
+  render = function () {
+    detailedRender();
+    if (S.mode !== 'store' || S.tab !== 'home' || S.sub || !S.store) return;
+    const target = $('#view');
+    if (homeView === 'simple') {
+      // 만료 안내는 간편보기에서도 유지한다. 기존 자세히보기의 DOM/배치 설정은 건드리지 않는다.
+      const lock = target.querySelector('.lockbar')?.outerHTML || '';
+      target.innerHTML = lock + homeViewSwitch() + vSimpleHome();
+    } else target.insertAdjacentHTML('afterbegin', homeViewSwitch());
+  };
+}
+document.addEventListener('click', e => {
+  const button = e.target.closest?.('[data-act="home-view"]');
+  if (!button || !['simple', 'detail'].includes(button.dataset.v)) return;
+  homeView = button.dataset.v;
+  lsSet('ev-home-view', homeView);
+  render();
+});
