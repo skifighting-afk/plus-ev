@@ -7,6 +7,9 @@ on:
       ids:
         description: '만들 편 (예: a01)'
         default: 'a01'
+      res:
+        description: '클립 화질 (1080p/720p)'
+        default: '1080p'
 
 permissions:
   contents: write
@@ -50,6 +53,7 @@ jobs:
       - name: 애니메이션 만들기
         env:
           HF_API_KEY: ${{ secrets.HF_API_KEY }}
+          CLIP_RES: ${{ github.event.inputs.res }}
         run: |
           set -o pipefail
           node tools/insta-study/make-anim.mjs anim-out ${{ github.event.inputs.ids }} 2>&1 | tee anim-out-log.txt
