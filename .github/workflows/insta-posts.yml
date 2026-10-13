@@ -41,6 +41,8 @@ jobs:
         run: node tools/insta-posts/gen-bg.mjs
       - name: 렌더
         run: node tools/insta-posts/render.mjs posts-out "${{ github.event.inputs.posts || '' }}"
+      - name: 히어로 3분할 (피드 맨 아래 줄)
+        run: node tools/insta-posts/render-hero.mjs posts-out
       - name: 한 장 미리보기
         run: |
           cd posts-out
