@@ -2,37 +2,47 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gothic+A1:wght@500;700;800;900&family=JetBrains+Mono:wght@500;700&display=swap">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
 <style>
-/* 인스타 피드 맨 아래 줄: 홈페이지 히어로 3분할 (3240x1350 → 1080x1350 x3). 그리드는 3:4로 양옆 약 34px씩 잘리므로 글자는 타일 가장자리에서 110px 이상 띄움 */
+/* 인스타 피드 맨 아래 2줄: 홈페이지 히어로 6분할 (3240x2700 → 1080x1350 x6). 그리드 3:4 크롭 대비 글자는 타일 가장자리에서 110px 이상 */
 :root{--mint:#4CC78A;--mint-btn:#45C083;--ink:#06140C}
 *{margin:0;padding:0;box-sizing:border-box}
-html,body{width:3240px;height:1350px;overflow:hidden;background:#050606}
-#p{position:relative;width:3240px;height:1350px;background:#050606 center 46%/cover no-repeat;font-family:'Gothic A1','Pretendard',sans-serif;color:#fff;word-break:keep-all}
+html,body{width:3240px;height:2700px;overflow:hidden;background:#050606}
+#p{position:relative;width:3240px;height:2700px;background:#050606 50% 50%/cover no-repeat;font-family:'Gothic A1','Pretendard',sans-serif;color:#fff;word-break:keep-all}
 #p::before{content:'';position:absolute;inset:0;background:
- linear-gradient(90deg,rgba(3,5,4,.92) 0%,rgba(3,5,4,.70) 22%,rgba(3,5,4,.08) 36%,rgba(3,5,4,0) 50%,rgba(3,5,4,.10) 64%,rgba(3,5,4,.72) 78%,rgba(3,5,4,.92) 100%),
- linear-gradient(180deg,rgba(0,0,0,.35),rgba(0,0,0,0) 30%,rgba(0,0,0,0) 70%,rgba(0,0,0,.55))}
-.t{position:absolute;top:0;bottom:0;width:1080px;z-index:2;padding:0 120px;display:flex;flex-direction:column;justify-content:center}
-.L{left:0}.M{left:1080px}.R{left:2160px}
-.logo{position:absolute;top:96px;left:120px;font-size:64px;font-weight:900;font-style:italic;letter-spacing:-2px}.logo b,.ev{color:var(--mint)}
+ linear-gradient(90deg,rgba(3,5,4,.93) 0%,rgba(3,5,4,.72) 22%,rgba(3,5,4,.06) 36%,rgba(3,5,4,0) 50%,rgba(3,5,4,.08) 64%,rgba(3,5,4,.74) 78%,rgba(3,5,4,.93) 100%),
+ linear-gradient(180deg,rgba(0,0,0,.40),rgba(0,0,0,0) 18%,rgba(0,0,0,0) 78%,rgba(0,0,0,.60))}
+.t{position:absolute;width:1080px;height:1350px;z-index:2;padding:0 120px;display:flex;flex-direction:column;justify-content:center}
+.c0{left:0}.c1{left:1080px}.c2{left:2160px}.r0{top:0}.r1{top:1350px}
+.logo{position:absolute;top:110px;left:120px;font-size:68px;font-weight:900;font-style:italic;letter-spacing:-2px}.logo b,.ev{color:var(--mint)}
 .eb{font-family:'JetBrains Mono',monospace;font-size:30px;letter-spacing:.22em;color:#7FB89A;margin-bottom:34px}
-h1{font-size:150px;font-weight:900;line-height:1.12;letter-spacing:-6px}
+h1{font-size:156px;font-weight:900;line-height:1.12;letter-spacing:-6px}
 .ev{font-style:italic;letter-spacing:-4px}
-.sub{font-size:44px;font-weight:800;margin-top:46px}
+.sub{font-size:44px;font-weight:800;margin-top:50px;line-height:1.4}
 .sub2{font-size:36px;font-weight:500;color:#C8CFCB;margin-top:16px}
-.M .cap{position:absolute;left:0;right:0;bottom:120px;text-align:center;font-family:'JetBrains Mono',monospace;font-size:30px;letter-spacing:.3em;color:rgba(255,255,255,.7)}
-.R h2{font-size:64px;font-weight:900;letter-spacing:-2px;line-height:1.25}
-.R ul{list-style:none;margin-top:46px;display:flex;flex-direction:column;gap:22px}
-.R li{display:flex;align-items:center;gap:22px;font-size:42px;font-weight:700}
-.R li i{font-style:normal;font-family:'JetBrains Mono',monospace;font-size:28px;color:var(--mint);width:58px}
-.btn{margin-top:56px;height:118px;border-radius:24px;background:var(--mint-btn);color:var(--ink);font-size:44px;font-weight:800;display:flex;align-items:center;justify-content:center;box-shadow:0 20px 60px rgba(69,192,131,.35)}
-.free{margin-top:22px;text-align:center;font-size:34px;color:#C8CFCB}.free b{color:var(--mint)}
+.big{font-size:230px;font-weight:900;letter-spacing:-9px;line-height:1;color:var(--mint)}
+.big small{font-size:110px;letter-spacing:-3px}
+.lbl{font-size:52px;font-weight:900;margin-top:20px}
+.desc{font-size:36px;color:#C8CFCB;margin-top:26px;line-height:1.5}
+.cap{position:absolute;left:0;right:0;bottom:130px;text-align:center;font-family:'JetBrains Mono',monospace;font-size:32px;letter-spacing:.32em;color:rgba(255,255,255,.75)}
+h2{font-size:72px;font-weight:900;letter-spacing:-2px;line-height:1.25}
+ul{list-style:none;margin-top:50px;display:flex;flex-direction:column;gap:26px}
+li{display:flex;align-items:center;gap:22px;font-size:44px;font-weight:700}
+li i{font-style:normal;font-family:'JetBrains Mono',monospace;font-size:28px;color:var(--mint);width:58px}
+.btn{margin-top:60px;height:124px;border-radius:24px;background:var(--mint-btn);color:var(--ink);font-size:46px;font-weight:800;display:flex;align-items:center;justify-content:center;box-shadow:0 20px 60px rgba(69,192,131,.35)}
+.free{margin-top:24px;text-align:center;font-size:36px;color:#C8CFCB}.free b{color:var(--mint)}
+.url{margin-top:40px;text-align:center;font-family:'JetBrains Mono',monospace;font-size:34px;letter-spacing:.18em;color:#fff}
 </style></head><body><div id="p">
-<div class="t L"><div class="logo"><b>+</b>EV</div>
+<div class="t c0 r0"><div class="logo"><b>+</b>EV</div>
   <div class="eb">HOLD'EM PUB OS</div>
   <h1>이기는 펍의<br>선택, <span class="ev">+EV</span></h1>
-  <div class="sub">내 매장 맥시마이징을 위한 최고의 선택.</div>
-  <div class="sub2">딜러 · 직원 · 급여 · 발주 · 양도까지, 하나로.</div></div>
-<div class="t M"><div class="cap">PLUSEV.CO.KR</div></div>
-<div class="t R"><h2>홀덤펍 운영,<br>앱 하나로 끝.</h2>
-  <ul><li><i>01</i>딜러 구인 · 긴급 대타</li><li><i>02</i>QR 출퇴근 · 근무표</li><li><i>03</i>급여 자동 계산 · 송금</li><li><i>04</i>매출 · 손익 · 발주</li><li><i>05</i>매장 양도 · 집기 중고거래</li></ul>
-  <div class="btn">+EV 무료로 시작하기</div><div class="free">지금 가입하면 <b>한 달 무료</b></div></div>
+  <div class="sub">내 매장 맥시마이징을 위한<br>최고의 선택.</div></div>
+<div class="t c1 r0"></div>
+<div class="t c2 r0"><h2>홀덤펍 운영,<br>앱 하나로 끝.</h2>
+  <ul><li><i>01</i>딜러 구인 · 긴급 대타</li><li><i>02</i>QR 출퇴근 · 근무표</li><li><i>03</i>급여 자동 계산 · 송금</li><li><i>04</i>매출 · 손익 · 발주</li><li><i>05</i>매장 양도 · 집기 중고거래</li></ul></div>
+<div class="t c0 r1"><div class="eb">DEALER POOL</div>
+  <div class="big">300<small>명+</small></div>
+  <div class="lbl">딜러 가입 돌파</div>
+  <div class="desc">오픈 직후 300명이 넘는 딜러가<br>+EV에 모였습니다.<br>공석이 생겨도, 가까운 딜러가<br>먼저 응답합니다.</div></div>
+<div class="t c1 r1"><div class="cap">PLUSEV.CO.KR</div></div>
+<div class="t c2 r1"><h2>대표는 바다에,<br><span style="color:var(--mint)">매장은 풀테이블.</span></h2>
+  <div class="btn">+EV 무료로 시작하기</div><div class="free">지금 가입하면 <b>한 달 무료</b></div><div class="url">plusev.co.kr</div></div>
 </div></body></html>
