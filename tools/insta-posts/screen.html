@@ -1,0 +1,42 @@
+<!doctype html><html><head><meta charset="utf-8">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;700&family=Noto+Sans+KR:wght@400;500;700;800;900&display=swap">
+<style>
+/* +EV 단일 게시물 (1080x1350) — 후킹 문구 + 실제 앱 화면(데모) */
+:root{--mint:#7CCB9B;--mint-btn:#6DBE8C;--ink:#0D1A12;--fg:#F4F6F5;--mut:#A7AEAB;--sans:'Pretendard','Noto Sans KR',sans-serif;--mono:'JetBrains Mono',ui-monospace,monospace}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{width:1080px;height:1350px;overflow:hidden;background:#0b0c0d;font-family:var(--sans);color:var(--fg);word-break:keep-all}
+#c{position:relative;width:1080px;height:1350px;overflow:hidden;background:#0b0c0d center/cover no-repeat}
+#c::before{content:'';position:absolute;inset:0;background:linear-gradient(180deg,rgba(6,8,8,.88) 0%,rgba(6,8,8,.70) 35%,rgba(6,8,8,.80) 100%)}
+#c::after{content:'';position:absolute;left:50%;top:640px;width:900px;height:900px;transform:translateX(-50%);background:radial-gradient(closest-side,rgba(124,203,155,.22),transparent);z-index:1}
+.in{position:absolute;inset:0;z-index:2;padding:70px 72px 0}
+.top{display:flex;justify-content:space-between;align-items:center}
+.eb{font-family:var(--mono);font-size:27px;font-weight:500;letter-spacing:.2em;color:#86B99B}
+.logo{font-size:42px;font-weight:900;font-style:italic;letter-spacing:-1px;color:#fff}.logo b{color:var(--mint)}
+.hd{margin-top:40px}
+.hd div{white-space:nowrap;font-size:88px;font-weight:800;line-height:1.14;letter-spacing:-3px}
+.hd .h2{color:var(--mint)}
+.sub{margin-top:20px;font-size:36px;font-weight:600;color:#C9CECC;white-space:nowrap}
+.phone{position:absolute;left:50%;top:470px;width:720px;transform:translateX(-50%) rotate(var(--rot,0deg));border-radius:72px;background:#050606;padding:16px;box-shadow:0 0 0 3px #2a2f2d,0 40px 120px rgba(0,0,0,.75),0 0 90px rgba(124,203,155,.18);z-index:2}
+.phone .scr{border-radius:58px;overflow:hidden}.phone img{display:block;width:100%}
+.phone .isl{position:absolute;top:30px;left:50%;transform:translateX(-50%);width:130px;height:36px;border-radius:20px;background:#000;z-index:3}
+.hl{position:absolute;z-index:4;border:6px solid #FFD84A;border-radius:22px;box-shadow:0 0 0 8px rgba(255,216,74,.18),0 0 40px rgba(255,216,74,.5)}
+.foot{position:absolute;left:72px;right:72px;bottom:56px;z-index:5;display:flex;justify-content:space-between;align-items:center;height:96px;padding:0 36px;border-radius:60px;background:var(--mint-btn);color:var(--ink);font-size:38px;font-weight:800;box-shadow:0 -20px 60px rgba(0,0,0,.6)}
+.foot span{font-size:28px;font-weight:700;opacity:.75}
+.note{position:absolute;right:76px;bottom:170px;z-index:5;font-size:22px;color:rgba(255,255,255,.6);background:rgba(0,0,0,.55);padding:6px 14px;border-radius:10px}
+</style></head><body><div id="c"><div class="in" id="in"></div></div>
+<script>
+const e=s=>String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;');
+function fit(el,max){let f=parseFloat(getComputedStyle(el).fontSize);while(el.scrollWidth>max&&f>30){f-=2;el.style.fontSize=f+'px'}}
+function draw(post,bg,shot){
+  document.getElementById('c').style.backgroundImage=bg?`url(${bg})`:'none';
+  const s=post.s[0];
+  document.getElementById('in').innerHTML=`<div class="top"><span class="eb">${e(post.eb)}</span><span class="logo"><b>+</b>EV</span></div>
+   <div class="hd"><div class="h1">${e(s.h1)}</div><div class="h2">${e(s.h2)}</div></div>${post.sub?`<div class="sub">${e(post.sub)}</div>`:''}
+   <div class="phone" style="--rot:${post.rot||0}deg"><div class="isl"></div><div class="scr"><img src="${shot}" style="margin-top:${-(post.yoff||0)*688/390}px"></div></div>
+   <div class="note">실제 앱 화면 · 데모 데이터</div>
+   <div class="foot">plusev.co.kr →<span>사장님 한 달 무료</span></div>`;
+  document.querySelectorAll('.hd div,.sub').forEach(d=>fit(d,936));
+  return Promise.all([...document.images].map(i=>i.complete?1:new Promise(r=>i.onload=r))).then(()=>document.fonts.ready);
+}
+</script></body></html>

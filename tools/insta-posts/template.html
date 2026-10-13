@@ -46,6 +46,8 @@ html,body{width:1080px;height:1350px;overflow:hidden;background:#0b0c0d;font-fam
 .cta .row{font-size:38px}
 .cta .ck{width:48px;height:48px}.cta .ck svg{width:26px;height:26px}
 .cta .btn{margin-top:40px;height:118px;font-size:44px;border-radius:60px}
+.foot{position:absolute;left:72px;right:72px;bottom:56px;z-index:3;display:flex;justify-content:space-between;align-items:center;height:96px;padding:0 36px;border-radius:60px;background:var(--mint-btn);color:var(--ink);font-size:38px;font-weight:800}
+.foot span{font-size:28px;font-weight:700;opacity:.75}
 .cta .s2{text-align:center;font-size:30px;color:#C9CECC;margin-top:20px}
 </style></head><body><div id="c"><div class="in" id="in"></div></div>
 <script>
@@ -55,16 +57,16 @@ const e=s=>String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;');
 function fit(el,max){let f=parseFloat(getComputedStyle(el).fontSize);while(el.scrollWidth>max&&f>40){f-=2;el.style.fontSize=f+'px'}}
 function draw(post,s,i,bg){
   document.getElementById('c').style.backgroundImage=bg?`url(${bg})`:'radial-gradient(900px 700px at 70% 45%,#1d2a23,#0b0c0d 70%)';
-  const n=post.s.length,eb=`${post.eb} · ${i+1}/${n}`;
+  const n=post.s.length,eb=post.single?post.eb:`${post.eb} · ${i+1}/${n}`;
   const hd=(s.h1||s.h2)?`<div class="hd">${s.h1?`<div class="h1">${e(s.h1)}</div>`:''}${s.h2?`<div class="h2">${e(s.h2)}</div>`:''}</div>`:'';
   let body='';
-  if(s.t==='hook'){const ap=s.card.app.includes('지금')?s.card.app:s.card.app+' · 지금';body=`<div class="glass card"><div class="app">${e(ap)}</div><div class="ttl">${BELL}<span>${e(s.card.title)}</span></div><div class="sub">${e(s.card.sub)}</div><div class="btn">${e(s.card.btn)}</div></div>`}
+  if(s.t==='hook'){const ap=s.card.app.includes('지금')?s.card.app:s.card.app+' · 지금';body=`<div class="glass card"><div class="app">${e(ap)}</div><div class="ttl">${BELL}<span>${e(s.card.title)}</span></div><div class="sub">${e(s.card.sub)}</div><div class="btn">${e(s.card.btn)}</div>${s.note?`<div class="note">${e(s.note)}</div>`:''}</div>`}
   if(s.t==='big')body=`<div class="big"><div class="num">${e(s.num)}${s.unit?`<small>${e(s.unit)}</small>`:''}</div><div class="sub">${e(s.sub)}</div>${s.note?`<div class="note">${e(s.note)}</div>`:''}</div>`;
   if(s.t==='list')body=`<div class="glass list">${s.items.map(x=>`<div class="row"><span class="ck">${CK}</span><span>${e(x)}</span></div>`).join('')}${s.note?`<div class="note">${e(s.note)}</div>`:''}</div>`;
   if(s.t==='steps')body=`<div class="steps">${s.steps.map((x,j)=>`<div class="glass st"><span class="n">0${j+1}</span><div><div class="t">${e(x[0])}</div><div class="d">${e(x[1])}</div></div></div>`).join('')}</div>`;
   if(s.t==='ui')body=`<div class="glass panel"><div class="pt">${e(s.panel.title)}</div>${s.panel.rows.map(r=>`<div class="pr"><span>${e(r[0])}</span><b>${e(r[1])}</b></div>`).join('')}${s.panel.btn?`<div class="btn">${e(s.panel.btn)}</div>`:''}${s.note?`<div class="note">${e(s.note)}</div>`:''}</div>`;
   if(s.t==='cta')body=`<div class="cta" style="display:flex;flex-direction:column;flex:1"><div class="checks glass">${s.checks.map(x=>`<div class="row"><span class="ck">${CK}</span><span>${e(x)}</span></div>`).join('')}</div><div class="btn">plusev.co.kr →</div><div class="s2">사장님 한 달 무료 · 딜러 가입 무료</div></div>`;
-  document.getElementById('in').innerHTML=`<div class="top"><span class="eb">${e(eb)}</span><span class="logo"><b>+</b>EV</span></div>${hd}${body}${i<n-1?'<div class="swipe">밀어서 보기 →</div>':''}`;
+  document.getElementById('in').innerHTML=`<div class="top"><span class="eb">${e(eb)}</span><span class="logo"><b>+</b>EV</span></div>${hd}${body}${post.single?(s.t==='cta'?'':'<div class="foot">plusev.co.kr →<span>사장님 한 달 무료</span></div>'):(i<n-1?'<div class="swipe">밀어서 보기 →</div>':'')}`;
   document.querySelectorAll('.hd div').forEach(d=>fit(d,936));
   document.querySelectorAll('.big .num').forEach(d=>fit(d,936));
   document.querySelectorAll('.row span:last-child,.card .ttl span,.card .sub').forEach(d=>{d.style.whiteSpace='nowrap';fit(d,d.parentElement.clientWidth-(d.previousElementSibling?d.previousElementSibling.offsetWidth+30:0))});
