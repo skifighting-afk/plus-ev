@@ -54,6 +54,15 @@ html,body{width:1080px;height:1920px;overflow:hidden;background:#060807;font-fam
 .end .t1{font-size:58px;font-weight:900;margin-top:20px}
 .end .t2{font-size:40px;color:var(--mut);margin-top:22px}
 .end .url{margin-top:60px;font-family:var(--mono);font-size:44px;letter-spacing:.12em;color:var(--ink);background:var(--mint);padding:22px 48px;border-radius:999px}
+.gpos{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:26px}
+.gpos .p{font-size:92px;font-weight:900;letter-spacing:-3px}.gpos .p small{font-size:40px;color:var(--mut);font-weight:700;margin-left:16px;letter-spacing:0}
+.gpos .pc{font-family:var(--mono);font-size:72px;font-weight:800;color:var(--mint)}
+.grid{display:grid;grid-template-columns:repeat(13,1fr);gap:3px;background:rgba(0,0,0,.35);padding:8px;border-radius:18px;border:1.5px solid var(--line)}
+.gc{aspect-ratio:1;border-radius:7px;display:grid;place-items:center;font-family:var(--mono);font-size:21px;font-weight:700;color:rgba(255,255,255,.28);background:rgba(255,255,255,.05)}
+.gc.on{background:var(--mint);color:var(--ink)}.gc.pr.on{background:#7FE0AE}
+.gc.mk{outline:6px solid #FFD84A;outline-offset:-1px;position:relative;z-index:2;transform:scale(1.25);box-shadow:0 0 30px rgba(255,216,74,.8)}
+.gv{margin-top:34px;text-align:center;font-size:62px;font-weight:900;letter-spacing:-2px}
+.gn{margin-top:14px;text-align:center;font-size:26px;color:var(--mut)}
 .ovmode,.ovmode html{background:transparent!important}
 .ovmode #bg{display:none}
 .ovtop{position:fixed;left:0;right:0;top:0;height:720px;background:linear-gradient(180deg,rgba(0,0,0,.72),rgba(0,0,0,.35) 60%,rgba(0,0,0,0));z-index:1}
@@ -87,6 +96,10 @@ const R={
  end:(s,t)=>`<div class="end" style="display:flex;flex-direction:column"><div class="logo" style="${IN(t,0,.4,30)}"><b>+</b>EV</div><div class="t1" style="${IN(t,.25)}">이기는 펍의 선택</div><div class="t2" style="${IN(t,.4)}">${e(s.sub||'홀덤펍 운영 · 딜러 구인 · 급여 관리')}</div><div class="url" style="${IN(t,.55)}">plusev.co.kr</div></div>`
 };
 
+R.grid=(s,t)=>{const K='AKQJT98765432',on=new Set(s.hands);let c='';
+ for(let i=0;i<13;i++)for(let j=0;j<13;j++){const h=i===j?K[i]+K[j]:i<j?K[i]+K[j]+'s':K[j]+K[i]+'o';const lit=on.has(h)&&seg(t,.15+(i+j)*.025,.12)>.5;
+  c+=`<div class="gc ${i===j?'pr':''} ${lit?'on':''} ${h===s.mark&&t>.75?'mk':''}">${h.replace('T','T')}</div>`}
+ return `<div class="gpos" style="${IN(t,0,.3,30)}"><span class="p">${e(s.pos)}<small>${e(s.sub||'')}</small></span><span class="pc">${(s.pct*eo(seg(t,.1,.6))).toFixed(0)}%</span></div><div class="grid">${c}</div><div class="gv" style="${IN(t,.75,.25,30)}">${H(s.verdict||'')}</div><div class="gn">6맥스 100BB 오픈 · 솔버 근사(단순화) *예시 기준</div>`};
 R.clip=R.ov=(s,t)=>{const row=(lb,cs,a)=>cs?`<div class="ovbox" style="${IN(t,a,.3,30)}"><div class="lb">${lb}</div><div class="cards">${cs.split(' ').map((c,i)=>card(c,t,a+.05*i)).join('')}</div></div>`:'';
  return `<div class="ovtop"></div><div class="ovcap">${s.cap.map((l,i)=>`<div style="${IN(t,.05+i*.2)}">${H(l)}</div>`).join('')}</div><div class="ovbot">${row('BOARD',s.board,.3)}${row(s.villain?'RIVAL':'KIM',s.villain||s.hand,.45)}</div>`};
 function overlay(on){document.body.classList.toggle('ovmode',on);document.documentElement.classList.toggle('ovmode',on)}
