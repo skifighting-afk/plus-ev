@@ -4494,19 +4494,6 @@ async function slotForm() {
   const el = $('#slot5'); if (!el || el.dataset.on) return; el.dataset.on = 1; await slotLoad(true); el.innerHTML = slotBox();
   const f = $('#owner-form'); if (f && !slotLeft()) f.querySelectorAll('input,button.pri').forEach(x => x.disabled = true);
 }
-// 첫 화면 팝업 — '다시 보지 않기'를 누르면 이 기기에서는 다시 안 떠요
-const POP_KEY = 'ev_pop5_never';
-async function promoPop() {
-  if (S.user || location.pathname.includes('/demo') || location.search.includes('share=') || lsGet(POP_KEY) || S.popShown || $('#pop5')) return; S.popShown = 1;
-  await slotLoad(true); const left = slotLeft();
-  document.body.insertAdjacentHTML('beforeend', `<div id="pop5" role="dialog" aria-modal="true" aria-label="하루 선착순 5개 펍 입점 이벤트"><div class="pop5-box">
-    <img src="promo5.webp" alt="하루 선착순 5개 펍 한정 · 주변 매장 또는 내 매장 입점만 해도 5만 원 현금 즉시 지급" width="720" height="903">
-    <div class="pop5-body">${slotBox()}
-      <ul class="pop5-list"><li>주변 홀덤펍을 소개하거나 내 매장을 등록하면 <b>5만 원</b>을 드려요</li><li>소개라면 매장 등록할 때 <b>추천인 이름·연락처(010)</b>를 적어 주세요 · 그분께 보내 드려요</li><li>사업자등록번호가 있는 홀덤펍 · 매장당 1회</li><li>하루 ${SLOT5.cap}곳만 받아요 · 차면 그날은 마감, 00시에 다시 열려요</li></ul>
-      <div class="pop5-act">${left ? '<button class="btn pri full" data-act="pop5-go">지금 매장 등록하기</button>' : '<button class="btn full" disabled>오늘은 마감됐어요</button>'}<div class="row" style="gap:6px"><button class="btn sm" data-act="pop5-never">다시 보지 않기</button><button class="btn sm" data-act="pop5-x" style="flex:1">닫기</button></div></div>
-    </div></div></div>`);
-}
-const popClose = () => $('#pop5')?.remove();
 // 운영사 현황
 function hqSignupCard() {
   const D = S.hqSign; if (!D) return '<div class="card"><h3>선착순 입점 현황</h3><div class="empty">불러오는 중…</div></div>';
@@ -4523,17 +4510,13 @@ function hqSignupCard() {
 const hqSignLoad = () => sb.rpc('hq_signups', { p_days: 14 }).then(({ data }) => { S.hqSign = data || {}; if (S.mode === 'hq' && (!S.tab || S.tab === 'dash')) render(); });
 { const o = vHqDash; vHqDash = () => { if (!S.hqSign && !S.hqSignBusy) { S.hqSignBusy = 1; hqSignLoad(); } return hqSignupCard() + o(); }; }
 function after92() {
-  if (S.mode === 'auth' || !S.user) promoPop();
   if ($('#slot5')) slotForm();
 }
 { const o = after91; after91 = function () { o(); try { after92(); } catch (e) { console.warn(e); } }; }
 { const o = render; render = function () { o(); if (!S.user) try { after92(); } catch { } }; }
 document.addEventListener('input', e => { if (e.target.dataset?.tel) { const d = e.target.value.replace(/\D/g, '').slice(0, 11); e.target.value = d.length > 7 ? `${d.slice(0, 3)}-${d.slice(3, 7)}-${d.slice(7)}` : d.length > 3 ? `${d.slice(0, 3)}-${d.slice(3)}` : d; } });
 document.addEventListener('click', e => {
-  const b = e.target.closest?.('[data-act^="pop5-"],[data-act^="s5-"]'); if (!b && e.target.id === 'pop5') return popClose(); if (!b) return; const a = b.dataset.act;
-  if (a === 'pop5-x') return popClose();
-  if (a === 'pop5-never') { lsSet(POP_KEY, '1'); popClose(); return toast('이제 이 팝업은 다시 안 떠요'); }
-  if (a === 'pop5-go') { popClose(); if (!S.user) { S.authMode = 'signup'; render(); return toast('가입하고 "대표·점장 및 매장이에요"를 고르면 돼요'); } return; }
+  const b = e.target.closest?.('[data-act^="s5-"]'); if (!b) return; const a = b.dataset.act;
   if (a === 's5-paid') return busy(async () => { await q(sb.rpc('hq_signup_paid', { p_id: +b.dataset.v, p_to: b.dataset.to })); S.hqSign = null; S.hqSignBusy = 0; await hqSignLoad(); toast('바꿨어요'); });
   if (a === 's5-csv') { const L = S.hqSign?.recent || []; return download(`선착순입점_${TODAY}.csv`, [['날짜', '시각', '회사', '매장', '지역', '대표', '추천인', '추천인 연락처', '지급', '지급 대상'], ...L.map(x => [x.day, fmtDT(x.created_at), x.company_name, x.store_name, x.area, x.owner_name, x.ref_name, x.ref_phone, x.paid_at ? fmtDT(x.paid_at) : '', x.paid_to])]); }
 });
