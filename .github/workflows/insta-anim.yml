@@ -45,13 +45,19 @@ jobs:
           python -m unidic download >/dev/null
           python -c "import nltk;[nltk.download(x,quiet=True) for x in ['averaged_perceptron_tagger','averaged_perceptron_tagger_eng','cmudict']]"
           python -c "from melo.api import TTS" && echo "REEL_PYTHON=$(which python)" >> "$GITHUB_ENV"
+      - name: 이전 결과 가져오기 (클립 재사용)
+        run: git fetch --depth 1 origin anim-out && git worktree add anim-out origin/anim-out || mkdir -p anim-out
       - name: 애니메이션 만들기
         env:
           HF_API_KEY: ${{ secrets.HF_API_KEY }}
-        run: node tools/insta-study/make-anim.mjs anim-out ${{ github.event.inputs.ids }}
-      - name: anim-out 브랜치에 올리기
         run: |
-          cd anim-out && rm -rf _work && git init -q && git checkout -q -b anim-out
+          set -o pipefail
+          node tools/insta-study/make-anim.mjs anim-out ${{ github.event.inputs.ids }} 2>&1 | tee anim-out-log.txt
+      - name: anim-out 브랜치에 올리기
+        if: always()
+        run: |
+          mkdir pub && cp -r anim-out/. pub/ && rm -rf pub/.git pub/_w && cp anim-out-log.txt pub/log.txt || true
+          cd pub && git init -q && git checkout -q -b anim-out
           git -c user.name=reel-bot -c user.email=reel-bot@users.noreply.github.com add -A
           git -c user.name=reel-bot -c user.email=reel-bot@users.noreply.github.com commit -qm "anim $(date -u +%F' '%H:%M)"
           git push -qf "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" anim-out

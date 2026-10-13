@@ -37,7 +37,16 @@ for (const L of LESSONS) {
   if (only.length && !only.includes(L.id)) continue;
   const w = path.join(out, "_w", L.id); fs.rmSync(w, { recursive: true, force: true }); fs.mkdirSync(w, { recursive: true });
   // 1) 애니메이션 클립 먼저 (병렬)
-  const jobs = await Promise.all(L.scenes.map((s, i) => s.t === "clip" ? seedance(s.prompt, path.join(w, `clip${i}.mp4`), s.dur) : null));
+  // 만든 클립은 out/clips 에 보관해 재실행 때 크레딧을 다시 쓰지 않는다
+  const cd = path.join(out, "clips"); fs.mkdirSync(cd, { recursive: true });
+  const jobs = await Promise.all(L.scenes.map(async (s, i) => {
+    if (s.t !== "clip") return null;
+    const keep = path.join(cd, `${L.id}-${i}-${crypto.createHash("sha1").update(s.prompt).digest("hex").slice(0, 8)}.mp4`), dst = path.join(w, `clip${i}.mp4`);
+    if (fs.existsSync(keep)) { fs.copyFileSync(keep, dst); return "cached"; }
+    let err;
+    for (let t = 0; t < 2; t++) { try { const id = await seedance(s.prompt, dst, s.dur); if (KEY) fs.copyFileSync(dst, keep); return id; } catch (e) { err = e; console.log("클립", i, "실패", String(e).slice(0, 300)); } }
+    throw err;
+  }));
   console.log(L.id, "클립", jobs.filter(Boolean).length);
   // 2) 나레이션
   const says = L.scenes.map((s) => (s.t === "end" ? END_SAY : s.say || ""));
