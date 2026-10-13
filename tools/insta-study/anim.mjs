@@ -22,8 +22,10 @@ const RANGE = {
   CO: expand("22+, A2s+, K6s+, Q8s+, J8s+, T8s+, 97s+, 87s, 76s, 65s, A8o+, KTo+, QTo+, JTo"),
   BTN: expand("22+, A2s+, K2s+, Q4s+, J6s+, T6s+, 96s+, 85s+, 75s+, 64s+, 54s, A2o+, K8o+, Q9o+, J9o+, T9o, 98o"),
 };
+RANGE.SB = expand("22+, A2s+, K2s+, Q5s+, J7s+, T7s+, 97s+, 86s+, 76s, 65s, 54s, A2o+, K9o+, Q9o+, J9o+, T9o");
 const P = Object.fromEntries(Object.entries(RANGE).map(([k, v]) => [k, Math.round(pct(v) * 10) / 10]));
 const DOG = "Realistic cinematic smartphone video, a fluffy long-haired German shepherd dog with expressive face standing upright on its hind legs like a person, inside a cozy Korean hold'em poker pub at night with a green felt poker table, colorful clay chips and warm hanging lights in the background, vertical framing, shallow depth of field, no people, no text, no letters, no logos, no readable card faces. ";
+const PUP = "Realistic cinematic smartphone video. The SAME dog in every shot: an adult long-haired black-and-tan German shepherd with a black saddle on its back, tan face and tan front legs, large upright pointed ears and amber eyes, wearing a small black vest. The dog sits upright on a chair at a green felt poker table exactly like a human poker player, front paws resting on the table edge, inside a cozy Korean hold'em pub at night with warm hanging lights and colorful clay chip stacks. Vertical 9:16 framing, natural motion, no people, no text, no letters, no logos, no readable card faces. ";
 export const LESSONS = [
 { id: "a01", title: "셋 슬로우플레이의 최후", tag: "ANIMATION",
   scenes: [
@@ -145,5 +147,29 @@ export const LESSONS = [
     { t: "rule", len: 3.0, title: "오늘의 한 줄", lines: ["뒤에 남은 사람이 많을수록 [좁게]", "버튼에 가까울수록 [넓게]"] },
     { t: "quiz", len: 3.2, q: "HJ(뒤에 4명)에서 K9o. 오픈? 폴드?", opts: ["오픈", "폴드"] },
     { t: "end", len: 2.2 } ] },
+{ id: "a07", title: "GTO 개: 카드 짜고 쓰리벳 갈기는 개", tag: "GTO · 1인칭", kicker: "HOLD'EM STUDY · GTO", speed: 1.3, fast: true,
+  scenes: [
+    { t: "clip", dur: 5, prompt: PUP + "Close-up: the dog slowly squeezes its two face-down cards, carefully lifting just the corner of the cards with one front paw and peeking under them, eyes narrowed in intense concentration, then it gives a tiny satisfied nod.",
+      cap: ["카드를 딱 [짜고]…", "킹 나인 오프"], hand: "Kc 9d",
+      say: "카드를 딱 짜고. 킹 나인 오프." },
+    { t: "grid", pos: "SB", sub: "스몰 블라인드 · 뒤에 BB만", hands: RANGE.SB, pct: P.SB, mark: "K9o", verdict: "K9o → [오픈]",
+      say: "나는 스몰 블라인드. 지티오상 이건 오픈." },
+    { t: "clip", dur: 5, prompt: PUP + "The dog confidently taps the felt twice with one front paw and pushes a small stack of chips forward into the middle, then leans back in the chair with a cool smug expression.",
+      cap: ["[따닥]", "오픈"], hand: "Kc 9d",
+      say: "따닥." },
+    { t: "clip", dur: 5, prompt: PUP + "New hand: the dog peeks at fresh cards, then its ears suddenly perk up and it quickly turns its head to the right side of the table with a surprised look, then a slow confident smirk spreads across its face.",
+      cap: ["다음 판, 나는 버튼", "어? 오른쪽에서 [오픈]"], hand: "Ks Ts",
+      say: "다음 판. 나는 버튼, 킹 텐 수딧. 어? 오른쪽에서 오픈." },
+    { t: "math", title: "버튼 쓰리벳 사이즈", lines: ["인 포지션 3벳 = 오픈의 [3배]", "오픈 2.5BB → 3벳 7.5BB", "KTs = 3벳·콜 [섞어서]"],
+      say: "인 포지션 쓰리벳은 오픈의 세 배. 킹 텐 수딧은 쓰리벳과 콜을 섞어요." },
+    { t: "clip", dur: 5, prompt: PUP + "The dog decisively pushes a big tower of colorful clay chips into the middle of the table with both front paws, chips sliding across the felt, then stares straight into the camera with total confidence.",
+      cap: ["[쓰리벳] 갈겨", "3X, GTO상 맞아"], hand: "Ks Ts",
+      say: "쓰리벳 갈겨. 삼 배. 지티오상 맞아." },
+    { t: "clip", dur: 5, prompt: PUP + "The dog wins the pot: it jumps up and stands on its hind legs on the chair, happily dancing to the beat, swaying left and right and waving both front paws in the air with an open-mouth smile, a big pile of chips in front of it.",
+      cap: ["이기면?", "[춤 한 번]"],
+      say: "이기면? 춤 한 번." },
+    { t: "quiz", q: "버튼 KTs, 앞에서 오픈. 당신은?", opts: ["3벳 3X", "콜", "폴드"],
+      say: "당신이라면? 댓글로." },
+    { t: "end" } ] },
 ];
-export const CAPTION = (L) => L.id === "a06" ? `강아지도 아는 GTO 오픈 표 🐕\n같은 K9o인데 UTG에선 폴드, 버튼에선 오픈.\nUTG ${P.UTG}% · BTN ${P.BTN}% (6맥스 100BB 솔버 근사)\nHJ에서 K9o는? 댓글로 👇 저장 📌\n📌 프로필 링크 plusev.co.kr · 홀덤펍 운영은 +EV\n#홀덤 #홀덤공부 #GTO #포커 #프리플랍 #강아지 #홀덤펍 #플러스이브이` : L.id === "a05" ? `금요일 밤 9시, 딜러한테 온 문자 한 통 📱\n🔴 단톡방에 대타 공지 → 30분째 답 없음\n🟢 +EV 긴급 구인 한 번 → 근처 딜러에게 바로 알림\n사장님 매장 대타 최장 기록은? 댓글로 👇\n📌 프로필 링크 plusev.co.kr · 사장님 한 달 무료\n#홀덤펍 #홀덤펍사장 #홀덤딜러 #자영업 #사장님 #상황극 #플러스이브이` : L.id === "a04" ? `90%가 틀리는 문제 🃏 AK vs 22, 누가 유리할까?\n정답: 22 (51.3%). 그런데 AK가 같은 무늬면 51.7%로 역전.\n무늬 하나에 약 3%가 움직여요.\nAK vs JT는 몇 %? 댓글로 👇 저장 📌\n📌 프로필 링크 plusev.co.kr · 홀덤펍 운영은 +EV\n#홀덤 #홀덤공부 #포커 #홀덤퀴즈 #승률 #AK #홀덤펍 #플러스이브이` : L.id === "a03" ? `같은 K9o인데 UTG에선 폴드, 버튼에선 오픈 🃏\nGTO 오픈 표는 "뒤에 몇 명 남았나"로 읽으면 끝.\nUTG ${P.UTG}% · HJ ${P.HJ}% · CO ${P.CO}% · BTN ${P.BTN}% (6맥스 100BB 근사)\nHJ에서 K9o는? 댓글로 👇 저장 📌\n📌 프로필 링크 plusev.co.kr · 홀덤펍 운영은 +EV\n#홀덤 #GTO #홀덤공부 #포커 #프리플랍 #오픈레인지 #홀덤펍 #플러스이브이` : L.id === "a02" ? `탑 페어 들고 또 폴드한 킴, 상대는 퀸 텐 블러프 🫠\nGTO 기준 팟 벳엔 최소 50%는 콜해야 합니다.\n1/3팟 75% · 1/2팟 67% · 팟 50% · 2배 33%\n하프 팟이면 몇 %? 댓글로 👇 저장 📌\n📌 프로필 링크 plusev.co.kr · 홀덤펍 운영은 +EV\n#홀덤 #GTO #홀덤공부 #포커 #MDF #홀덤펍 #플러스이브이` : `셋 잡고 진 킴, 탑 프로가 한숨 쉰 이유 😮‍💨\n플랍 승률 73.5% → 공짜 카드 한 장에 22.7%.\n젖은 보드에서 슬로우플레이는 이제 그만.\n마른 보드 K셋이면 베팅? 체크? 댓글로 👇 저장 📌\n📌 프로필 링크 plusev.co.kr · 홀덤펍 운영은 +EV\n#홀덤 #홀덤공부 #포커 #홀덤썰 #슬로우플레이 #홀덤펍 #플러스이브이`;
+export const CAPTION = (L) => L.id === "a07" ? `카드 딱 짜고, GTO대로 따닥 🐕‍🦺\nSB K9o는 오픈, 버튼 KTs는 3벳 3X (콜과 섞기).\n인 포지션 3벳은 오픈의 3배가 기본.\n버튼 KTs, 당신은 3벳? 콜? 댓글로 👇 저장 📌\n📌 프로필 링크 plusev.co.kr · 홀덤펍 운영은 +EV\n#홀덤 #홀덤공부 #GTO #포커 #3벳 #강아지 #홀덤펍 #플러스이브이` : L.id === "a06" ? `강아지도 아는 GTO 오픈 표 🐕\n같은 K9o인데 UTG에선 폴드, 버튼에선 오픈.\nUTG ${P.UTG}% · BTN ${P.BTN}% (6맥스 100BB 솔버 근사)\nHJ에서 K9o는? 댓글로 👇 저장 📌\n📌 프로필 링크 plusev.co.kr · 홀덤펍 운영은 +EV\n#홀덤 #홀덤공부 #GTO #포커 #프리플랍 #강아지 #홀덤펍 #플러스이브이` : L.id === "a05" ? `금요일 밤 9시, 딜러한테 온 문자 한 통 📱\n🔴 단톡방에 대타 공지 → 30분째 답 없음\n🟢 +EV 긴급 구인 한 번 → 근처 딜러에게 바로 알림\n사장님 매장 대타 최장 기록은? 댓글로 👇\n📌 프로필 링크 plusev.co.kr · 사장님 한 달 무료\n#홀덤펍 #홀덤펍사장 #홀덤딜러 #자영업 #사장님 #상황극 #플러스이브이` : L.id === "a04" ? `90%가 틀리는 문제 🃏 AK vs 22, 누가 유리할까?\n정답: 22 (51.3%). 그런데 AK가 같은 무늬면 51.7%로 역전.\n무늬 하나에 약 3%가 움직여요.\nAK vs JT는 몇 %? 댓글로 👇 저장 📌\n📌 프로필 링크 plusev.co.kr · 홀덤펍 운영은 +EV\n#홀덤 #홀덤공부 #포커 #홀덤퀴즈 #승률 #AK #홀덤펍 #플러스이브이` : L.id === "a03" ? `같은 K9o인데 UTG에선 폴드, 버튼에선 오픈 🃏\nGTO 오픈 표는 "뒤에 몇 명 남았나"로 읽으면 끝.\nUTG ${P.UTG}% · HJ ${P.HJ}% · CO ${P.CO}% · BTN ${P.BTN}% (6맥스 100BB 근사)\nHJ에서 K9o는? 댓글로 👇 저장 📌\n📌 프로필 링크 plusev.co.kr · 홀덤펍 운영은 +EV\n#홀덤 #GTO #홀덤공부 #포커 #프리플랍 #오픈레인지 #홀덤펍 #플러스이브이` : L.id === "a02" ? `탑 페어 들고 또 폴드한 킴, 상대는 퀸 텐 블러프 🫠\nGTO 기준 팟 벳엔 최소 50%는 콜해야 합니다.\n1/3팟 75% · 1/2팟 67% · 팟 50% · 2배 33%\n하프 팟이면 몇 %? 댓글로 👇 저장 📌\n📌 프로필 링크 plusev.co.kr · 홀덤펍 운영은 +EV\n#홀덤 #GTO #홀덤공부 #포커 #MDF #홀덤펍 #플러스이브이` : `셋 잡고 진 킴, 탑 프로가 한숨 쉰 이유 😮‍💨\n플랍 승률 73.5% → 공짜 카드 한 장에 22.7%.\n젖은 보드에서 슬로우플레이는 이제 그만.\n마른 보드 K셋이면 베팅? 체크? 댓글로 👇 저장 📌\n📌 프로필 링크 plusev.co.kr · 홀덤펍 운영은 +EV\n#홀덤 #홀덤공부 #포커 #홀덤썰 #슬로우플레이 #홀덤펍 #플러스이브이`;
