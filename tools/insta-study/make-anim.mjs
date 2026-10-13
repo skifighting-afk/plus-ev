@@ -53,12 +53,12 @@ for (const L of LESSONS) {
   // 2) 나레이션
   const says = L.scenes.map((s) => (s.t === "end" ? END_SAY : s.say || ""));
   let voices = [];
-  if (process.env.REEL_PYTHON) {
+  if (process.env.REEL_PYTHON && !L.mute) {
     fs.writeFileSync(path.join(w, "lines.json"), JSON.stringify(says));
     try { execFileSync(process.env.REEL_PYTHON, [path.join(dir, "..", "insta", "tts.py"), path.join(w, "lines.json"), w], { stdio: "inherit", env: { ...process.env, REEL_TTS_SPEED: String(L.speed || 1.1) } }); } catch (e) { console.log("나레이션 실패"); }
     voices = says.map((_, i) => path.join(w, `voice-${i}.wav`)).map((f) => (fs.existsSync(f) ? f : null));
   }
-  const lens = L.scenes.map((s, i) => { const v = voices[i] ? dur(voices[i]) : says[i].length / 7; if (L.fast) return s.t === "clip" ? Math.max(3.2, v + 0.35) : s.t === "end" ? Math.max(2.2, v + 0.3) : Math.max(1.8, v + 0.3);
+  const lens = L.scenes.map((s, i) => { if (L.mute) return s.len || s.dur || 2.5; const v = voices[i] ? dur(voices[i]) : says[i].length / 7; if (L.fast) return s.t === "clip" ? Math.max(3.2, v + 0.35) : s.t === "end" ? Math.max(2.2, v + 0.3) : Math.max(1.8, v + 0.3);
     return s.t === "clip" ? Math.max(s.dur, v + 0.6) : s.t === "end" ? Math.max(2.8, v + 0.5) : Math.max(2.4, v + 0.5); });
   await p.evaluate((l) => setup(l), L);
   // 3) 장면별 조각 영상
@@ -87,7 +87,7 @@ for (const L of LESSONS) {
   const silent = path.join(w, "v.mp4"); ff(["-f", "concat", "-safe", "0", "-i", list, "-c", "copy", silent]);
   // 4) 소리
   const T = lens.reduce((a, x) => a + x, 0); const ain = [], af = [], mix = []; let k = 1, at = 0;
-  if (fs.existsSync(bgm)) { ain.push("-stream_loop", "-1", "-i", bgm); af.push(`[${k}]aformat=sample_rates=48000:channel_layouts=stereo,volume=0.16,atrim=0:${T.toFixed(2)},afade=t=out:st=${(T - 1.5).toFixed(2)}:d=1.5[a${k}]`); }
+  if (fs.existsSync(bgm)) { ain.push("-stream_loop", "-1", "-i", bgm); af.push(`[${k}]aformat=sample_rates=48000:channel_layouts=stereo,volume=${L.mute ? 0.55 : 0.16},atrim=0:${T.toFixed(2)},afade=t=out:st=${(T - 1.5).toFixed(2)}:d=1.5[a${k}]`); }
   else { ain.push("-f", "lavfi", "-i", `anullsrc=r=48000:cl=stereo:d=${T.toFixed(2)}`); af.push(`[${k}]anull[a${k}]`); }
   mix.push(`[a${k}]`); k++;
   L.scenes.forEach((_, i) => { const v = voices[i]; if (v) { const ms = Math.round((at + (L.fast ? 0.1 : 0.3)) * 1000); ain.push("-i", v); af.push(`[${k}]aformat=sample_rates=48000:channel_layouts=stereo,volume=1.5,adelay=${ms}|${ms}[a${k}]`); mix.push(`[a${k}]`); k++; } at += lens[i]; });
