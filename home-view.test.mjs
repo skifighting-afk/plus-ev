@@ -48,4 +48,7 @@ const d = boot('', true); d.click('simple'); assert.ok(d.view.innerHTML.includes
 const e = boot('corrupt'); e.c.render(); assert.ok(!e.view.innerHTML.includes('EXISTING HOME'));
 e.click('simple'); e.c.S.reports = [{ report_date: '2026-10-13', sales: 120000, entries: 3 }]; e.c.render();
 assert.ok(e.view.innerHTML.includes('마감 완료')); assert.ok(e.view.innerHTML.includes('120000'));
+e.c.simpleLaborSummary=()=>({ready:true,todayReady:true,today:0,month:0,projected:0,incomplete:0});
+e.c.S.reports[0].expense=10000;e.c.S.expenses=[{spent_on:'2026-10-13',source:'close',amount:10000},{spent_on:'2026-10-13',source:'manual',amount:5000}];e.c.render();
+assert.ok(e.view.innerHTML.includes('105000'),'today remaining money includes manual expenses without double-counting closing expenses');
 console.log('home-view: default, switching, persistence, scope, empty and closed states passed');
