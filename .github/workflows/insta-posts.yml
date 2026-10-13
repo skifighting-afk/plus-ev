@@ -1,0 +1,58 @@
+name: 인스타 게시물 렌더 (+EV 새 디자인)
+
+# 배경 사진(Higgsfield SOUL)을 만들고 게시물 20개 x 5장(1080x1350 JPG)을 insta-posts-out 브랜치에 올린다.
+on:
+  workflow_dispatch:
+    inputs:
+      posts:
+        description: '게시물 (예: P01,P02). 비우면 전부'
+        required: false
+        default: ''
+  push:
+    branches: [main]
+    paths: ['tools/insta-posts/**']
+
+permissions:
+  contents: write
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: 배경 캐시
+        uses: actions/cache@v4
+        with:
+          path: tools/insta-posts/bg
+          key: insta-posts-bg-${{ hashFiles('tools/insta-posts/backgrounds.json') }}
+          restore-keys: insta-posts-bg-
+      - name: 도구 준비
+        run: |
+          sudo apt-get update -qq >/dev/null && sudo apt-get install -y -qq --no-install-recommends fonts-noto-cjk ffmpeg >/dev/null
+          npm install --no-save --no-audit --no-fund playwright@1.56.0 >/dev/null
+          npx playwright install --with-deps chromium >/dev/null
+      - name: 배경 생성 (없는 것만)
+        env:
+          HF_API_KEY: ${{ secrets.HF_API_KEY }}
+        run: node tools/insta-posts/gen-bg.mjs
+      - name: 렌더
+        run: node tools/insta-posts/render.mjs posts-out "${{ github.event.inputs.posts || '' }}"
+      - name: 한 장 미리보기
+        run: |
+          cd posts-out
+          for d in P*/; do d=${d%/}; ffmpeg -v error -y -i $d/1.jpg -i $d/2.jpg -i $d/3.jpg -i $d/4.jpg -i $d/5.jpg -filter_complex "[0]scale=360:-1[a];[1]scale=360:-1[b];[2]scale=360:-1[c];[3]scale=360:-1[d];[4]scale=360:-1[e];[a][b][c][d][e]hstack=5" sheet-$d.jpg; done
+          mkdir -p bg && cp ../tools/insta-posts/bg/*.jpg bg/ 2>/dev/null || true
+      - uses: actions/upload-artifact@v4
+        with:
+          name: insta-posts-${{ github.run_id }}
+          path: posts-out/
+      - name: insta-posts-out 브랜치에 올리기
+        run: |
+          cd posts-out && git init -q && git checkout -q -b insta-posts-out
+          git -c user.name=post-bot -c user.email=post-bot@users.noreply.github.com add -A
+          git -c user.name=post-bot -c user.email=post-bot@users.noreply.github.com commit -qm "posts $(date -u +%F' '%H:%M)"
+          git push -qf "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" insta-posts-out
