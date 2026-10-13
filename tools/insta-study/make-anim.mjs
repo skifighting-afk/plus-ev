@@ -44,7 +44,9 @@ for (const L of LESSONS) {
     const keep = path.join(cd, `${L.id}-${i}-${crypto.createHash("sha1").update(s.prompt).digest("hex").slice(0, 8)}.mp4`), dst = path.join(w, `clip${i}.mp4`);
     if (fs.existsSync(keep)) { fs.copyFileSync(keep, dst); return "cached"; }
     let err;
+    if (s.fb && process.env.FB_ONLY) { const f = path.join(cd, s.fb.file); ff(["-ss", String(s.fb.ss || 0), "-i", f, "-an", "-c:v", "libx264", "-preset", "veryfast", "-crf", "18", dst]); return "fallback"; }
     for (let t = 0; t < 2; t++) { try { const id = await seedance(s.prompt, dst, s.dur, t); if (KEY) fs.copyFileSync(dst, keep); return id; } catch (e) { err = e; console.log("클립", i, "실패", String(e).slice(0, 300)); } }
+    if (s.fb && fs.existsSync(path.join(cd, s.fb.file))) { console.log("클립", i, "기존 클립으로 대체"); ff(["-ss", String(s.fb.ss || 0), "-i", path.join(cd, s.fb.file), "-an", "-c:v", "libx264", "-preset", "veryfast", "-crf", "18", dst]); return "fallback"; }
     throw err;
   }));
   console.log(L.id, "클립", jobs.filter(Boolean).length);
@@ -53,10 +55,11 @@ for (const L of LESSONS) {
   let voices = [];
   if (process.env.REEL_PYTHON) {
     fs.writeFileSync(path.join(w, "lines.json"), JSON.stringify(says));
-    try { execFileSync(process.env.REEL_PYTHON, [path.join(dir, "..", "insta", "tts.py"), path.join(w, "lines.json"), w], { stdio: "inherit", env: { ...process.env, REEL_TTS_SPEED: "1.1" } }); } catch (e) { console.log("나레이션 실패"); }
+    try { execFileSync(process.env.REEL_PYTHON, [path.join(dir, "..", "insta", "tts.py"), path.join(w, "lines.json"), w], { stdio: "inherit", env: { ...process.env, REEL_TTS_SPEED: String(L.speed || 1.1) } }); } catch (e) { console.log("나레이션 실패"); }
     voices = says.map((_, i) => path.join(w, `voice-${i}.wav`)).map((f) => (fs.existsSync(f) ? f : null));
   }
-  const lens = L.scenes.map((s, i) => { const v = voices[i] ? dur(voices[i]) : says[i].length / 7; return s.t === "clip" ? Math.max(s.dur, v + 0.6) : s.t === "end" ? Math.max(2.8, v + 0.5) : Math.max(2.4, v + 0.5); });
+  const lens = L.scenes.map((s, i) => { const v = voices[i] ? dur(voices[i]) : says[i].length / 7; if (L.fast) return s.t === "clip" ? Math.max(3.2, v + 0.35) : s.t === "end" ? Math.max(2.2, v + 0.3) : Math.max(1.8, v + 0.3);
+    return s.t === "clip" ? Math.max(s.dur, v + 0.6) : s.t === "end" ? Math.max(2.8, v + 0.5) : Math.max(2.4, v + 0.5); });
   await p.evaluate((l) => setup(l), L);
   // 3) 장면별 조각 영상
   const segs = [];
@@ -87,7 +90,7 @@ for (const L of LESSONS) {
   if (fs.existsSync(bgm)) { ain.push("-stream_loop", "-1", "-i", bgm); af.push(`[${k}]aformat=sample_rates=48000:channel_layouts=stereo,volume=0.16,atrim=0:${T.toFixed(2)},afade=t=out:st=${(T - 1.5).toFixed(2)}:d=1.5[a${k}]`); }
   else { ain.push("-f", "lavfi", "-i", `anullsrc=r=48000:cl=stereo:d=${T.toFixed(2)}`); af.push(`[${k}]anull[a${k}]`); }
   mix.push(`[a${k}]`); k++;
-  L.scenes.forEach((_, i) => { const v = voices[i]; if (v) { const ms = Math.round((at + 0.3) * 1000); ain.push("-i", v); af.push(`[${k}]aformat=sample_rates=48000:channel_layouts=stereo,volume=1.5,adelay=${ms}|${ms}[a${k}]`); mix.push(`[a${k}]`); k++; } at += lens[i]; });
+  L.scenes.forEach((_, i) => { const v = voices[i]; if (v) { const ms = Math.round((at + (L.fast ? 0.1 : 0.3)) * 1000); ain.push("-i", v); af.push(`[${k}]aformat=sample_rates=48000:channel_layouts=stereo,volume=1.5,adelay=${ms}|${ms}[a${k}]`); mix.push(`[a${k}]`); k++; } at += lens[i]; });
   af.push(`${mix.join("")}amix=inputs=${mix.length}:normalize=0:duration=first,alimiter=limit=0.95[a]`);
   ff(["-i", silent, ...ain, "-filter_complex", af.join(";"), "-map", "0:v", "-map", "[a]", "-c:v", "copy", "-c:a", "aac", "-b:a", "160k", "-t", T.toFixed(2), "-movflags", "+faststart", path.join(out, `${L.id}.mp4`)]);
   fs.writeFileSync(path.join(out, `${L.id}.json`), JSON.stringify({ id: L.id, seconds: Number(T.toFixed(1)), jobs: jobs.filter(Boolean), caption: CAPTION(L) }, null, 1));
