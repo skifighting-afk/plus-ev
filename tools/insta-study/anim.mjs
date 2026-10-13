@@ -113,5 +113,21 @@ export const LESSONS = [
     { t: "quiz", q: "AK vs JT (무늬 다름). AK 승률은?", opts: ["약 50%", "약 63%", "약 80%"],
       say: "그럼 에이 킹 대 잭 텐은? 댓글로." },
     { t: "end" } ] },
+{ id: "a05", title: "상황극: 금요일 밤 9시, 딜러 펑크", tag: "레드 vs 그린", kicker: "홀덤펍 사장님 상황극", speed: 1.25, fast: true,
+  scenes: [
+    { t: "clip", dur: 5, prompt: STYLE + CAST + "Shot 1 (0-2.5s): busy Friday night, KIM wearing a tiny black apron stands behind the pub counter smiling at a full room, his smartphone on the counter buzzes and lights up. Shot 2 (2.5-5s): close-up of KIM picking up the phone and reading the screen, his smile slowly freezes and one eye twitches.",
+      cap: ["금요일 밤 9시,", "딜러한테 온 [문자]"], chat: ["딜러 민수", "사장님… 오늘 못 나갈 것 같아요 ㅠ"],
+      say: "금요일 밤 아홉 시. 딜러한테 문자가 옵니다." },
+    { t: "clip", dur: 5, prompt: STYLE + CAST + "Shot 1 (0-2.5s): KIM frantically scrolls through his phone with both tiny hands, sweat drops flying, an empty green poker table with no dealer behind him. Shot 2 (2.5-5s): several small round blob customers sit at the empty table tapping their fingers and checking the clock on the wall, KIM looks at the phone again and slumps.",
+      tag: "RED", tagc: "#D3263A", cap: ["단톡방에 대타 공지", "30분째 답 없음"],
+      say: "단톡방에 대타 공지. 삼십 분째 답이 없습니다. 테이블은 멈춰 있고요." },
+    { t: "clip", dur: 5, prompt: STYLE + CAST + "Shot 1 (0-2.5s): rewind feeling, the same Friday night, KIM calmly taps his phone screen once with one tiny finger and sets it down, relaxed smile. Shot 2 (2.5-5s): the pub door opens and a friendly blob dealer in a neat vest walks in waving, KIM gives a thumbs up and the poker table lights up with chips and cards being dealt.",
+      tag: "GREEN", tagc: "#2f9c68", cap: ["+EV 긴급 구인 [한 번]", "딜러에게 바로 알림"],
+      say: "같은 상황, 플러스 이브이에 긴급 구인 한 번. 근처 딜러에게 바로 알림이 갑니다." },
+    { t: "rule", title: "오늘의 한 줄", lines: ["딜러 펑크는 못 막아도", "[빈 테이블]은 막을 수 있다"],
+      say: "딜러 펑크는 못 막아도, 빈 테이블은 막을 수 있어요." },
+    { t: "quiz", q: "사장님 매장 대타 구하는 데 최장 기록은?", opts: ["30분 이내", "1시간 이상", "결국 내가 딜링"],
+      say: "사장님 최장 기록은요? 댓글로." },
+    { t: "end" } ] },
 ];
-export const CAPTION = (L) => L.id === "a04" ? `90%가 틀리는 문제 🃏 AK vs 22, 누가 유리할까?\n정답: 22 (51.3%). 그런데 AK가 같은 무늬면 51.7%로 역전.\n무늬 하나에 약 3%가 움직여요.\nAK vs JT는 몇 %? 댓글로 👇 저장 📌\n📌 프로필 링크 plusev.co.kr · 홀덤펍 운영은 +EV\n#홀덤 #홀덤공부 #포커 #홀덤퀴즈 #승률 #AK #홀덤펍 #플러스이브이` : L.id === "a03" ? `같은 K9o인데 UTG에선 폴드, 버튼에선 오픈 🃏\nGTO 오픈 표는 "뒤에 몇 명 남았나"로 읽으면 끝.\nUTG ${P.UTG}% · HJ ${P.HJ}% · CO ${P.CO}% · BTN ${P.BTN}% (6맥스 100BB 근사)\nHJ에서 K9o는? 댓글로 👇 저장 📌\n📌 프로필 링크 plusev.co.kr · 홀덤펍 운영은 +EV\n#홀덤 #GTO #홀덤공부 #포커 #프리플랍 #오픈레인지 #홀덤펍 #플러스이브이` : L.id === "a02" ? `탑 페어 들고 또 폴드한 킴, 상대는 퀸 텐 블러프 🫠\nGTO 기준 팟 벳엔 최소 50%는 콜해야 합니다.\n1/3팟 75% · 1/2팟 67% · 팟 50% · 2배 33%\n하프 팟이면 몇 %? 댓글로 👇 저장 📌\n📌 프로필 링크 plusev.co.kr · 홀덤펍 운영은 +EV\n#홀덤 #GTO #홀덤공부 #포커 #MDF #홀덤펍 #플러스이브이` : `셋 잡고 진 킴, 탑 프로가 한숨 쉰 이유 😮‍💨\n플랍 승률 73.5% → 공짜 카드 한 장에 22.7%.\n젖은 보드에서 슬로우플레이는 이제 그만.\n마른 보드 K셋이면 베팅? 체크? 댓글로 👇 저장 📌\n📌 프로필 링크 plusev.co.kr · 홀덤펍 운영은 +EV\n#홀덤 #홀덤공부 #포커 #홀덤썰 #슬로우플레이 #홀덤펍 #플러스이브이`;
+export const CAPTION = (L) => L.id === "a05" ? `금요일 밤 9시, 딜러한테 온 문자 한 통 📱\n🔴 단톡방에 대타 공지 → 30분째 답 없음\n🟢 +EV 긴급 구인 한 번 → 근처 딜러에게 바로 알림\n사장님 매장 대타 최장 기록은? 댓글로 👇\n📌 프로필 링크 plusev.co.kr · 사장님 한 달 무료\n#홀덤펍 #홀덤펍사장 #홀덤딜러 #자영업 #사장님 #상황극 #플러스이브이` : L.id === "a04" ? `90%가 틀리는 문제 🃏 AK vs 22, 누가 유리할까?\n정답: 22 (51.3%). 그런데 AK가 같은 무늬면 51.7%로 역전.\n무늬 하나에 약 3%가 움직여요.\nAK vs JT는 몇 %? 댓글로 👇 저장 📌\n📌 프로필 링크 plusev.co.kr · 홀덤펍 운영은 +EV\n#홀덤 #홀덤공부 #포커 #홀덤퀴즈 #승률 #AK #홀덤펍 #플러스이브이` : L.id === "a03" ? `같은 K9o인데 UTG에선 폴드, 버튼에선 오픈 🃏\nGTO 오픈 표는 "뒤에 몇 명 남았나"로 읽으면 끝.\nUTG ${P.UTG}% · HJ ${P.HJ}% · CO ${P.CO}% · BTN ${P.BTN}% (6맥스 100BB 근사)\nHJ에서 K9o는? 댓글로 👇 저장 📌\n📌 프로필 링크 plusev.co.kr · 홀덤펍 운영은 +EV\n#홀덤 #GTO #홀덤공부 #포커 #프리플랍 #오픈레인지 #홀덤펍 #플러스이브이` : L.id === "a02" ? `탑 페어 들고 또 폴드한 킴, 상대는 퀸 텐 블러프 🫠\nGTO 기준 팟 벳엔 최소 50%는 콜해야 합니다.\n1/3팟 75% · 1/2팟 67% · 팟 50% · 2배 33%\n하프 팟이면 몇 %? 댓글로 👇 저장 📌\n📌 프로필 링크 plusev.co.kr · 홀덤펍 운영은 +EV\n#홀덤 #GTO #홀덤공부 #포커 #MDF #홀덤펍 #플러스이브이` : `셋 잡고 진 킴, 탑 프로가 한숨 쉰 이유 😮‍💨\n플랍 승률 73.5% → 공짜 카드 한 장에 22.7%.\n젖은 보드에서 슬로우플레이는 이제 그만.\n마른 보드 K셋이면 베팅? 체크? 댓글로 👇 저장 📌\n📌 프로필 링크 plusev.co.kr · 홀덤펍 운영은 +EV\n#홀덤 #홀덤공부 #포커 #홀덤썰 #슬로우플레이 #홀덤펍 #플러스이브이`;
