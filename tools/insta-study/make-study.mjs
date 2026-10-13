@@ -27,13 +27,13 @@ for (const L of LESSONS) {
   let voices = [];
   if (process.env.REEL_PYTHON) {
     fs.writeFileSync(path.join(w, "lines.json"), JSON.stringify(says));
-    try { execFileSync(process.env.REEL_PYTHON, [path.join(dir, "..", "insta", "tts.py"), path.join(w, "lines.json"), w], { stdio: "inherit", env: { ...process.env, REEL_TTS_SPEED: "1.05" } }); } catch (e) { console.log("나레이션 실패", String(e).slice(0, 100)); }
+    try { execFileSync(process.env.REEL_PYTHON, [path.join(dir, "..", "insta", "tts.py"), path.join(w, "lines.json"), w], { stdio: "inherit", env: { ...process.env, REEL_TTS_SPEED: "1.15" } }); } catch (e) { console.log("나레이션 실패", String(e).slice(0, 100)); }
     voices = says.map((_, i) => path.join(w, `voice-${i}.wav`)).map((f) => (fs.existsSync(f) ? f : null));
   }
   // 2) 장면 길이 = 나레이션 + 여유 (나레이션 없으면 글자 수로 추정)
   const lens = L.scenes.map((s, i) => {
     const v = voices[i] ? dur(voices[i]) : says[i].length / 7;
-    return s.t === "end" ? Math.max(3.0, v + 0.7) : Math.max(2.6, v + 0.75);
+    return s.t === "end" ? Math.max(2.8, v + 0.5) : Math.max(2.4, v + 0.5);
   });
   // 3) 프레임
   await p.evaluate((l) => setup(l), L);
