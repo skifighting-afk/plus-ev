@@ -54,6 +54,16 @@ html,body{width:1080px;height:1920px;overflow:hidden;background:#060807;font-fam
 .end .t1{font-size:58px;font-weight:900;margin-top:20px}
 .end .t2{font-size:40px;color:var(--mut);margin-top:22px}
 .end .url{margin-top:60px;font-family:var(--mono);font-size:44px;letter-spacing:.12em;color:var(--ink);background:var(--mint);padding:22px 48px;border-radius:999px}
+.ovmode,.ovmode html{background:transparent!important}
+.ovmode #bg{display:none}
+.ovtop{position:fixed;left:0;right:0;top:0;height:720px;background:linear-gradient(180deg,rgba(0,0,0,.72),rgba(0,0,0,.35) 60%,rgba(0,0,0,0));z-index:1}
+.ovcap{position:fixed;left:80px;right:80px;top:250px;z-index:2}
+.ovcap div{font-size:104px;font-weight:900;line-height:1.14;letter-spacing:-4px;text-shadow:0 6px 24px rgba(0,0,0,.7)}
+.ovbot{position:fixed;left:60px;right:60px;bottom:330px;z-index:2;display:flex;gap:22px;justify-content:center;align-items:flex-end}
+.ovbox{background:rgba(8,12,10,.78);border:1.5px solid rgba(255,255,255,.12);border-radius:22px;padding:14px 18px 16px}
+.ovbox .lb{font-family:var(--mono);font-size:22px;letter-spacing:.18em;color:var(--mint2);margin-bottom:10px;text-align:center}
+.ovbox .cards{gap:10px}
+.ovbox .cd{width:92px;height:130px;border-radius:12px}.ovbox .cd .r{font-size:38px;top:6px;left:10px}.ovbox .cd .s{font-size:46px;bottom:8px;right:10px}
 </style></head><body><div id="bg"></div>
 <div id="top"><span class="k" id="k"></span><span class="tg" id="tg"></span></div>
 <div id="st"></div><div id="sub"></div>
@@ -76,6 +86,11 @@ const R={
  quiz:(s,t)=>`<div class="ttl" style="${IN(t,0)}">QUIZ</div><div class="q" style="${IN(t,.1)}">${e(s.q)}</div>${s.opts.map((o,i)=>`<div class="opt" style="${IN(t,.35+i*.15)}"><i>${'ABC'[i]}</i>${e(o)}</div>`).join('')}<div class="cmt" style="${IN(t,.8)}">정답은 댓글로 ↓</div>`,
  end:(s,t)=>`<div class="end" style="display:flex;flex-direction:column"><div class="logo" style="${IN(t,0,.4,30)}"><b>+</b>EV</div><div class="t1" style="${IN(t,.25)}">이기는 펍의 선택</div><div class="t2" style="${IN(t,.4)}">${e(s.sub||'홀덤펍 운영 · 딜러 구인 · 급여 관리')}</div><div class="url" style="${IN(t,.55)}">plusev.co.kr</div></div>`
 };
+
+R.clip=R.ov=(s,t)=>{const row=(lb,cs,a)=>cs?`<div class="ovbox" style="${IN(t,a,.3,30)}"><div class="lb">${lb}</div><div class="cards">${cs.split(' ').map((c,i)=>card(c,t,a+.05*i)).join('')}</div></div>`:'';
+ return `<div class="ovtop"></div><div class="ovcap">${s.cap.map((l,i)=>`<div style="${IN(t,.05+i*.2)}">${H(l)}</div>`).join('')}</div><div class="ovbot">${row('BOARD',s.board,.3)}${row(s.villain?'RIVAL':'KIM',s.villain||s.hand,.45)}</div>`};
+function overlay(on){document.body.classList.toggle('ovmode',on);document.documentElement.classList.toggle('ovmode',on)}
+
 let L;
 function setup(lesson){L=lesson;document.getElementById('k').textContent=`HOLD'EM STUDY · 심화 #${lesson.id.slice(1)}`;document.getElementById('tg').textContent=lesson.tag;return document.fonts.ready.then(()=>1)}
 function draw(i,t){const s=L.scenes[i];document.getElementById('st').innerHTML=R[s.t](s,t);

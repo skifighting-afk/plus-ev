@@ -5,7 +5,8 @@ import fs from "node:fs"; import path from "node:path"; import { execFileSync } 
 const dir = path.dirname(new URL(import.meta.url).pathname);
 const out = path.resolve(process.argv[2] || "study-out");
 const only = (process.argv[3] || "").split(",").filter(Boolean);
-const { LESSONS, CAPTION } = await import(pathToFileURL(path.join(dir, "lessons.mjs")).href);
+const { LESSONS, CAPTION } = await import(pathToFileURL(path.join(dir, process.env.STUDY_LESSONS || "lessons.mjs")).href);
+const FULL = !!process.env.FULL_ANIM; // 캐릭터처럼 계속 움직이는 장면은 모든 프레임을 찍는다
 const FPS = 30, ANIM = 27, END_SAY = "이기는 펍의 선택, 플러스 이브이.";
 const BGM_URL = "https://d2ol7oe51mr4n9.cloudfront.net/user_3JmZNKTZQ2jvOCOpKVIQpiy6WR9/f10a007a-7e01-48d6-8353-c8b623f2ae8e.mp3";
 const ff = (a) => execFileSync("ffmpeg", ["-v", "error", "-y", ...a], { stdio: "inherit" });
@@ -16,7 +17,7 @@ try { const r = await fetch(BGM_URL); if (r.ok) fs.writeFileSync(bgm, Buffer.fro
 const { chromium } = await import("playwright");
 const b = await chromium.launch();
 const p = await b.newPage({ viewport: { width: 1080, height: 1920 } });
-await p.goto(pathToFileURL(path.join(dir, "study.html")).href, { waitUntil: "networkidle" });
+await p.goto(pathToFileURL(path.join(dir, process.env.STUDY_HTML || "study.html")).href, { waitUntil: "networkidle" });
 await p.evaluate(() => document.fonts.ready);
 const report = [];
 for (const L of LESSONS) {
@@ -43,7 +44,7 @@ for (const L of LESSONS) {
     let last = null;
     for (let f = 0; f < total; f++) {
       const file = path.join(w, "f", String(n++).padStart(6, "0") + ".jpg");
-      if (f < ANIM) { await p.evaluate(([i, t]) => draw(i, t), [i, f / FPS]); await p.screenshot({ path: file, type: "jpeg", quality: 90 }); last = file; }
+      if (FULL || f < ANIM) { await p.evaluate(([i, t]) => draw(i, t), [i, f / FPS]); await p.screenshot({ path: file, type: "jpeg", quality: 90 }); last = file; }
       else fs.linkSync(last, file);
     }
   }

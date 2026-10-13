@@ -1,0 +1,57 @@
+name: 홀덤 애니메이션 릴스 (+EV)
+
+# Seedance 2.5 픽사풍 클립 + 카드·자막 오버레이 + 나레이션 → anim-out 브랜치. 게시·큐 등록은 하지 않는다.
+on:
+  workflow_dispatch:
+    inputs:
+      ids:
+        description: '만들 편 (예: a01)'
+        default: 'a01'
+
+permissions:
+  contents: write
+
+jobs:
+  make:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: 도구 준비
+        timeout-minutes: 20
+        run: |
+          export DEBIAN_FRONTEND=noninteractive
+          for n in 1 2 3; do timeout 300 sudo -E apt-get update -qq >/dev/null && timeout 400 sudo -E apt-get install -y -qq --no-install-recommends fonts-noto-cjk ffmpeg >/dev/null && break; sleep 10; done
+          npm install --no-save --no-audit --no-fund playwright@1.56.0 >/dev/null
+          timeout 600 npx playwright install --with-deps chromium >/dev/null
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/pip
+            ~/.cache/huggingface
+          key: melotts-v1
+      - name: 목소리 모델 (MeloTTS)
+        continue-on-error: true
+        timeout-minutes: 20
+        run: |
+          pip install -q torch torchaudio --index-url https://download.pytorch.org/whl/cpu
+          pip install -q git+https://github.com/myshell-ai/MeloTTS.git
+          python -m unidic download >/dev/null
+          python -c "import nltk;[nltk.download(x,quiet=True) for x in ['averaged_perceptron_tagger','averaged_perceptron_tagger_eng','cmudict']]"
+          python -c "from melo.api import TTS" && echo "REEL_PYTHON=$(which python)" >> "$GITHUB_ENV"
+      - name: 애니메이션 만들기
+        env:
+          HF_API_KEY: ${{ secrets.HF_API_KEY }}
+        run: node tools/insta-study/make-anim.mjs anim-out ${{ github.event.inputs.ids }}
+      - name: anim-out 브랜치에 올리기
+        run: |
+          cd anim-out && rm -rf _work && git init -q && git checkout -q -b anim-out
+          git -c user.name=reel-bot -c user.email=reel-bot@users.noreply.github.com add -A
+          git -c user.name=reel-bot -c user.email=reel-bot@users.noreply.github.com commit -qm "anim $(date -u +%F' '%H:%M)"
+          git push -qf "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" anim-out
