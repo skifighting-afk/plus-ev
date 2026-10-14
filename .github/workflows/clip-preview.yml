@@ -14,9 +14,10 @@ jobs:
       - uses: actions/checkout@v4
       - run: sudo apt-get update -qq >/dev/null && sudo apt-get install -y -qq ffmpeg >/dev/null
       - run: |
+          set +e
           mkdir out && cd out
-          node -e "const m=require('../tools/insta-study/${{ github.event.inputs.id }}-clips.json');for(const [k,u] of Object.entries(m))console.log(k+' '+u)" > list.txt
-          while read k u; do curl -sSL -A "Mozilla/5.0" -o "c$k.mp4" "$u" -w "$k %{http_code}\n" >> codes.txt || true; ffmpeg -v error -y -i "c$k.mp4" -vf "scale=540:960:force_original_aspect_ratio=increase,crop=540:960" -an -r 30 -c:v libx264 -crf 23 "s$k.mp4"; echo "file 's$k.mp4'" >> cat.txt; done < list.txt
-          ffmpeg -v error -y -f concat -safe 0 -i cat.txt -c copy preview.mp4
+          node -e "const m=require(process.cwd()+'/../tools/insta-study/${{ github.event.inputs.id }}-clips.json');for(const [k,u] of Object.entries(m))console.log(k+' '+u)" > list.txt 2> err.txt
+          while read k u; do curl -sSL -A "Mozilla/5.0" -o "c$k.mp4" "$u" -w "$k %{http_code} %{size_download}\n" >> codes.txt; ffmpeg -v error -y -i "c$k.mp4" -vf "scale=540:960:force_original_aspect_ratio=increase,crop=540:960" -an -r 30 -c:v libx264 -crf 23 "s$k.mp4" 2>> err.txt && echo "file 's$k.mp4'" >> cat.txt; done < list.txt
+          ffmpeg -v error -y -f concat -safe 0 -i cat.txt -c copy preview.mp4 2>> err.txt
           rm -f s*.mp4 cat.txt
           git init -q && git checkout -q -b clip-preview && git -c user.name=bot -c user.email=bot@users.noreply.github.com add -A && git -c user.name=bot -c user.email=bot@users.noreply.github.com commit -qm preview && git push -qf "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" clip-preview
