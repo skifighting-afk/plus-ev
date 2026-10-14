@@ -1,0 +1,22 @@
+name: 웹 생성 클립 미리보기
+# tools/insta-study/<id>-clips.json 의 URL을 내려받아 하나로 이어 붙여 clip-preview 브랜치에 올린다.
+on:
+  workflow_dispatch:
+    inputs:
+      id:
+        default: 'a08'
+permissions:
+  contents: write
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update -qq >/dev/null && sudo apt-get install -y -qq ffmpeg >/dev/null
+      - run: |
+          mkdir out && cd out
+          node -e "const m=require('../tools/insta-study/${{ github.event.inputs.id }}-clips.json');for(const [k,u] of Object.entries(m))console.log(k+' '+u)" > list.txt
+          while read k u; do curl -fsSL -o "c$k.mp4" "$u"; ffmpeg -v error -y -i "c$k.mp4" -vf "scale=540:960:force_original_aspect_ratio=increase,crop=540:960,drawtext=text='$k':x=20:y=20:fontsize=48:fontcolor=yellow" -an -r 30 -c:v libx264 -crf 23 "s$k.mp4"; echo "file 's$k.mp4'" >> cat.txt; done < list.txt
+          ffmpeg -v error -y -f concat -safe 0 -i cat.txt -c copy preview.mp4
+          rm -f s*.mp4 cat.txt
+          git init -q && git checkout -q -b clip-preview && git -c user.name=bot -c user.email=bot@users.noreply.github.com add -A && git -c user.name=bot -c user.email=bot@users.noreply.github.com commit -qm preview && git push -qf "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" clip-preview
