@@ -1,4 +1,6 @@
-import { installHQStoreView } from './hq-store-view.js?v=107';
+import { readOnlyClient, installInspectionGuard } from './hq-inspection.js?v=108';
+const inspectionStore = new URLSearchParams(location.search).get('hq_store');
+import { installHQStoreView } from './hq-store-view.js?v=108';
 import { jobDefaults } from './workflow-policy.js';
 import { installERPUI } from './erp-ui.js?v=105';
 import { initialHomeView, ownerNavigation, cashSales, reportPatch } from './ui-policy.js';
@@ -10,7 +12,7 @@ import { hasCompanyPro, nextAttendance } from './feature-policy.js';
 import { scanAttendance } from './qr-attendance.js';
 import { laborBody, payslipBody, sigPad } from './docs.js';
 
-const sb = createClient('https://hkcmsjwuwopxritafreg.supabase.co', 'sb_publishable_X7cb5p4Ja9y4TxrjbVQZAQ_P8n3E_W_');
+const sb = readOnlyClient(createClient('https://hkcmsjwuwopxritafreg.supabase.co', 'sb_publishable_X7cb5p4Ja9y4TxrjbVQZAQ_P8n3E_W_'),()=>!!inspectionStore && !!S.prof?.is_hq);
 const $ = s => document.querySelector(s), view = $('#view');
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const t5 = t => String(t || '').slice(0, 5);
@@ -214,14 +216,23 @@ document.addEventListener('change', e => { if (e.target.id !== 'rcpt-file' || !e
 sb.auth.onAuthStateChange((_e, session) => { if (_e === 'SIGNED_OUT' && S.user && !S.byMe) { closeSheet(); setTimeout(() => toast('로그아웃됐어요. 다시 로그인해 주세요'), 300); } if (_e === 'PASSWORD_RECOVERY') setTimeout(() => openSheet(`<h2>새 비밀번호</h2><p class="sub">6자 이상으로 정해 주세요.</p><form class="f" id="newpw-form"><label class="fl">새 비밀번호<input name="pw" type="password" minlength="6" required autocomplete="new-password"></label><label class="fl">한 번 더<input name="pw2" type="password" minlength="6" required autocomplete="new-password"></label><button class="btn pri full">바꾸기</button></form>`), 400); const u = session?.user || null; if (!booted || u?.id !== S.user?.id) { booted = true; S.user = u; setTimeout(boot); } });
 async function boot() {
   try {
-    if (!S.pricingLoaded) { applyPricing(await q(sb.from('pricing').select('key,amount'))); S.pricingLoaded = true; pushState(); } // 가격은 서버 한 곳
+    if (!S.pricingLoaded) { applyPricing(await q(sb.from('pricing').select('key,amount'))); S.pricingLoaded = true; if(!inspectionStore)pushState(); } // 가격은 서버 한 곳
     const pr = new URLSearchParams(location.search); if (pr.get('share')) return shareView(pr.get('share'));
     if (S.user && pr.get('pay')) { history.replaceState(null, '', location.pathname); await payReturn(pr); } if (S.user && pr.get('altpay')) { history.replaceState(null, '', location.pathname); await altpayReturn(pr); }
     if (!S.user) { Object.assign(S, { mode: 'auth', onb: null, tab: null, sub: null, company: null, stores: [], store: null }); return render(); }
     S.prof = (await q(sb.from('profiles').select('*').eq('id', S.user.id).maybeSingle())) || { name: '' };
     const mem = await q(sb.from('members').select('*').eq('user_id', S.user.id).eq('active', true));
     const owner = mem.find(m => m.role === 'owner'), mgr = mem.find(m => m.role === 'manager'), staff = mem.filter(m => m.role === 'staff');
-    if (S.prof.is_hq) { S.mode = 'hq'; S.tab = S.tab || 'dash'; await loadHQ(); }
+    if(inspectionStore){
+      if(!S.prof.is_hq){view.innerHTML='<div class="card"><h1>운영사만 조회할 수 있어요</h1><a href="/">돌아가기</a></div>';return;}
+      const target=await q(sb.from('stores').select(STORE_COLS).eq('id',inspectionStore).maybeSingle());
+      if(!target)throw Error('매장을 찾지 못했어요');
+      S.mode='store';S.myRole='owner';S.me={nick:S.prof.name,perms:{}};S.store=target;
+      S.company=await q(sb.from('companies').select('*').eq('id',target.company_id).maybeSingle());S.active=compActive(S.company);
+      S.stores=await q(sb.from('stores').select(STORE_COLS).eq('company_id',target.company_id).order('created_at'));
+      S.tab=S.tab||'home';homeView='detail';await loadStore();
+    }
+    else if (S.prof.is_hq) { S.mode = 'hq'; S.tab = S.tab || 'dash'; await loadHQ(); }
     else if (owner || mgr) {
       S.mode = 'store'; S.myRole = owner ? 'owner' : 'manager'; S.me = owner || mgr;
       S.company = await q(sb.from('companies').select('*').eq('id', S.me.company_id).maybeSingle()); S.active = compActive(S.company);
@@ -243,7 +254,7 @@ async function loadStore() {
   S.tpl = ids.length ? await q(sb.from('shift_templates').select('*').in('member_id', ids)) : [];
   S.ov = ids.length ? await q(sb.from('shift_overrides').select('*').in('member_id', ids).gte('work_date', hFirst).lte('work_date', last)) : [];
   S.dc = (await q(sb.rpc('dealer_count')))?.[0]; S.nmKey = S.rdKey || nmKey(); S.round = (await q(sb.from('sched_rounds').select('*').eq('store_id', st).eq('month', S.nmKey).neq('status', 'reset')))[0] || null; S.avails = S.round && ids.length ? await q(sb.from('sched_avail').select('*').in('member_id', ids).eq('month', S.nmKey)) : [];
-  S.coMonth = S.stores.length > 1 && isOwner() ? await q(sb.rpc('company_month', { p_month: thisMonth() })) : null;
+  S.coMonth = !inspectionStore && S.stores.length > 1 && isOwner() ? await q(sb.rpc('company_month', { p_month: thisMonth() })) : null;
   S.attStore = await q(sb.from('attendance').select('member_id,kind,at').eq('store_id', st).gte('at', first + 'T00:00:00+09:00').lte('at', addDay(last, 1) + 'T12:00:00+09:00'));
   S.reqs = ids.length ? await q(sb.from('shift_reqs').select('*').in('member_id', ids).eq('status', 'wait').order('work_date')) : []; S.offers = ids.length ? await q(sb.from('shift_offers').select('*').in('member_id', ids).gte('work_date', TODAY)) : []; S.fixes = ids.length ? ((await sb.from('att_fix').select('*').in('member_id', ids).eq('status', 'wait').order('at')).data || []) : [];
   S.swaps = ids.length ? ((await sb.from('shift_swaps').select('*').in('from_member', ids).eq('status', 'mgr').order('work_date')).data || []) : []; S.lock = ((await sb.from('pay_locks').select('*').eq('store_id', st).eq('month', first).eq('on_', true)).data || [])[0] || null;
@@ -257,8 +268,8 @@ async function loadStore() {
   S.posts = (await q(sb.from('job_posts').select('*').eq('store_id', st).order('created_at', { ascending: false }).limit(20))).map(p => p.status === 'open' && p.expires_at && new Date(p.expires_at) < Date.now() ? { ...p, status: 'expired' } : p);
   // 서로 기다릴 필요 없는 조회는 동시에 (첫 화면 빨라짐)
   const [joins, docs, rank, notis, nTop, quests, stock, orders, goals, fixedM, open] = await Promise.all([
-    q(sb.rpc('join_list', { p_store: st })), q(sb.from('contracts').select('id,member_id,kind,title,status,token,created_at,signed_at').eq('store_id', st).neq('status', 'void').order('created_at', { ascending: false }).limit(200)),
-    q(sb.rpc('store_rank', { p_store: st, p_from: first, p_to: last })),
+    inspectionStore?Promise.resolve([]):q(sb.rpc('join_list', { p_store: st })), q(sb.from('contracts').select('id,member_id,kind,title,status,token,created_at,signed_at').eq('store_id', st).neq('status', 'void').order('created_at', { ascending: false }).limit(200)),
+    inspectionStore?Promise.resolve([]):q(sb.rpc('store_rank', { p_store: st, p_from: first, p_to: last })),
     q(sb.from('notifications').select('*').neq('hidden', true).order('created_at', { ascending: false }).limit(20)), q(sb.from('notices').select('id,title,created_at').order('created_at', { ascending: false }).limit(1)),
     q(sb.from('store_quests').select('*').eq('store_id', st)), q(sb.from('stock').select('*').eq('store_id', st).order('item_id')),
     q(sb.from('orders').select('*').eq('store_id', st).order('created_at', { ascending: false }).limit(30)), q(sb.from('store_goals').select('month,goal').eq('store_id', st)),
@@ -362,7 +373,7 @@ ICON.lounge = ICON.market; ICON.rep = '<path d="M12 3l8 3v6c0 4.5-3.4 8.3-8 9-4.
 function render() {
   if (S.sub === 'ops') { S.sub = null; S.tab = S.mode === 'staff' ? 'work' : 'home'; }
   clearInterval(S.qrTimer);
-  { const vk = TODAY + (S.mode || 'guest'); if (S.vk !== vk && !location.pathname.includes('/demo')) { S.vk = vk; let vid = lsGet('ev_vid'); if (!vid) { vid = Math.random().toString(36).slice(2) + Date.now().toString(36); lsSet('ev_vid', vid); } let rf = ''; try { rf = document.referrer && !document.referrer.includes(location.host) ? new URL(document.referrer).host : ''; } catch { } sb.rpc('log_visit', { p_vid: vid, p_mode: S.mode || 'guest', p_path: location.pathname, p_ref: rf, p_ua: /Mobi|Android|iPhone/i.test(navigator.userAgent) ? (matchMedia('(display-mode: standalone)').matches ? 'app' : 'mobile') : 'pc' }).then(() => { }, () => { }); } }
+  { const vk = TODAY + (S.mode || 'guest'); if (S.vk !== vk && !inspectionStore && !location.pathname.includes('/demo')) { S.vk = vk; let vid = lsGet('ev_vid'); if (!vid) { vid = Math.random().toString(36).slice(2) + Date.now().toString(36); lsSet('ev_vid', vid); } let rf = ''; try { rf = document.referrer && !document.referrer.includes(location.host) ? new URL(document.referrer).host : ''; } catch { } sb.rpc('log_visit', { p_vid: vid, p_mode: S.mode || 'guest', p_path: location.pathname, p_ref: rf, p_ua: /Mobi|Android|iPhone/i.test(navigator.userAgent) ? (matchMedia('(display-mode: standalone)').matches ? 'app' : 'mobile') : 'pc' }).then(() => { }, () => { }); } }
   const tabs = uiTabs(TABS[S.mode])?.filter(([k]) => !hideTab(k)), nav = $('#tabs'); if (tabs && hideTab(S.tab)) S.tab = tabs[0]?.[0] || 'home'; nav.hidden = !tabs;
   const g = S.mode === 'store' ? groupOf() : S.tab;
   if (tabs) nav.innerHTML = tabs.map(([k, i, l]) => `<button ${k === 'market' ? 'data-act="sub" data-v="used"' : `data-tab="${k}"`} ${g === k ? 'aria-current="page"' : ''}><span>${ICON[k] ? svg(k) : i}</span>${l}</button>`).join('');
@@ -384,8 +395,8 @@ function render() {
   if (S.mode === 'hq' && S.tab === 'rep') hqRepLoad();
   if (S.mode === 'store' && (S.tab === 'sales' || S.tab === 'home') && S.store) tossLoad();
   if ((S.mode === 'store' && (S.tab === 'home' || !S.tab)) || S.mode === 'staff') noticesLoad();
-  moneyPop(); basicsCheck(); draftRestore(); if (S.user && !S.pinChecked) { S.pinChecked = 1; pinLock(); }
-  if (lock && !S.lockAsked) { S.lockAsked = 1; openSheet(`<h2>무료 체험 한 달이 끝났어요</h2><p class="sub">매출·직원·스케줄 등 입력하신 내용은 <b>모두 저장돼 있어요.</b> 지금은 보기만 돼요. 연장하시겠어요?</p>
+  moneyPop(); if(!inspectionStore){basicsCheck(); draftRestore();} if (!inspectionStore && S.user && !S.pinChecked) { S.pinChecked = 1; pinLock(); }
+  if (!inspectionStore && lock && !S.lockAsked) { S.lockAsked = 1; openSheet(`<h2>무료 체험 한 달이 끝났어요</h2><p class="sub">매출·직원·스케줄 등 입력하신 내용은 <b>모두 저장돼 있어요.</b> 지금은 보기만 돼요. 연장하시겠어요?</p>
     ${isOwner() ? `<div class="plans"><div class="plan"><b>베이직</b><b class="num">월 ₩${E.won(PRICE.basic)}</b><button class="btn sm" data-act="plan" data-v="basic">베이직으로 연장</button></div><div class="plan cur"><span class="pill y">추천</span><b>프로</b><b class="num">월 ₩${E.won(PRICE.pro)}</b><button class="btn sm gold" data-act="plan" data-v="pro">프로로 연장</button></div></div>` : '<p class="note">요금제는 대표님만 바꿀 수 있어요.</p><button class="btn full" data-act="ask-owner" data-v="요금제">대표님께 요청</button>'}
     <button class="btn full" data-act="sub" data-v="pricing" style="margin-top:8px">요금표 자세히 보기</button><button class="btn full" data-act="close" style="margin-top:8px">나중에 할게요</button>`); }
 }
@@ -1222,6 +1233,7 @@ function vDaily() { return `${storeHead('일 매출')}${dailyCal()}`; }
 // ===== 토스 POS 연동 (Open API 웹훅 → pos_payments) =====
 const bizDay = () => { const d = new Date(Date.now() - (CFG().cut ?? 6) * 36e5); return E.ymd(d.getFullYear(), d.getMonth() + 1, d.getDate()); };
 async function tossLoad(force) {
+  if(inspectionStore)return;
   if (!isOwner() || S.tossBusy || (!force && S.tossAt && Date.now() - S.tossAt < 60000)) return; S.tossBusy = 1;
   try { const { data } = await sb.rpc('toss_my_merchants'); S.toss = data || []; const me = S.toss.find(x => x.store_id === S.store.id); S.tossSum = me ? (await sb.rpc('pos_day_summary', { p_store: S.store.id, p_date: bizDay() })).data : null; S.tossAt = Date.now(); } catch { S.toss = []; } finally { S.tossBusy = 0; }
   if (S.tab === 'sales' || S.tab === 'home') render();
@@ -1326,7 +1338,7 @@ function myPaidCard(me) {
   return `<div class="card paid"><div><b>${mo}월 급여가 지급됐어요 ✓</b><small>${fmtDT(mk.paid_at)}${adv.length ? ` · 가불 ₩${E.won(adv.reduce((a, x) => a + x.amount, 0))} 빼고 이체` : ''}</small></div>${mk.seen_at ? '<span class="pill g">확인함</span>' : `<button class="btn sm pri" data-act="pay-seen" data-m="${me.id}" data-v="${mk.month}">받았어요</button>`}</div>`;
 }
 function staffSheet(id) {
-  setTimeout(() => { if (id && isOwner()) memoBox(id); }, 0); if (id && S.mode === 'store') sb.rpc('log_view', { p_member: id }).then(() => { }, () => { });
+  setTimeout(() => { if (id && isOwner()) memoBox(id); }, 0); if (!inspectionStore && id && S.mode === 'store') sb.rpc('log_view', { p_member: id }).then(() => { }, () => { });
   const p = S.members.find(x => x.id === id) || { contract: '3.3', night_pay: true, job_role: '딜러', hourly_rate: 13000 };
   openSheet(`<h2>${id ? `${esc(p.nick)} 수정` : '직원 등록'}</h2><form class="f" id="staff-form" data-m="${id || ''}">
     <div class="grid2"><label class="fl">닉네임<input name="nick" required value="${esc(p.nick || '')}"></label><label class="fl">실명<input name="real_name" value="${esc(p.real_name || '')}"></label>
@@ -1954,7 +1966,7 @@ function hqProdSheet(id) {
 }
 const refCard = () => (S.refRep || []).length ? `<div class="card"><h3>추천 매장 <small>파트너 몫 10%</small></h3>${S.refRep.map(r => `<div class="li"><div><b>${esc(r.ref)}</b> · ${esc(r.company)}<small>${{ trial: '무료 체험', basic: '베이직', pro: '프로' }[r.plan] || esc(r.plan || '')} · 결제 누적 ₩${E.won(r.paid)}</small></div><b class="num">₩${E.won(r.share)}</b></div>`).join('')}</div>` : '';
 function vHqStores() {
-  return `<h1>입점 매장</h1><div class="card"><h3>매장 직접 보기 <small>조회 전용</small></h3><p class="note">매출·인건비·근무표를 확인할 매장을 선택하세요.</p>${(S.hqStores||[]).map(st=>`<div class="li"><div><b>${esc(st.name)}</b><small>${esc((S.companies||[]).find(c=>c.id===st.company_id)?.name||'')} · ${esc(st.area||'')}</small></div><button class="btn sm pri" data-act="hq-store-view" data-v="${esc(st.id)}">매장 보기</button></div>`).join('')||'<p class="empty">등록된 매장이 없어요</p>'}</div>${refCard()}<div class="card"><h3>가맹본사 권한 <small>켜면 가맹 모집 공고를 올릴 수 있어요</small></h3>${(S.hqProfiles || []).filter(p => p.kind === 'owner').map(p => `<div class="li"><span>${esc(p.name || '이름 없음')} <small class="mut">${p.id.slice(0, 8)}</small></span><button class="btn sm ${p.can_post_franchise ? 'pri' : ''}" data-act="fr-perm" data-u="${p.id}" data-v="${p.can_post_franchise ? 'false' : 'true'}">${p.can_post_franchise ? '✓ 가맹본사' : '권한 주기'}</button></div>`).join('') || '<div class="empty">대표 계정이 없어요</div>'}</div><div class="card">${(S.companies || []).map(c => `<div class="li"><div><b>${esc(c.name)}</b>${c.brand ? ` <small class="mut">${esc(c.brand)}</small>` : ''}<small>사업자 ${esc(c.biz_no || '')} · ${{ trial: '무료 체험', basic: '베이직', pro: '프로' }[c.plan]} · ${new Date(c.created_at).toLocaleDateString('ko-KR')}</small></div>${c.biz_verified ? '<span class="pill g">확인 완료</span>' : `<button class="btn sm pri" data-act="verify" data-c="${c.id}">사업자 확인</button>`}</div>`).join('') || '<div class="empty">아직 매장이 없어요</div>'}</div>`;
+  return `<h1>입점 매장</h1><div class="card"><h3>매장 직접 보기 <small>조회 전용</small></h3><p class="note">매출·인건비·근무표를 확인할 매장을 선택하세요.</p>${(S.hqStores||[]).map(st=>`<div class="li"><div><b>${esc(st.name)}</b><small>${esc((S.companies||[]).find(c=>c.id===st.company_id)?.name||'')} · ${esc(st.area||'')}</small></div><button class="btn sm pri" data-act="hq-store-view" data-v="${esc(st.id)}">요약 보기</button><button class="btn sm" data-act="hq-owner-view" data-v="${esc(st.id)}">사장님 화면 보기</button></div>`).join('')||'<p class="empty">등록된 매장이 없어요</p>'}</div>${refCard()}<div class="card"><h3>가맹본사 권한 <small>켜면 가맹 모집 공고를 올릴 수 있어요</small></h3>${(S.hqProfiles || []).filter(p => p.kind === 'owner').map(p => `<div class="li"><span>${esc(p.name || '이름 없음')} <small class="mut">${p.id.slice(0, 8)}</small></span><button class="btn sm ${p.can_post_franchise ? 'pri' : ''}" data-act="fr-perm" data-u="${p.id}" data-v="${p.can_post_franchise ? 'false' : 'true'}">${p.can_post_franchise ? '✓ 가맹본사' : '권한 주기'}</button></div>`).join('') || '<div class="empty">대표 계정이 없어요</div>'}</div><div class="card">${(S.companies || []).map(c => `<div class="li"><div><b>${esc(c.name)}</b>${c.brand ? ` <small class="mut">${esc(c.brand)}</small>` : ''}<small>사업자 ${esc(c.biz_no || '')} · ${{ trial: '무료 체험', basic: '베이직', pro: '프로' }[c.plan]} · ${new Date(c.created_at).toLocaleDateString('ko-KR')}</small></div>${c.biz_verified ? '<span class="pill g">확인 완료</span>' : `<button class="btn sm pri" data-act="verify" data-c="${c.id}">사업자 확인</button>`}</div>`).join('') || '<div class="empty">아직 매장이 없어요</div>'}</div>`;
 }
 function vHqData() {
   const st = S.stats || [];
@@ -2546,7 +2558,7 @@ function kpiRank() {
   <small class="mut">금고 차액 = 이번 달 차액 절댓값 합 (작을수록 좋아요) · 공지 읽음 = 각 매장 최근 공지 3건 평균</small></div>`;
 }
 const addMin = (t, n) => { const m = E.toMin(t5(t)) + n; return `${String(Math.floor(m / 60) % 24).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`; };
-async function kpiLoad() { if (!isOwner() || (S.stores || []).length < 2) return; S.kpi = ((await sb.rpc('company_kpi', { p_month: monthRange()[0] })).data || []).map(x => ({ ...x, staff: x.notice_staff })); }
+async function kpiLoad() { if (inspectionStore || !isOwner() || (S.stores || []).length < 2) return; S.kpi = ((await sb.rpc('company_kpi', { p_month: monthRange()[0] })).data || []).map(x => ({ ...x, staff: x.notice_staff })); }
 async function allPaySheet() {
   await Promise.all(S.stores.filter(st=>st.labor_actual_from).map(st=>erpUI.ensurePeriods(st.id,[E.ymd(S.y,S.m,1)])));
   const [f, l] = monthRange(), out = [];
@@ -2639,7 +2651,7 @@ const noticeOk = t => !t || ((!t.area || (S.store?.area || '').startsWith(t.area
   if (S.lastStart == null) { const c = carryCash(); if (c) S.lastStart = c.v; } await signUrls(); dev68(); }; }
 { const o = loadStaff; loadStaff = async () => { await o(); await itemsLoad(); dev68(); }; }
 { const o = loadDealer; loadDealer = async () => { await o(); if (S.mode === 'dealer') dev68(); }; }
-function dev68() { if (S.devAt || !S.user || location.pathname.includes('/demo')) return; S.devAt = 1; let v = lsGet('ev_vid'); if (!v) { v = Math.random().toString(36).slice(2); lsSet('ev_vid', v); } sb.from('user_devices').upsert({ user_id: S.user.id, dev: v, ua: navigator.userAgent.slice(0, 200), last_at: new Date().toISOString() }).then(() => { }, () => { }); }
+function dev68() { if (inspectionStore || S.devAt || !S.user || location.pathname.includes('/demo')) return; S.devAt = 1; let v = lsGet('ev_vid'); if (!v) { v = Math.random().toString(36).slice(2); lsSet('ev_vid', v); } sb.from('user_devices').upsert({ user_id: S.user.id, dev: v, ua: navigator.userAgent.slice(0, 200), last_at: new Date().toISOString() }).then(() => { }, () => { }); }
 document.addEventListener('change', e => { const t = e.target;
   if (t.id === 'close-photo' && t.files[0]) { const fl = t.files[0]; t.value = ''; busy(() => photoUp(fl, 'close')); }
   if (t.dataset?.act === 'grade') busy(async () => { const p = S.members.find(x => x.id === t.dataset.m), checks = { ...(p.checks || {}), grade: t.value, prob: t.value === '수습' }; await q(sb.from('members').update({ checks }).eq('id', p.id)); p.checks = checks; toast(`${p.nick} → ${t.value}`); render(); });
@@ -2776,12 +2788,12 @@ async function tplLoad() { S.tpls = (await sb.from('hq_tpl').select('*').eq('on_
 { const o = vHqDash; vHqDash = () => { if (!S.hqOps && !S.hqOpsBusy) { S.hqOpsBusy = 1; sb.rpc('hq_ops').then(({ data }) => { S.hqOps = data || {}; S.hqOpsBusy = 0; if (S.tab === 'dash') render(); }); } return o(); }; }
 { const o = vHqInq; vHqInq = () => { if (!S.tpls) { S.tpls = []; tplLoad().then(render); } return o(); }; }
 { const o = loadStore; loadStore = async () => { await o();
-  const five = S.members.filter(p => p.role !== 'owner').length >= 5; if (isOwner() && !!S.store.equip?.five !== five) { const equip = { ...(S.store.equip || {}), five }; await sb.from('stores').update({ equip }).eq('id', S.store.id); S.store.equip = equip; }
-  if (isMgr()) S.nowD = (await sb.rpc('now_dealers')).data || [];
-  if (lsGet('ev_pend_' + S.store.id) && navigator.onLine && !S.pendTried) { S.pendTried = 1; setTimeout(() => { if (S.tab !== 'sales') { S.tab = 'sales'; render(); } setTimeout(() => { const f = $('#report-form'); if (f) { lsSet('ev_pend_' + S.store.id, ''); toast('끊겼을 때 누른 마감을 지금 저장해요'); f.requestSubmit(); } }, 500); }, 800); } }; }
+  const five = S.members.filter(p => p.role !== 'owner').length >= 5; if (!inspectionStore && isOwner() && !!S.store.equip?.five !== five) { const equip = { ...(S.store.equip || {}), five }; await sb.from('stores').update({ equip }).eq('id', S.store.id); S.store.equip = equip; }
+  if (!inspectionStore && isMgr()) S.nowD = (await sb.rpc('now_dealers')).data || [];
+  if (!inspectionStore && lsGet('ev_pend_' + S.store.id) && navigator.onLine && !S.pendTried) { S.pendTried = 1; setTimeout(() => { if (S.tab !== 'sales') { S.tab = 'sales'; render(); } setTimeout(() => { const f = $('#report-form'); if (f) { lsSet('ev_pend_' + S.store.id, ''); toast('끊겼을 때 누른 마감을 지금 저장해요'); f.requestSubmit(); } }, 500); }, 800); } }; }
 { const o = loadStaff; loadStaff = async () => { await o(); const st = S.my[S.mi || 0]?.store_id; if (st) S.praise = (await sb.from('store_notes').select('id,target,created_at').eq('store_id', st).eq('kind', 'praise').gte('created_at', monthRange()[0])).data || []; }; }
 { const o = loadDealer; loadDealer = async () => { await o(); if (S.mode === 'dealer') { S.lessons = (await sb.from('lesson_progress').select('lesson')).data || []; await taxiLoad(); } }; }
-document.addEventListener('visibilitychange', () => { if (document.hidden || !S.user || Date.now() - (S.devTouch || 0) < 36e5 || location.pathname.includes('/demo')) return; S.devTouch = Date.now(); sb.from('user_devices').upsert({ user_id: S.user.id, dev: lsGet('ev_vid'), ua: navigator.userAgent.slice(0, 200), last_at: new Date().toISOString() }).then(() => { }, () => { }); });
+document.addEventListener('visibilitychange', () => { if (inspectionStore || document.hidden || !S.user || Date.now() - (S.devTouch || 0) < 36e5 || location.pathname.includes('/demo')) return; S.devTouch = Date.now(); sb.from('user_devices').upsert({ user_id: S.user.id, dev: lsGet('ev_vid'), ua: navigator.userAgent.slice(0, 200), last_at: new Date().toISOString() }).then(() => { }, () => { }); });
 // 버튼·입력칸 이름 자동으로 (화면낭독)
 const ACT_KR = { menu: '메뉴', close: '닫기', mon: '달 바꾸기', copy: '복사', help: '도움말', edit: '수정', del: '지우기', 'it-hide': '지우기', refresh: '새로고침' };
 function a11yFix() {
@@ -2789,6 +2801,7 @@ function a11yFix() {
   document.querySelectorAll('#view input:not([type=hidden]):not([aria-label]),#view select:not([aria-label]),#view textarea:not([aria-label])').forEach(i => { if (i.closest('label') || i.placeholder) return; const t = (i.previousElementSibling?.innerText || i.parentElement?.innerText || i.name || '').trim().split('\n')[0].slice(0, 20); if (t) i.setAttribute('aria-label', t); });
 }
 { const o = after68; after68 = () => { o(); a11yFix(); if (S.mode === 'store' && S.tab === 'sales') { const R = window.SpeechRecognition || window.webkitSpeechRecognition; document.querySelectorAll('#mic').forEach(m => { if (!R) m.remove(); }); if (R) ['card', 'transfer'].forEach(n => { const i = $(`#report-form [name=${n}]`); if (i && !i.nextElementSibling?.classList?.contains('mic2')) i.insertAdjacentHTML('afterend', `<button type="button" class="btn sm mic2" data-act="mic" data-v="${n}" aria-label="말로 입력">🎤</button>`); }); } }; }
+installInspectionGuard({active:()=>!!inspectionStore&&!!S.prof?.is_hq,storeName:()=>S.store?.name,toast});
 installHQStoreView({S,sb,A:A68,openSheet,busy,E});
 Object.assign(A68, {
   order: () => { if (isOwner() || !isMgr()) return false; const items = Object.entries(S.cart).filter(([, n]) => n > 0).map(([id, n]) => ({ id: +id, q: n, price: item(id).sp })); if (!items.length) return toast('담은 상품이 없어요'); busy(async () => { const total = items.reduce((a, i) => a + i.price * i.q, 0); await q(sb.from('store_items').insert({ store_id: S.store.id, kind: 'order_req', title: items.map(i => `${item(i.id)?.n}×${i.q}`).join(', ').slice(0, 80), data: { items, total, by: myNick() } })); S.cart = {}; await reload(); toast('대표님께 발주 승인을 요청했어요'); }); },
@@ -2853,7 +2866,7 @@ function areaDealerCard() {
   <div class="kpi5" style="margin:10px 0">${tile(`${A.sido || '전국'} 딜러`, A.sido_n || A.all)}${A.gu ? tile(`${A.gu} 활동`, A.gu_n) : ''}${tile('근무 경험', A.worked)}${tile('본인 인증', A.verified)}${tile('🙋 지금 가능', A.now_on, A.now_on ? 'up' : '')}</div>
   <small class="mut">긴급 알림 받는 딜러 ${E.won(A.alert_on)}명 · 이번 주 새로 가입 ${E.won(A.new7)}명 · 전국 ${E.won(A.all)}명${ratio ? ` · 최근 30일 우리 지역 공고 ${A.posts30}건 (공고 1건당 딜러 ${ratio}명)` : ''}</small></div>`;
 }
-{ const o = loadStore; loadStore = async () => { await o(); if (isMgr()) S.areaD = (await sb.rpc('area_dealers', { p_store: S.store.id })).data || null; }; }
+{ const o = loadStore; loadStore = async () => { await o(); if (!inspectionStore && isMgr()) S.areaD = (await sb.rpc('area_dealers', { p_store: S.store.id })).data || null; }; }
 { const o = vJobs; vJobs = () => o() + areaDealerCard(); }
 { const o = vHome; vHome = () => o().replace('<div class="hside">', `<div class="hside">${areaDealerCard()}`); }
 // v0.74 손님앱(+EV TABLE) 연결: 버튼 한 번 → 매장 자동 등록 + 점주 초대 링크로 이동
@@ -2869,12 +2882,12 @@ A68['ev-table'] = async () => { if (!sb.auth.getSession) { window.open('https://
 // v0.76 손님앱 연동 강화: 동기화 상태·오늘 현황·HQ 지표 (ev-link 'sync'|'stats'|'overview')
 const EVL = 'https://vjvsbuaxptnnqyghwxcb.supabase.co/functions/v1/ev-link', TL = 'https://plusevapp.kr/table';
 const evl = async b => { const tok = (await sb.auth.getSession()).data.session?.access_token; const r = await fetch(EVL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: tok, ...b }) }); const d = await r.json().catch(() => ({})); if (!r.ok) throw new Error(d.error || r.status); return d; };
-const tlSync = async force => { const s = S.store; if (!isOwner() || !s?.id || !sb.auth.getSession) return;
+const tlSync = async force => { const s = S.store; if (inspectionStore || !isOwner() || !s?.id || !sb.auth.getSession) return;
   // 매장 이름·지역·주소가 바뀌면 키가 달라져서 즉시 다시 동기화 (#5)
   const k = 'ev-tl-' + s.id + '-' + TODAY + '-' + [s.name, s.area, s.address].join('|'); if (!force && lsGet(k)) { S.tlSync = { ok: 1, at: lsGet(k) }; return; }
   try { const d = await evl({ store: s.id, invite: false }); S.tlSync = { ok: 1, at: d.synced_at, staff: d.staff }; try { localStorage.setItem(k, d.synced_at) } catch { } }
   catch (e) { S.tlSync = { err: e.message }; } };
-const tlStats = async () => { if (!isOwner() || !S.store?.id || !sb.auth.getSession) return; try { S.tls = await evl({ store: S.store.id, mode: 'stats' }); } catch { S.tls = null; } if (S.tab === 'home' || S.tab === 'sales') render(); };
+const tlStats = async () => { if (inspectionStore || !isOwner() || !S.store?.id || !sb.auth.getSession) return; try { S.tls = await evl({ store: S.store.id, mode: 'stats' }); } catch { S.tls = null; } if (S.tab === 'home' || S.tab === 'sales') render(); };
 { const o = loadStore; loadStore = async () => { await o(); S.tls = null; tlSync().then(tlStats); }; }
 const WD = '일월화수목금토';
 function tlBody() { const x = S.tls, t = x?.today, st = S.tlSync || {}; if (!x) return '';
@@ -4575,7 +4588,7 @@ function compactChrome() {
 }
 
 const erpUI = installERPUI({S,sb,q,A68,F68,openSheet,closeSheet,reload,toast,esc,TODAY,night,isOwner,monthRange,bizDay});
-{ const old=loadStore;loadStore=async()=>{await old();if(!(S.myRole==='manager'&&S.me?.perms?.pay===false))await syncMetrics();S.bench=await q(sb.rpc('bench',{p_store:S.store.id}));}; }
+{ const old=loadStore;loadStore=async()=>{await old();if(!inspectionStore&&!(S.myRole==='manager'&&S.me?.perms?.pay===false))await syncMetrics();S.bench=inspectionStore?null:await q(sb.rpc('bench',{p_store:S.store.id}));}; }
 { const old=loadStaff;loadStaff=async()=>{await old();await erpUI.load();}; }
 { const old=vStaff;vStaff=()=>{let h=old(); if(homeView==='simple')h=h.replace('<h1>직원·급여</h1>','<h1>직원·급여</h1><div class="row" style="gap:8px;margin:12px 0"><button class="btn pri" data-act="work-add">근무 추가</button><button class="btn" data-act="helper-add">헬퍼 추가</button></div>');return h+erpUI.workCard();}; }
 { const old=vWork;vWork=()=>old()+erpUI.workCard(); }

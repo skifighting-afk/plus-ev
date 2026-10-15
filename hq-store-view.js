@@ -40,6 +40,7 @@ export function hqStoreHTML(d,month,E) {
 }
 export function installHQStoreView({S,sb,A,openSheet,busy,E}) {
  let token=0,current=null;
+ A['hq-owner-view']=(b,d)=>{if(!S.prof?.is_hq)throw Error('운영사만 볼 수 있어요');window.open(`${location.pathname}?hq_store=${encodeURIComponent(d.v)}`,'_blank','noopener');};
  async function show(storeId,month){if(!S.prof?.is_hq)throw Error('운영사만 볼 수 있어요');const mine=++token;const d=await loadHQStore({sb,isHQ:true,storeId,month});if(mine!==token||!S.prof?.is_hq)return;current={storeId,month};openSheet(hqStoreHTML(d,month,E));}
  A['hq-store-view']=(b,d)=>busy(()=>show(d.v,`${S.y}-${String(S.m).padStart(2,'0')}-01`));
  A['hq-view-month']=(b,d)=>busy(()=>{if(!current)return;const [y,m]=current.month.split('-').map(Number),next=new Date(Date.UTC(y,m-1+Number(d.v),1));return show(current.storeId,`${next.getUTCFullYear()}-${String(next.getUTCMonth()+1).padStart(2,'0')}-01`)});
