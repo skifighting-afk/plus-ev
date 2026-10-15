@@ -1,0 +1,10 @@
+import assert from 'node:assert/strict';
+import { readOnlyClient, allowedInspectionAction } from './hq-inspection.js';
+let calls=[];const chain={select(){calls.push('select');return chain},eq(){return chain},then(r){r({data:[1],error:null})},insert(){calls.push('insert');return chain},update(){calls.push('update');return chain},delete(){calls.push('delete');return chain},upsert(){calls.push('upsert');return chain}};
+const raw={from(){return chain},rpc(n){calls.push(n);return Promise.resolve({data:1})},functions:{invoke(){calls.push('invoke')}},storage:{from(){return {upload(){calls.push('upload')},remove(){calls.push('remove')},getPublicUrl(){return 'url'}}}}};
+const safe=readOnlyClient(raw,()=>true);assert.deepEqual((await safe.from('members').select('*').eq('id','m')).data,[1]);
+for(const op of ['insert','update','delete','upsert'])assert.throws(()=>safe.from('members')[op]({}),/조회 전용/);
+await safe.rpc('actual_payroll',{});assert.throws(()=>safe.rpc('record_cash',{}),/조회 전용/);assert.throws(()=>safe.rpc('unknown_new_write',{}),/조회 전용/);assert.throws(()=>safe.functions.invoke('ai',{}),/조회 전용/);assert.throws(()=>safe.storage.from('docs').remove(['x']),/조회 전용/);
+assert.ok(!calls.includes('insert'));assert.ok(!calls.includes('record_cash'));assert.ok(allowedInspectionAction({act:'day-rep'}));assert.ok(!allowedInspectionAction({act:'paid'}));assert.ok(!allowedInspectionAction({act:'sub',v:'qr'}));
+const normal=readOnlyClient(raw,()=>false);normal.from('members').update({});assert.ok(calls.includes('update'));
+console.log('HQ inspection: read queries, deny-by-default RPC, database/storage/function writes and safe navigation passed');
