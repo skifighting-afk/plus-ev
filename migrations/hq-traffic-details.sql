@@ -6,7 +6,7 @@ DECLARE result jsonb;BEGIN
  WITH v AS MATERIALIZED(SELECT day,vid,uid,mode,path,ref,ua,at FROM public.visits WHERE day BETWEEN p_from AND p_to)
  SELECT jsonb_build_object(
  'unique_visitors',(SELECT count(DISTINCT vid) FROM v),'logged_users',(SELECT count(DISTINCT uid) FROM v),
- 'daily',(SELECT coalesce(jsonb_agg(to_jsonb(d) ORDER BY d.d DESC),'[]'::jsonb) FROM(SELECT g::date d,count(DISTINCT v.vid) visitors,count(DISTINCT v.uid) users,(SELECT count(*) FROM auth.users u WHERE (u.created_at AT TIME ZONE 'Asia/Seoul')::date=g::date) signups FROM generate_series(p_from,p_to,interval '1 day') g LEFT JOIN v ON v.day=g::date GROUP BY g) d),
+ 'daily',(SELECT coalesce(jsonb_agg(to_jsonb(daily_row) ORDER BY daily_row.d DESC),'[]'::jsonb) FROM(SELECT g::date d,count(DISTINCT v.vid) visitors,count(DISTINCT v.uid) users,(SELECT count(*) FROM auth.users u WHERE (u.created_at AT TIME ZONE 'Asia/Seoul')::date=g::date) signups FROM generate_series(p_from,p_to,interval '1 day') g LEFT JOIN v ON v.day=g::date GROUP BY g) daily_row),
  'by_ref',(SELECT coalesce(jsonb_agg(to_jsonb(f) ORDER BY f.n DESC),'[]'::jsonb) FROM(SELECT coalesce(nullif(ref,''),'직접 방문') ref,count(*) n FROM v GROUP BY 1 ORDER BY 2 DESC LIMIT 20) f),
  'devices',(SELECT coalesce(jsonb_agg(to_jsonb(f) ORDER BY f.n DESC),'[]'::jsonb) FROM(SELECT coalesce(ua,'?') ua,count(*) n FROM v GROUP BY 1) f),
  'modes',(SELECT coalesce(jsonb_agg(to_jsonb(f) ORDER BY f.n DESC),'[]'::jsonb) FROM(SELECT coalesce(mode,'guest') mode,count(*) n FROM v GROUP BY 1) f),
