@@ -22,11 +22,12 @@ const RANGE = {
   CO: expand("22+, A2s+, K6s+, Q8s+, J8s+, T8s+, 97s+, 87s, 76s, 65s, A8o+, KTo+, QTo+, JTo"),
   BTN: expand("22+, A2s+, K2s+, Q4s+, J6s+, T6s+, 96s+, 85s+, 75s+, 64s+, 54s, A2o+, K8o+, Q9o+, J9o+, T9o, 98o"),
 };
+RANGE.BTN3B = expand("TT+, AJs+, A5s, A4s, KQs, KJs, QJs, JTs, AQo+, KQo");
 RANGE.SB = expand("22+, A2s+, K2s+, Q5s+, J7s+, T7s+, 97s+, 86s+, 76s, 65s, 54s, A2o+, K9o+, Q9o+, J9o+, T9o");
 const P = Object.fromEntries(Object.entries(RANGE).map(([k, v]) => [k, Math.round(pct(v) * 10) / 10]));
 const DOG = "Realistic cinematic smartphone video, a fluffy long-haired German shepherd dog with expressive face standing upright on its hind legs like a person, inside a cozy Korean hold'em poker pub at night with a green felt poker table, colorful clay chips and warm hanging lights in the background, vertical framing, shallow depth of field, no people, no text, no letters, no logos, no readable card faces. ";
 const PUP = "Realistic cinematic smartphone video. The SAME dog in every shot: an adult long-haired black-and-tan German shepherd with a black saddle on its back, tan face and tan front legs, large upright pointed ears and amber eyes, wearing a small black vest. The dog sits upright on a chair at a green felt poker table exactly like a human poker player, front paws resting on the table edge, inside a cozy Korean hold'em pub at night with warm hanging lights and colorful clay chip stacks. Vertical 9:16 framing, natural motion, no people, no text, no letters, no logos, no readable card faces. ";
-const ROOM = "Realistic cinematic footage, dark luxurious casino poker room, warm pendant lights over a green felt Texas hold'em table, red blue green and yellow clay poker chips, dark background, shallow depth of field, cinematic lighting, realistic textures, vertical 9:16 framing, no text, no letters, no logos, no readable card faces. ";
+const ROOM = "Realistic cinematic footage, dark luxurious casino poker room, warm pendant lights over a plain green felt Texas hold'em table with no printed markings, red blue green and yellow clay poker chips, dark background, shallow depth of field, cinematic lighting, realistic textures, vertical 9:16 framing, no text, no letters, no logos, no readable card faces. ";
 const SHEP = "The SAME main character in every shot: an adult black-and-tan German shepherd with a black saddle, tan face, big upright ears and calm amber eyes, wearing a fitted black button-up shirt, sitting upright in a chair at the poker table like a serious professional poker player, front paws on the table edge. ";
 const GOLD = "His opponent across the table: a fluffy golden retriever wearing black sunglasses, trying to keep a poker face but its pink tongue keeps sticking out, cheerful and goofy. ";
 export const LESSONS = [
@@ -178,11 +179,12 @@ export const LESSONS = [
   scenes: [
     // 프리플랍
     { t: "clip", cid: "pov_pre", dur: 4, len: 2.8, prompt: ROOM + "First-person POV shot from the German shepherd's own eyes looking down at the green felt poker table: its own two furry black-and-tan front paws slowly squeeze two face-down playing cards, carefully bending up just the corner to peek, small chip stacks in the foreground, other players blurred across the table, handheld body-cam feel.",
-      peek: "Kd Tc", peekLabel: "BTN", peekAt: 1.0, think: ["KT…"], thinkAt: [1.6], sfx: [["tick", 1.0]] },
+      peek: "Ad Qc", peekLabel: "BTN", peekAt: 1.0, think: ["AQ…"], thinkAt: [1.6], sfx: [["tick", 1.0]] },
     { t: "clip", cid: "face_pre", dur: 4, len: 1.6, prompt: ROOM + SHEP + "Close-up on the German shepherd's face as it lifts the corner of two face-down cards with one paw and glances at them, completely expressionless, cold calculating eyes.",
-      think: ["이건 3벳."], thinkAt: [0.3], hand: "Kd Tc", hl: "BTN" },
+      think: ["이건 3벳."], thinkAt: [0.3], hand: "Ad Qc", hl: "BTN" },
     { t: "clip", cid: "push3b", dur: 4, len: 1.6, prompt: ROOM + SHEP + "Medium shot: the German shepherd firmly pushes a neat stack of chips forward into the pot with one paw, chips clicking, stone-faced.",
       big: ["따닥", "3BET"], sfx: [["tick", 0.05], ["tick", 0.2], ["shuffle", 0.3]] },
+    { t: "grid", len: 3.2, pos: "BTN 3BET", sub: "vs CO 오픈", hands: RANGE.BTN3B, pct: P.BTN3B, mark: "AQo", verdict: "AQo → [3벳]", sfx: [["pop", 0.8]] },
     { t: "math", len: 2.2, title: "BTN 3BET SIZE", lines: ["OPEN 2.5BB → 3BET [7.5BB]"] },
     { t: "clip", cid: "ret_call1", dur: 4, len: 2.4, prompt: ROOM + GOLD + "The golden retriever in sunglasses happily slides chips forward to call, its tongue flopping out of its mouth, its tail thumping against the chair behind it.",
       think: ["좋아.", "콜 받았고."], thinkAt: [0.3, 1.2], sfx: [["shuffle", 0.4]] },
@@ -192,23 +194,23 @@ export const LESSONS = [
       chk: "꼬리 ✘", chkc: "#D3263A", think: ["…꼬리 멈춰."], thinkAt: [0.9], sfx: [["wobble", 0.1]] },
     // 플랍
     { t: "clip", cid: "flop_look", dur: 4, len: 2.8, prompt: ROOM + SHEP + "The German shepherd looks down at three community cards on the felt with narrowed eyes, then gives a tiny satisfied nod, still expressionless.",
-      think: ["오…", "탑페어.", "여기선 작게."], thinkAt: [0.1, 0.9, 1.8], board: "Ks 7d 2c", hand: "Kd Tc", hl: "ME", cap: ["탑페어", "[33%]"], sfx: [["pop", 0.05]] },
+      think: ["오…", "탑페어.", "여기선 작게."], thinkAt: [0.1, 0.9, 1.8], board: "As 7d 2c", hand: "Ad Qc", hl: "ME", cap: ["탑페어", "[33%]"], sfx: [["pop", 0.05]] },
     { t: "clip", cid: "ret_call2", dur: 4, len: 2.0, prompt: ROOM + GOLD + "The golden retriever in sunglasses immediately pushes chips in to call, grinning with its tongue out, wiggling in its chair.",
       think: ["콜 받았고."], thinkAt: [0.6], sfx: [["shuffle", 0.2]] },
     { t: "clip", cid: "tail2", reuse: "tail1", speed: 1.8, dur: 4, len: 1.8, prompt: ROOM + "Camera under the poker table at floor level: the German shepherd's tail wagging fast side to side behind the chair, fur flying.",
       chk: "꼬리 ✘", chkc: "#D3263A", think: ["…꼬리."], thinkAt: [0.8], sfx: [["wobble", 0.05], ["wobble", 0.85]] },
     // 턴
     { t: "clip", cid: "turn_think", dur: 4, len: 1.8, prompt: ROOM + SHEP + "The German shepherd stares at the cards on the table thinking hard, slight head tilt, serious.",
-      think: ["음…", "이 카드면…"], thinkAt: [0.1, 0.8], board: "Ks 7d 2c 4h", hand: "Kd Tc", hl: "ME", cap: ["아웃 5장"] },
+      think: ["음…", "이 카드면…"], thinkAt: [0.1, 0.8], board: "As 7d 2c 4h", hand: "Ad Qc", hl: "ME", cap: ["아웃 5장"] },
     { t: "clip", cid: "steak", dur: 4, len: 2.2, music: 0, prompt: ROOM + SHEP + "A waiter's arm carrying a sizzling steak on a plate passes behind the table; the German shepherd's head snaps toward the steak instantly, ears shooting straight up, eyes locked on the steak, frozen.",
       cap: ["[스테이크 1장]"], sfx: [["whoosh", 0.05]] },
     { t: "clip", cid: "drool", dur: 4, len: 3.0, prompt: ROOM + SHEP + "The German shepherd slowly turns its head back to the table, composes itself; a single drop of drool falls onto the green felt in front of it; it stares at the cards again, determined, then pushes chips forward.",
       think: ["…아니야.", "집중.", "아직 있어. 간다."], thinkAt: [0.1, 0.8, 1.8], cap: ["대략 [10%]"], sfx: [["shuffle", 2.5]] },
     // 리버
     { t: "clip", cid: "pov_river", dur: 4, len: 2.4, music: 0.3, prompt: ROOM + "First-person POV shot from the German shepherd's own eyes looking down at the green felt: a dealer's hand slides the fifth community card face up next to four others, the dog's own furry paws resting still on the felt in the foreground, tense, handheld body-cam feel.",
-      board: "Ks 7d 2c 4h Td", peek: "Kd Tc", peekLabel: "ME", peekAt: 0.2, cap: ["리버 [T♦]"], sfx: [["pop", 0.5]] },
+      board: "As 7d 2c 4h Qd", peek: "Ad Qc", peekLabel: "ME", peekAt: 0.2, cap: ["리버 [Q♦]"], sfx: [["pop", 0.5]] },
     { t: "clip", cid: "river_face", dur: 4, len: 2.6, music: 0.3, prompt: ROOM + SHEP + "Very tight close-up of the German shepherd's face, extremely serious, completely still, a long tense pause, then its eyes narrow slightly.",
-      think: ["……", "좋아.", "이건 밸류."], thinkAt: [0.1, 1.0, 1.8], board: "Ks 7d 2c 4h Td", hand: "Kd Tc", hl: "ME", cap: ["[밸류]"], sfx: [["pop", 0.05]] },
+      think: ["……", "좋아.", "이건 밸류."], thinkAt: [0.1, 1.0, 1.8], board: "As 7d 2c 4h Qd", hand: "Ad Qc", hl: "ME", cap: ["[밸류]"], sfx: [["pop", 0.05]] },
     { t: "clip", cid: "valuebet", dur: 4, len: 1.4, prompt: ROOM + SHEP + "The German shepherd shoves a big stack of chips into the pot with both paws decisively, chips crashing.",
       big: ["밸류 벳"], sfx: [["shuffle", 0.1], ["tick", 0.15]] },
     { t: "clip", cid: "ret_think", dur: 4, len: 2.6, prompt: ROOM + GOLD + "The golden retriever in sunglasses thinks hard about the bet, tilting its head left and right, tongue sticking out, scratching its chin with one paw.",
@@ -219,7 +221,7 @@ export const LESSONS = [
       big: ["CALL"], think: ["콜?", "…좋아."], thinkAt: [1.0, 1.7], sfx: [["shuffle", 0.1]] },
     // 쇼다운
     { t: "clip", cid: "showdown", dur: 4, len: 2.6, music: 0, prompt: ROOM + "Top-down close-up of the poker table: both players' cards are flipped face up next to the five community cards, dead silence, the German shepherd's paw resting still on the felt.",
-      board: "Ks 7d 2c 4h Td", hand: "Kd Tc", villain: "Kh 9h", both: true, hl: "ME", vl: "리트리버", think: ["……이겼네?"], thinkAt: [1.3], sfx: [["pop", 0.1]] },
+      board: "As 7d 2c 4h Qd", hand: "Ad Qc", villain: "Ah 9h", both: true, hl: "ME", vl: "리트리버", think: ["……이겼네?"], thinkAt: [1.3], sfx: [["pop", 0.1]] },
     { t: "clip", cid: "yes", dur: 4, len: 2.6, music: 1.7, prompt: ROOM + SHEP + "The German shepherd explodes with joy: it shoves the chair back, leaps up onto its hind legs with both front paws raised high like a champion, mouth wide open, then sprints in fast circles around the poker table doing zoomies.",
       big: ["YESSSSS!!!"], sfx: [["whoosh", 0.1]] },
     { t: "clip", cid: "howl", dur: 4, len: 2.4, music: 1.7, prompt: ROOM + SHEP + "The German shepherd in the black shirt jumps up onto the green poker table and throws its head back howling at the ceiling like a wolf, chips scattering under its paws.",
@@ -234,4 +236,4 @@ export const LESSONS = [
     { t: "combo", len: 3.6, music: 1, title: "오늘의 기록", rows: [["GTO 정확도", "100%"], ["감정 컨트롤", "0%"], ["꼬리 컨트롤", "-200%"]] },
     { t: "end", len: 2.0 } ] },
 ];
-export const CAPTION = (L) => L.id === "a08" ? `GTO는 완벽했다. 꼬리만 빼고. 🐕\nBTN KTo 3벳 → 플랍 탑페어 33% → 리버 밸류.\n포커페이스 ✔ 꼬리 ✘\n당신의 꼬리 컨트롤은 몇 %? 댓글로 👇\n📌 프로필 링크 plusev.co.kr · 홀덤펍 운영은 +EV\n#홀덤 #홀덤공부 #GTO #포커 #포커페이스 #강아지 #홀덤펍 #플러스이브이` : L.id === "a07" ? `카드 딱 짜고, GTO대로 따닥 🐕‍🦺\nSB K9o는 오픈, 버튼 KTs는 3벳 3X (콜과 섞기).\n인 포지션 3벳은 오픈의 3배가 기본.\n버튼 KTs, 당신은 3벳? 콜? 댓글로 👇 저장 📌\n📌 프로필 링크 plusev.co.kr · 홀덤펍 운영은 +EV\n#홀덤 #홀덤공부 #GTO #포커 #3벳 #강아지 #홀덤펍 #플러스이브이` : L.id === "a06" ? `강아지도 아는 GTO 오픈 표 🐕\n같은 K9o인데 UTG에선 폴드, 버튼에선 오픈.\nUTG ${P.UTG}% · BTN ${P.BTN}% (6맥스 100BB 솔버 근사)\nHJ에서 K9o는? 댓글로 👇 저장 📌\n📌 프로필 링크 plusev.co.kr · 홀덤펍 운영은 +EV\n#홀덤 #홀덤공부 #GTO #포커 #프리플랍 #강아지 #홀덤펍 #플러스이브이` : L.id === "a05" ? `금요일 밤 9시, 딜러한테 온 문자 한 통 📱\n🔴 단톡방에 대타 공지 → 30분째 답 없음\n🟢 +EV 긴급 구인 한 번 → 근처 딜러에게 바로 알림\n사장님 매장 대타 최장 기록은? 댓글로 👇\n📌 프로필 링크 plusev.co.kr · 사장님 한 달 무료\n#홀덤펍 #홀덤펍사장 #홀덤딜러 #자영업 #사장님 #상황극 #플러스이브이` : L.id === "a04" ? `90%가 틀리는 문제 🃏 AK vs 22, 누가 유리할까?\n정답: 22 (51.3%). 그런데 AK가 같은 무늬면 51.7%로 역전.\n무늬 하나에 약 3%가 움직여요.\nAK vs JT는 몇 %? 댓글로 👇 저장 📌\n📌 프로필 링크 plusev.co.kr · 홀덤펍 운영은 +EV\n#홀덤 #홀덤공부 #포커 #홀덤퀴즈 #승률 #AK #홀덤펍 #플러스이브이` : L.id === "a03" ? `같은 K9o인데 UTG에선 폴드, 버튼에선 오픈 🃏\nGTO 오픈 표는 "뒤에 몇 명 남았나"로 읽으면 끝.\nUTG ${P.UTG}% · HJ ${P.HJ}% · CO ${P.CO}% · BTN ${P.BTN}% (6맥스 100BB 근사)\nHJ에서 K9o는? 댓글로 👇 저장 📌\n📌 프로필 링크 plusev.co.kr · 홀덤펍 운영은 +EV\n#홀덤 #GTO #홀덤공부 #포커 #프리플랍 #오픈레인지 #홀덤펍 #플러스이브이` : L.id === "a02" ? `탑 페어 들고 또 폴드한 킴, 상대는 퀸 텐 블러프 🫠\nGTO 기준 팟 벳엔 최소 50%는 콜해야 합니다.\n1/3팟 75% · 1/2팟 67% · 팟 50% · 2배 33%\n하프 팟이면 몇 %? 댓글로 👇 저장 📌\n📌 프로필 링크 plusev.co.kr · 홀덤펍 운영은 +EV\n#홀덤 #GTO #홀덤공부 #포커 #MDF #홀덤펍 #플러스이브이` : `셋 잡고 진 킴, 탑 프로가 한숨 쉰 이유 😮‍💨\n플랍 승률 73.5% → 공짜 카드 한 장에 22.7%.\n젖은 보드에서 슬로우플레이는 이제 그만.\n마른 보드 K셋이면 베팅? 체크? 댓글로 👇 저장 📌\n📌 프로필 링크 plusev.co.kr · 홀덤펍 운영은 +EV\n#홀덤 #홀덤공부 #포커 #홀덤썰 #슬로우플레이 #홀덤펍 #플러스이브이`;
+export const CAPTION = (L) => L.id === "a08" ? `GTO는 완벽했다. 꼬리만 빼고. 🐕\nBTN AQo 3벳 (GTO 표대로) → 플랍 탑페어 33% → 리버 투페어 밸류.\n포커페이스 ✔ 꼬리 ✘\n당신의 꼬리 컨트롤은 몇 %? 댓글로 👇\n📌 프로필 링크 plusev.co.kr · 홀덤펍 운영은 +EV\n#홀덤 #홀덤공부 #GTO #포커 #포커페이스 #강아지 #홀덤펍 #플러스이브이` : L.id === "a07" ? `카드 딱 짜고, GTO대로 따닥 🐕‍🦺\nSB K9o는 오픈, 버튼 KTs는 3벳 3X (콜과 섞기).\n인 포지션 3벳은 오픈의 3배가 기본.\n버튼 KTs, 당신은 3벳? 콜? 댓글로 👇 저장 📌\n📌 프로필 링크 plusev.co.kr · 홀덤펍 운영은 +EV\n#홀덤 #홀덤공부 #GTO #포커 #3벳 #강아지 #홀덤펍 #플러스이브이` : L.id === "a06" ? `강아지도 아는 GTO 오픈 표 🐕\n같은 K9o인데 UTG에선 폴드, 버튼에선 오픈.\nUTG ${P.UTG}% · BTN ${P.BTN}% (6맥스 100BB 솔버 근사)\nHJ에서 K9o는? 댓글로 👇 저장 📌\n📌 프로필 링크 plusev.co.kr · 홀덤펍 운영은 +EV\n#홀덤 #홀덤공부 #GTO #포커 #프리플랍 #강아지 #홀덤펍 #플러스이브이` : L.id === "a05" ? `금요일 밤 9시, 딜러한테 온 문자 한 통 📱\n🔴 단톡방에 대타 공지 → 30분째 답 없음\n🟢 +EV 긴급 구인 한 번 → 근처 딜러에게 바로 알림\n사장님 매장 대타 최장 기록은? 댓글로 👇\n📌 프로필 링크 plusev.co.kr · 사장님 한 달 무료\n#홀덤펍 #홀덤펍사장 #홀덤딜러 #자영업 #사장님 #상황극 #플러스이브이` : L.id === "a04" ? `90%가 틀리는 문제 🃏 AK vs 22, 누가 유리할까?\n정답: 22 (51.3%). 그런데 AK가 같은 무늬면 51.7%로 역전.\n무늬 하나에 약 3%가 움직여요.\nAK vs JT는 몇 %? 댓글로 👇 저장 📌\n📌 프로필 링크 plusev.co.kr · 홀덤펍 운영은 +EV\n#홀덤 #홀덤공부 #포커 #홀덤퀴즈 #승률 #AK #홀덤펍 #플러스이브이` : L.id === "a03" ? `같은 K9o인데 UTG에선 폴드, 버튼에선 오픈 🃏\nGTO 오픈 표는 "뒤에 몇 명 남았나"로 읽으면 끝.\nUTG ${P.UTG}% · HJ ${P.HJ}% · CO ${P.CO}% · BTN ${P.BTN}% (6맥스 100BB 근사)\nHJ에서 K9o는? 댓글로 👇 저장 📌\n📌 프로필 링크 plusev.co.kr · 홀덤펍 운영은 +EV\n#홀덤 #GTO #홀덤공부 #포커 #프리플랍 #오픈레인지 #홀덤펍 #플러스이브이` : L.id === "a02" ? `탑 페어 들고 또 폴드한 킴, 상대는 퀸 텐 블러프 🫠\nGTO 기준 팟 벳엔 최소 50%는 콜해야 합니다.\n1/3팟 75% · 1/2팟 67% · 팟 50% · 2배 33%\n하프 팟이면 몇 %? 댓글로 👇 저장 📌\n📌 프로필 링크 plusev.co.kr · 홀덤펍 운영은 +EV\n#홀덤 #GTO #홀덤공부 #포커 #MDF #홀덤펍 #플러스이브이` : `셋 잡고 진 킴, 탑 프로가 한숨 쉰 이유 😮‍💨\n플랍 승률 73.5% → 공짜 카드 한 장에 22.7%.\n젖은 보드에서 슬로우플레이는 이제 그만.\n마른 보드 K셋이면 베팅? 체크? 댓글로 👇 저장 📌\n📌 프로필 링크 plusev.co.kr · 홀덤펍 운영은 +EV\n#홀덤 #홀덤공부 #포커 #홀덤썰 #슬로우플레이 #홀덤펍 #플러스이브이`;
