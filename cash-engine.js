@@ -9,3 +9,11 @@ export function expectedCash({opening=0,cashSales=0,cashExpenses=0,movements=[]}
   }
   return total;
 }
+export function withdrawalDelta(previous=0,next=0) {
+  for(const amount of [previous,next])if(!Number.isSafeInteger(amount)||amount<0||amount>2147483647)throw Error('대표 인출은 0 이상의 정수 금액으로 입력해 주세요');
+  return next-previous;
+}
+export function closingCash({date,ownerWithdrawal=0,movements=[],...cash}) {
+  withdrawalDelta(0,ownerWithdrawal);
+  return expectedCash({...cash,movements:movements.filter(m=>m.business_date===date&&m.closing_report_date!==date)})-ownerWithdrawal;
+}
