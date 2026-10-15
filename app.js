@@ -1293,12 +1293,11 @@ function streakCard() {
   const y = S.y, m = S.m, D = E.daysIn(y, m), bad = [];
   S.members.filter(p => p.role !== 'owner' && p.active !== false).forEach(p => { let run = 0, best = 0, from = 0, bf = 0; for (let i = -6; i <= D; i++) { const dt = new Date(y, m - 1, i), on = E.shiftOn(p.id, dt.getFullYear(), dt.getMonth() + 1, dt.getDate(), S.tpl, S.ov); if (on) { if (!run) from = i; run++; if (run > best && i >= 1) { best = run; bf = from; } } else run = 0; } if (best >= 7) bad.push([p.nick, best, Math.max(1, bf)]); });
   // 근로기준법: 4시간 이상 30분, 8시간 이상 1시간 휴게 / 퇴근~다음 출근 11시간 (권고)
-  const mn = t => { const [h, mi] = String(t).split(':').map(Number); return h * 60 + (mi || 0); }, brk = [], rest = [];
+  const mn = t => { const [h, mi] = String(t).split(':').map(Number); return h * 60 + (mi || 0); }, rest = [];
   S.members.filter(p => p.role !== 'owner' && p.active !== false).forEach(p => { let prevEnd = null; for (let i = 1; i <= D; i++) { const t = E.shiftOn(p.id, y, m, i, S.tpl, S.ov), base = (i - 1) * 1440;
-    if (!t) { prevEnd = null; continue; } const s0 = base + mn(t.s); let e0 = base + mn(t.e); if (e0 <= s0) e0 += 1440; const len = e0 - s0, need = len >= 480 ? 60 : len >= 240 ? 30 : 0;
-    if (t.brk != null && +t.brk < need && brk.length < 12) brk.push([p.nick, i, `${Math.round(len / 6) / 10}시간에 휴게 ${+t.brk}분`]);
+    if (!t) { prevEnd = null; continue; } const s0 = base + mn(t.s); let e0 = base + mn(t.e); if (e0 <= s0) e0 += 1440;
     if (prevEnd != null && s0 - prevEnd < 660 && rest.length < 12) rest.push([p.nick, i, `${Math.floor((s0 - prevEnd) / 60)}시간만 쉼`]); prevEnd = e0; } });
-  const law = (brk.length ? `<details class="card warnc"><summary><b>⚠️ 휴게시간이 법정 기준보다 짧아요</b> <small class="mut">${whoDays(brk)} · 눌러서 날짜 보기</small></summary><div class="sktags" style="margin-top:6px">${brk.map(([n, d, t]) => `<i>${esc(n)} · ${m}/${d} ${t}</i>`).join('')}</div><small class="mut">4시간 이상 일하면 30분, 8시간 이상이면 1시간 이상 쉬어야 해요.</small></details>` : '') + (rest.length ? `<div class="card warnc"><b>⚠️ 퇴근하고 11시간 안에 다시 출근</b><div class="sktags" style="margin-top:6px">${rest.map(([n, d, t]) => `<i>${esc(n)} · ${m}/${d} ${t}</i>`).join('')}</div><small class="mut">마감 다음 날 오픈 근무는 피로 사고가 잦아요. 11시간 이상 쉬게 해주세요.</small></div>` : '');
+  const law = (rest.length ? `<div class="card warnc"><b>⚠️ 퇴근하고 11시간 안에 다시 출근</b><div class="sktags" style="margin-top:6px">${rest.map(([n, d, t]) => `<i>${esc(n)} · ${m}/${d} ${t}</i>`).join('')}</div><small class="mut">마감 다음 날 오픈 근무는 피로 사고가 잦아요. 11시간 이상 쉬게 해주세요.</small></div>` : '');
   return law + (bad.length ? `<div class="card warnc"><b>⚠️ 쉬는 날 없이 7일 넘게 잡힌 직원</b><div class="sktags" style="margin-top:6px">${bad.map(([n, k, f]) => `<i>${esc(n)} · ${m}/${f}부터 ${k}일 연속</i>`).join('')}</div><small class="mut">주 1회 이상 쉬는 날(주휴일)을 넣어주세요.</small></div>` : '');
 }
 async function memoBox(id) { const box = document.createElement('div'); box.className = 'memo'; box.innerHTML = `<h3>대표 메모 <small>대표만 봐요 · 직원에게 안 보여요</small></h3><textarea id="mmemo" rows="3" placeholder="예: 토요일 마감 선호, 3월에 시급 올려주기로 약속"></textarea><button class="btn sm" data-act="memo-save" data-m="${id}">메모 저장</button>`; $('#sheet .in')?.appendChild(box); const { data } = await sb.from('member_notes').select('memo').eq('member_id', id).maybeSingle(); if (data && $('#mmemo')) $('#mmemo').value = data.memo || ''; }
@@ -2321,11 +2320,6 @@ function voiceIn(name) {
 }
 // ===== B 근무 =====
 const isNight = t => E.splitMinutes(t5(t.s), t5(t.e), night()).night >= 120; // 매장 야간 시간대(기본 22~06시)에 2시간 이상
-function nightStreak() {
-  const y = S.y, m = S.m, D = E.daysIn(y, m), L = [];
-  S.members.filter(p => p.role !== 'owner').forEach(p => { let run = 0; for (let i = 1; i <= D; i++) { const t = E.shiftOn(p.id, y, m, i, S.tpl, S.ov); run = t && isNight(t) ? run + 1 : 0; if (run === 3) L.push([p.nick, i]); } });
-  return L.length ? `<details class="card warnc"><summary><b>🌙 야간 3일 연속</b> <small class="mut">${whoDays(L)}번 · 눌러서 보기</small></summary><small class="mut">(야간 ${night().join('~')} 2시간 이상)</small><div class="sktags" style="margin-top:6px">${L.map(([n, d]) => `<i>${esc(n)} · ${m}/${d - 2}~${m}/${d}</i>`).join('')}</div><small class="mut">밤샘 근무가 이어지면 실수·결근이 늘어요. 사이에 낮 근무나 휴무를 끼워 주세요</small></details>` : '';
-}
 function heatCard() {
   const staff = S.members.filter(p => p.role !== 'owner'), H = Array.from({ length: 7 }, () => Array(24).fill(0)), N = Array(7).fill(0), D = E.daysIn(S.y, S.m);
   for (let i = 1; i <= D; i++) { const w = E.wdOf(S.y, S.m, i); N[w]++; staff.forEach(p => { const t = E.shiftOn(p.id, S.y, S.m, i, S.tpl, S.ov); if (!t) return; let a = E.toMin(t5(t.s)), b = E.toMin(t5(t.e)); if (b <= a) b += 1440; for (let h = Math.floor(a / 60); h < Math.ceil(b / 60); h++) H[(w + Math.floor(h / 24)) % 7][h % 24] += (Math.min(b, h * 60 + 60) - Math.max(a, h * 60)) / 60; }); }
@@ -2381,7 +2375,7 @@ function schedImg() {
   void cs; c.toBlob(async b => { const file = new File([b], `근무표_${k0}.png`, { type: 'image/png' }); try { if (navigator.canShare?.({ files: [file] })) return await navigator.share({ files: [file], title: '이번 주 근무표' }); } catch { } const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = file.name; a.click(); toast('사진으로 저장했어요. 단톡방에 올려주세요'); });
 }
 function schedExtra() {
-  return `<div class="row" style="gap:6px;flex-wrap:wrap;margin:10px 0"><button class="btn sm" data-act="week-img">📷 이번 주 근무표 사진</button><button class="btn sm" data-act="shift-log">변경 이력</button></div>${reqCard()}${leaveFix()}${nightStreak()}${edgeCard()}${holCard()}${heatCard()}${subRateCard()}`;
+  return `<div class="row" style="gap:6px;flex-wrap:wrap;margin:10px 0"><button class="btn sm" data-act="week-img">📷 이번 주 근무표 사진</button><button class="btn sm" data-act="shift-log">변경 이력</button></div>${reqCard()}${leaveFix()}${edgeCard()}${holCard()}${heatCard()}${subRateCard()}`;
 }
 function icsOf(me) {
   const L = [], st = S.store?.name || '+EV', z = (k, t) => k.replace(/-/g, '') + 'T' + t5(t).replace(':', '') + '00';
@@ -2625,7 +2619,7 @@ const noticeOk = t => !t || ((!t.area || (S.store?.area || '').startsWith(t.area
 // ===== v0.68 화면 연결: 기존 화면 끝에 새 카드 붙이기 =====
 { const o = vSales; vSales = () => o() + salesExtra(); }
 { const o = vSched; vSched = () => { const h = o(); return (S.schedView || 'month') === 'month' && S.members.some(p => p.role !== 'owner') ? h + schedExtra() : h; }; }
-{ const o = streakCard; streakCard = () => o() + nightStreak(); }
+
 { const o = vStaff; vStaff = () => { const h = o(); return (S.staffTab || 'list') === 'list' ? h + staffExtra() : h + payExtra(); }; }
 { const o = vOps; vOps = () => { const h = o(); return S.notes ? h + opsExtra() : h; }; }
 { const o = vWork; vWork = () => { const h = o(); return S.sub === 'ops' ? h : h + workExtra(S.my[S.mi || 0]); }; }
