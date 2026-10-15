@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { loadHQStore, hqStoreHTML } from './hq-store-view.js';
 let calls=[];
 const data={stores:[{id:'s',name:'<매장>',company_id:'c'}],members:[{id:'m',nick:'<직원>',role:'staff'}],daily_reports:[{report_date:'2026-10-01',sales:100000}],expenses:[],shift_templates:[],shift_overrides:[],work_records:[]};
-const sb={from(t){const f=[];const q={select(){return q},eq(k,v){f.push([k,v]);return q},in(k,v){f.push([k,v]);return q},gte(){return q},lte(){return q},order(){return q},then(res){calls.push([t,f]);res({data:data[t],error:null})}};return q},rpc(n,a){calls.push([n,a]);return Promise.resolve({data:{gross:20000,projected_gross:40000,incomplete:0,members:[{member_id:'m',gross:20000,projected_gross:40000}]},error:null})}};
+const sb={from(t){const f=[];const q={select(cols){if(t==='daily_reports')assert.ok(!cols.split(',').includes('expense_cash'),'Report query must use real server columns');return q},eq(k,v){f.push([k,v]);return q},in(k,v){f.push([k,v]);return q},gte(){return q},lte(){return q},order(){return q},then(res){calls.push([t,f]);res({data:data[t],error:null})}};return q},rpc(n,a){calls.push([n,a]);return Promise.resolve({data:{gross:20000,projected_gross:40000,incomplete:0,members:[{member_id:'m',gross:20000,projected_gross:40000}]},error:null})}};
 await assert.rejects(()=>loadHQStore({sb,isHQ:false,storeId:'s',month:'2026-10-01'}));assert.equal(calls.length,0);
 const result=await loadHQStore({sb,isHQ:true,storeId:'s',month:'2026-10-01'});
 assert.equal(result.payroll.gross,20000);assert.equal(result.reports[0].sales,100000);
