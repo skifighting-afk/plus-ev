@@ -1,3 +1,4 @@
+import { installHQStoreView } from './hq-store-view.js?v=106';
 import { jobDefaults } from './workflow-policy.js';
 import { installERPUI } from './erp-ui.js?v=105';
 import { initialHomeView, ownerNavigation, cashSales, reportPatch } from './ui-policy.js';
@@ -320,6 +321,7 @@ async function loadHQ() {
   const [first, last] = monthRange();
   S.stats = await q(sb.rpc('hq_store_stats', { p_from: first, p_to: last })); S.refRep = await q(sb.rpc('hq_ref_report')).catch(() => []);
   [S.hqToday, S.hqRev] = await Promise.all([q(sb.rpc('hq_today')), q(sb.rpc('hq_revenue'))]);
+  S.hqStores = await q(sb.from('stores').select('id,company_id,name,area').order('name'));
   S.companies = await q(sb.from('companies').select('*').order('created_at', { ascending: false }));
   S.inq = await q(sb.from('inquiries').select('*').order('created_at', { ascending: false }).limit(100));
   S.hqProfiles = await q(sb.from('profiles').select('id,name,kind,can_post_franchise'));
@@ -1952,7 +1954,7 @@ function hqProdSheet(id) {
 }
 const refCard = () => (S.refRep || []).length ? `<div class="card"><h3>추천 매장 <small>파트너 몫 10%</small></h3>${S.refRep.map(r => `<div class="li"><div><b>${esc(r.ref)}</b> · ${esc(r.company)}<small>${{ trial: '무료 체험', basic: '베이직', pro: '프로' }[r.plan] || esc(r.plan || '')} · 결제 누적 ₩${E.won(r.paid)}</small></div><b class="num">₩${E.won(r.share)}</b></div>`).join('')}</div>` : '';
 function vHqStores() {
-  return `<h1>입점 매장</h1>${refCard()}<div class="card"><h3>가맹본사 권한 <small>켜면 가맹 모집 공고를 올릴 수 있어요</small></h3>${(S.hqProfiles || []).filter(p => p.kind === 'owner').map(p => `<div class="li"><span>${esc(p.name || '이름 없음')} <small class="mut">${p.id.slice(0, 8)}</small></span><button class="btn sm ${p.can_post_franchise ? 'pri' : ''}" data-act="fr-perm" data-u="${p.id}" data-v="${p.can_post_franchise ? 'false' : 'true'}">${p.can_post_franchise ? '✓ 가맹본사' : '권한 주기'}</button></div>`).join('') || '<div class="empty">대표 계정이 없어요</div>'}</div><div class="card">${(S.companies || []).map(c => `<div class="li"><div><b>${esc(c.name)}</b>${c.brand ? ` <small class="mut">${esc(c.brand)}</small>` : ''}<small>사업자 ${esc(c.biz_no || '')} · ${{ trial: '무료 체험', basic: '베이직', pro: '프로' }[c.plan]} · ${new Date(c.created_at).toLocaleDateString('ko-KR')}</small></div>${c.biz_verified ? '<span class="pill g">확인 완료</span>' : `<button class="btn sm pri" data-act="verify" data-c="${c.id}">사업자 확인</button>`}</div>`).join('') || '<div class="empty">아직 매장이 없어요</div>'}</div>`;
+  return `<h1>입점 매장</h1><div class="card"><h3>매장 직접 보기 <small>조회 전용</small></h3><p class="note">매출·인건비·근무표를 확인할 매장을 선택하세요.</p>${(S.hqStores||[]).map(st=>`<div class="li"><div><b>${esc(st.name)}</b><small>${esc((S.companies||[]).find(c=>c.id===st.company_id)?.name||'')} · ${esc(st.area||'')}</small></div><button class="btn sm pri" data-act="hq-store-view" data-v="${esc(st.id)}">매장 보기</button></div>`).join('')||'<p class="empty">등록된 매장이 없어요</p>'}</div>${refCard()}<div class="card"><h3>가맹본사 권한 <small>켜면 가맹 모집 공고를 올릴 수 있어요</small></h3>${(S.hqProfiles || []).filter(p => p.kind === 'owner').map(p => `<div class="li"><span>${esc(p.name || '이름 없음')} <small class="mut">${p.id.slice(0, 8)}</small></span><button class="btn sm ${p.can_post_franchise ? 'pri' : ''}" data-act="fr-perm" data-u="${p.id}" data-v="${p.can_post_franchise ? 'false' : 'true'}">${p.can_post_franchise ? '✓ 가맹본사' : '권한 주기'}</button></div>`).join('') || '<div class="empty">대표 계정이 없어요</div>'}</div><div class="card">${(S.companies || []).map(c => `<div class="li"><div><b>${esc(c.name)}</b>${c.brand ? ` <small class="mut">${esc(c.brand)}</small>` : ''}<small>사업자 ${esc(c.biz_no || '')} · ${{ trial: '무료 체험', basic: '베이직', pro: '프로' }[c.plan]} · ${new Date(c.created_at).toLocaleDateString('ko-KR')}</small></div>${c.biz_verified ? '<span class="pill g">확인 완료</span>' : `<button class="btn sm pri" data-act="verify" data-c="${c.id}">사업자 확인</button>`}</div>`).join('') || '<div class="empty">아직 매장이 없어요</div>'}</div>`;
 }
 function vHqData() {
   const st = S.stats || [];
@@ -2787,6 +2789,7 @@ function a11yFix() {
   document.querySelectorAll('#view input:not([type=hidden]):not([aria-label]),#view select:not([aria-label]),#view textarea:not([aria-label])').forEach(i => { if (i.closest('label') || i.placeholder) return; const t = (i.previousElementSibling?.innerText || i.parentElement?.innerText || i.name || '').trim().split('\n')[0].slice(0, 20); if (t) i.setAttribute('aria-label', t); });
 }
 { const o = after68; after68 = () => { o(); a11yFix(); if (S.mode === 'store' && S.tab === 'sales') { const R = window.SpeechRecognition || window.webkitSpeechRecognition; document.querySelectorAll('#mic').forEach(m => { if (!R) m.remove(); }); if (R) ['card', 'transfer'].forEach(n => { const i = $(`#report-form [name=${n}]`); if (i && !i.nextElementSibling?.classList?.contains('mic2')) i.insertAdjacentHTML('afterend', `<button type="button" class="btn sm mic2" data-act="mic" data-v="${n}" aria-label="말로 입력">🎤</button>`); }); } }; }
+installHQStoreView({S,sb,A:A68,openSheet,busy,E});
 Object.assign(A68, {
   order: () => { if (isOwner() || !isMgr()) return false; const items = Object.entries(S.cart).filter(([, n]) => n > 0).map(([id, n]) => ({ id: +id, q: n, price: item(id).sp })); if (!items.length) return toast('담은 상품이 없어요'); busy(async () => { const total = items.reduce((a, i) => a + i.price * i.q, 0); await q(sb.from('store_items').insert({ store_id: S.store.id, kind: 'order_req', title: items.map(i => `${item(i.id)?.n}×${i.q}`).join(', ').slice(0, 80), data: { items, total, by: myNick() } })); S.cart = {}; await reload(); toast('대표님께 발주 승인을 요청했어요'); }); },
   'rq-ok': (b, d) => busy(async () => { const x = S.items.find(i => String(i.id) === d.v); await q(sb.from('store_items').update({ status: 'ok' }).eq('id', d.v)); const ch = x && await applyReq(x); await reload(); toast(ch ? '승인했어요. 근무표 끝나는 시간을 바꿔 급여에 반영했어요' : '승인했어요. 직원에게 알림이 가요'); }),
