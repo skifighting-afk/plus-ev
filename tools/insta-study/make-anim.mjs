@@ -39,8 +39,10 @@ for (const L of LESSONS) {
   // 1) 애니메이션 클립 먼저 (병렬)
   // 만든 클립은 out/clips 에 보관해 재실행 때 크레딧을 다시 쓰지 않는다
   const cd = path.join(out, "clips"); fs.mkdirSync(cd, { recursive: true });
+  const CMAP = L.clipMap && fs.existsSync(path.join(dir, L.clipMap)) ? JSON.parse(fs.readFileSync(path.join(dir, L.clipMap), "utf8")) : {};
   const jobs = await Promise.all(L.scenes.map(async (s, i) => {
-    if (s.t !== "clip") return null;
+    if (s.t !== "clip" || s.reuse) return null;
+    if (s.cid && CMAP[s.cid]) { const dst = path.join(w, `clip${i}.mp4`); const r = await fetch(CMAP[s.cid]); if (!r.ok) throw new Error("clip 다운로드 실패 " + s.cid + " " + r.status); fs.writeFileSync(dst, Buffer.from(await r.arrayBuffer())); return "web:" + s.cid; }
     const keep = path.join(cd, `${L.id}-${i}-${crypto.createHash("sha1").update(s.prompt).digest("hex").slice(0, 8)}.mp4`), dst = path.join(w, `clip${i}.mp4`);
     if (fs.existsSync(keep)) { fs.copyFileSync(keep, dst); return "cached"; }
     let err;
@@ -49,6 +51,7 @@ for (const L of LESSONS) {
     if (s.fb && fs.existsSync(path.join(cd, s.fb.file))) { console.log("클립", i, "기존 클립으로 대체"); ff(["-ss", String(s.fb.ss || 0), "-i", path.join(cd, s.fb.file), "-an", "-c:v", "libx264", "-preset", "veryfast", "-crf", "18", dst]); return "fallback"; }
     throw err;
   }));
+  L.scenes.forEach((s, i) => { if (s.t === "clip" && s.reuse) { const j = L.scenes.findIndex((x) => x.cid === s.reuse); ff(["-i", path.join(w, `clip${j}.mp4`), "-vf", `setpts=PTS/${s.speed || 1}`, "-an", "-c:v", "libx264", "-preset", "veryfast", "-crf", "18", path.join(w, `clip${i}.mp4`)]); } });
   console.log(L.id, "클립", jobs.filter(Boolean).length);
   // 2) 나레이션
   const says = L.scenes.map((s) => (s.t === "end" ? END_SAY : s.say || ""));
