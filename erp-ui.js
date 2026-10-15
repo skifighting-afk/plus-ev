@@ -4,10 +4,10 @@ import { expectedCash,closingCash } from './cash-engine.js?v=105';
 export function installERPUI({S,sb,q,A68,F68,openSheet,closeSheet,reload,toast,esc,TODAY,night,isOwner,monthRange,bizDay,clock=Date.now}) {
   const req=()=>crypto.randomUUID(),won=E.won,month=()=>E.ymd(S.y,S.m,1),num=v=>Number(String(v).replaceAll(',',''));
   const canPay=()=>S.mode==='store'&&!(S.myRole==='manager'&&S.me?.perms?.pay===false);
-  const cache=new Map();let cacheUser=S.user?.id;
-  async function ensurePeriods(storeId,periods) {
-    if(cacheUser!==S.user?.id){cache.clear();cacheUser=S.user?.id;}
-    await Promise.all([...new Set(periods)].map(async period=>{const value=await q(sb.rpc('actual_payroll',{p_store:storeId,p_month:period}));cache.set(storeId+':'+period.slice(0,7),value);}));
+  const cache=new Map(),cacheAt=new Map();let cacheUser=S.user?.id;
+  async function ensurePeriods(storeId,periods,{force=false}={}) {
+    if(cacheUser!==S.user?.id){cache.clear();cacheAt.clear();cacheUser=S.user?.id;}
+    await Promise.all([...new Set(periods)].map(async period=>{const key=storeId+':'+period.slice(0,7);if(!force&&cache.has(key)&&clock()-(cacheAt.get(key)||0)<60000)return;const value=await q(sb.rpc('actual_payroll',{p_store:storeId,p_month:period}));cache.set(key,value);cacheAt.set(key,clock());}));
   }
   async function loadCashDate(date){if(!canPay())return;const rows=await q(sb.from('cash_movements').select('*').eq('store_id',S.store.id).eq('business_date',date));S.cashMoves=[...(S.cashMoves||[]).filter(m=>m.business_date!==date),...rows];}
   async function refreshClosingDate(form,date){
@@ -20,7 +20,7 @@ export function installERPUI({S,sb,q,A68,F68,openSheet,closeSheet,reload,toast,e
   }
   const dates=v=>{const calendarDate=+v.s.slice(0,2)<8?new Date(Date.parse(v.date+'T00:00:00Z')+864e5).toISOString().slice(0,10):v.date;let end=calendarDate+'T'+v.e+':00+09:00';const start=calendarDate+'T'+v.s+':00+09:00';if(v.e<=v.s)end=new Date(Date.parse(end)+864e5).toISOString();return {p_date:v.date,p_start:start,p_end:end,p_break:num(v.brk)};};
   async function load() {
-    if(cacheUser!==S.user?.id){cache.clear();cacheUser=S.user?.id;}
+    if(cacheUser!==S.user?.id){cache.clear();cacheAt.clear();cacheUser=S.user?.id;}
     S.actualPayroll=null;S.workRecords=[];S.workPayments=[];S.cashMoves=[];
     if(!S.store?.id||!['store','staff'].includes(S.mode))return;
     if(S.mode==='store'&&!canPay())return;
@@ -28,9 +28,13 @@ export function installERPUI({S,sb,q,A68,F68,openSheet,closeSheet,reload,toast,e
     const results=await Promise.all([sb.from('work_records').select('*').eq('store_id',S.store.id).gte('work_date',start).lte('work_date',new Date(Date.parse(last+'T00:00:00Z')+7*864e5).toISOString().slice(0,10)).order('start_at',{ascending:false}),sb.from('work_payments').select('*').eq('store_id',S.store.id).eq('period_month',first),sb.rpc('actual_payroll',{p_store:S.store.id,p_month:first}),S.mode==='store'?sb.from('cash_movements').select('*').eq('store_id',S.store.id).gte('business_date',first).lte('business_date',last).order('created_at',{ascending:false}):Promise.resolve({data:[],error:null})]);
     for(const r of results)if(r.error)throw Error(r.error.message);
     [S.workRecords,S.workPayments,S.actualPayroll,S.cashMoves]=results.map(r=>r.data||[]);
-    cache.set(S.store.id+':'+first.slice(0,7),S.actualPayroll);
+    cache.set(S.store.id+':'+first.slice(0,7),S.actualPayroll);cacheAt.set(S.store.id+':'+first.slice(0,7),clock());
     const periods=[...Array.from({length:6},(_,i)=>new Date(Date.UTC(S.y,S.m-2-i,1)).toISOString().slice(0,10)),...Array.from({length:3},(_,i)=>new Date(Date.UTC(+TODAY.slice(0,4),+TODAY.slice(5,7)-2-i,1)).toISOString().slice(0,10))];
-    if(S.store.labor_actual_from)await ensurePeriods(S.store.id,periods);
+    if(S.store.labor_actual_from){
+      const dates=await q(sb.from('work_records').select('work_date').eq('store_id',S.store.id).gte('work_date',[...periods].sort()[0]).lt('work_date',first));
+      const manualMonths=new Set((dates||[]).map(r=>r.work_date.slice(0,7)));
+      await ensurePeriods(S.store.id,periods.filter(p=>p.slice(0,7)>=S.store.labor_actual_from.slice(0,7)||manualMonths.has(p.slice(0,7))));
+    }
     if(!S.store.labor_actual_from||(last<S.store.labor_actual_from&&!S.workRecords.some(r=>r.status!=='void'&&r.work_date.startsWith(first.slice(0,7)))))S.actualPayroll=null;
   }
   async function enable() {if(!canPay())throw Error('급여 관리 권한이 없어요');if(!S.store.labor_actual_from){if(!isOwner())throw Error('대표님이 실제 근무 집계를 시작한 뒤 이용할 수 있어요');S.store.labor_actual_from=await q(sb.rpc('erp_enable_actual',{p_store:S.store.id}));}}
@@ -73,5 +77,5 @@ export function installERPUI({S,sb,q,A68,F68,openSheet,closeSheet,reload,toast,e
     const fullGross=row.projected_gross??row.gross+future+futureActual.gross;
     return {...raw,...row,fullGross,fullNet:fullGross-E.dedOf(fullGross-(row.meal||0),row.contract||p.contract),shifts,days:shifts.filter(s=>s.done).length,hours:shifts.reduce((n,s)=>n+s.hours,0),brk:shifts.reduce((n,s)=>n+s.brk,0),basis:'actual'};
   }
-  return {load,workCard,payroll,expectedCash,closingCash,ensurePeriods,loadCashDate,refreshClosingDate};
+  return {periodPayroll:(storeId,period)=>canPay()?cache.get(storeId+':'+period.slice(0,7)):undefined,load,workCard,payroll,expectedCash,closingCash,ensurePeriods,loadCashDate,refreshClosingDate};
 }

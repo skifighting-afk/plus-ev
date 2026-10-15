@@ -1,8 +1,11 @@
-import { readOnlyClient, installInspectionGuard } from './hq-inspection.js?v=108';
+import { installHQOperations } from './hq-operations.js?v=110';
+import { visibleNotifications } from './owner-policy.js?v=110';
+import { laborTotals, scheduleTotals } from './labor-overview.js?v=110';
+import { readOnlyClient, installInspectionGuard } from './hq-inspection.js?v=110';
 const inspectionStore = new URLSearchParams(location.search).get('hq_store');
 import { installHQStoreView } from './hq-store-view.js?v=109';
 import { jobDefaults } from './workflow-policy.js';
-import { installERPUI } from './erp-ui.js?v=105';
+import { installERPUI } from './erp-ui.js?v=110';
 import { initialHomeView, ownerNavigation, cashSales, reportPatch } from './ui-policy.js';
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
 import * as E from './engine.js?v=95-urgent-offer';
@@ -246,40 +249,43 @@ async function boot() {
   render();
 }
 async function loadStore() {
-  const st = S.store.id, [first, last] = monthRange(), h0 = new Date(S.y, S.m - 6, 1), hFirst = E.ymd(h0.getFullYear(), h0.getMonth() + 1, 1);
-  S.members = (await q(sb.from('members').select('*').eq('store_id', st).eq('active', true).order('created_at'))).sort((a, b) => rankOf(a) - rankOf(b));
-  /* 퇴사·삭제한 직원도 퇴사 전 근무분은 지난달 인건비에 남게 */
-  S.gone = ((await sb.from('members').select('*').eq('store_id', st).eq('active', false)).data || []).filter(p => p.role !== 'owner' && (p.checks?.out?.at || '') >= hFirst);
-  const ids = S.members.map(m => m.id).concat(S.gone.map(m => m.id));
-  S.tpl = ids.length ? await q(sb.from('shift_templates').select('*').in('member_id', ids)) : [];
-  S.ov = ids.length ? await q(sb.from('shift_overrides').select('*').in('member_id', ids).gte('work_date', hFirst).lte('work_date', last)) : [];
-  S.dc = (await q(sb.rpc('dealer_count')))?.[0]; S.nmKey = S.rdKey || nmKey(); S.round = (await q(sb.from('sched_rounds').select('*').eq('store_id', st).eq('month', S.nmKey).neq('status', 'reset')))[0] || null; S.avails = S.round && ids.length ? await q(sb.from('sched_avail').select('*').in('member_id', ids).eq('month', S.nmKey)) : [];
-  S.coMonth = !inspectionStore && S.stores.length > 1 && isOwner() ? await q(sb.rpc('company_month', { p_month: thisMonth() })) : null;
-  S.attStore = await q(sb.from('attendance').select('member_id,kind,at').eq('store_id', st).gte('at', first + 'T00:00:00+09:00').lte('at', addDay(last, 1) + 'T12:00:00+09:00'));
-  S.reqs = ids.length ? await q(sb.from('shift_reqs').select('*').in('member_id', ids).eq('status', 'wait').order('work_date')) : []; S.offers = ids.length ? await q(sb.from('shift_offers').select('*').in('member_id', ids).gte('work_date', TODAY)) : []; S.fixes = ids.length ? ((await sb.from('att_fix').select('*').in('member_id', ids).eq('status', 'wait').order('at')).data || []) : [];
-  S.swaps = ids.length ? ((await sb.from('shift_swaps').select('*').in('from_member', ids).eq('status', 'mgr').order('work_date')).data || []) : []; S.lock = ((await sb.from('pay_locks').select('*').eq('store_id', st).eq('month', first).eq('on_', true)).data || [])[0] || null;
-  S.hist = await q(sb.from('daily_reports').select('*').eq('store_id', st).gte('report_date', hFirst).lte('report_date', last).order('report_date', { ascending: false }));
-  S.reports = S.hist.filter(r => r.report_date >= first);
-  S.expAll = await q(sb.from('expenses').select('*').eq('store_id', st).gte('spent_on', hFirst).lte('spent_on', last));
-  S.expenses = S.expAll.filter(x => x.spent_on >= first);
-  S.inc = ids.length ? await q(sb.from('incentives').select('*').in('member_id', ids).eq('month', first)) : [];
-  S.expiry = (await sb.from('store_notes').select('id,title,data').eq('store_id', st).eq('kind', 'expiry').is('status', null)).data || [];
-  [S.marks, S.adv] = ids.length ? (await Promise.all([sb.from('pay_marks').select('*').in('member_id', ids).eq('month', first), sb.from('advances').select('*').in('member_id', ids).eq('month', first).order('given_on')])).map(r => r.data || []) : [[], []];
-  S.posts = (await q(sb.from('job_posts').select('*').eq('store_id', st).order('created_at', { ascending: false }).limit(20))).map(p => p.status === 'open' && p.expires_at && new Date(p.expires_at) < Date.now() ? { ...p, status: 'expired' } : p);
-  // 서로 기다릴 필요 없는 조회는 동시에 (첫 화면 빨라짐)
-  const [joins, docs, rank, notis, nTop, quests, stock, orders, goals, fixedM, open] = await Promise.all([
-    inspectionStore?Promise.resolve([]):q(sb.rpc('join_list', { p_store: st })), q(sb.from('contracts').select('id,member_id,kind,title,status,token,created_at,signed_at').eq('store_id', st).neq('status', 'void').order('created_at', { ascending: false }).limit(200)),
-    inspectionStore?Promise.resolve([]):q(sb.rpc('store_rank', { p_store: st, p_from: first, p_to: last })),
-    q(sb.from('notifications').select('*').neq('hidden', true).order('created_at', { ascending: false }).limit(20)), q(sb.from('notices').select('id,title,created_at').order('created_at', { ascending: false }).limit(1)),
-    q(sb.from('store_quests').select('*').eq('store_id', st)), q(sb.from('stock').select('*').eq('store_id', st).order('item_id')),
-    q(sb.from('orders').select('*').eq('store_id', st).order('created_at', { ascending: false }).limit(30)), q(sb.from('store_goals').select('month,goal').eq('store_id', st)),
-    q(sb.from('store_fixed').select('month,fixed').eq('store_id', st).order('month')), q(sb.from('day_opens').select('*').eq('store_id', st).eq('day', bizDay()))]);
-  S.joins = joins; S.docs = docs; S.rank = rank?.[0] || null; S.notis = notis; S.noticeTop = nTop[0] || null; S.quests = quests; S.stock = stock; S.orders = orders;
-  S.goals = Object.fromEntries(goals.map(g => [g.month, +g.goal])); S.fixedM = fixedM; S.open = open[0] || null;
-  await erpUI.load();
-  if (!S.prodLoaded) { await loadProducts(); S.prodLoaded = true; }
-  S.posAsk = (await q(sb.from('inquiries').select('body').eq('store_id', st).like('body', '[포스 연동]%').limit(1)))[0]?.body.slice(8).split(' — ')[0] || null;
-  S.bench = null;
+  const soft=async p=>(await p).data||[];
+  const st=S.store.id,[first,last]=monthRange(),h0=new Date(S.y,S.m-6,1),hFirst=E.ymd(h0.getFullYear(),h0.getMonth()+1,1);
+  S.nmKey=S.rdKey||nmKey();
+  const [all,hist,exp,posts,round,att,expiry,notis,nTop,quests,stock,orders,goals,fixedM,opens,dc,coMonth,posAsk]=await Promise.all([
+    q(sb.from('members').select('*').eq('store_id',st).order('created_at')),
+    q(sb.from('daily_reports').select('*').eq('store_id',st).gte('report_date',hFirst).lte('report_date',last).order('report_date',{ascending:false})),
+    q(sb.from('expenses').select('*').eq('store_id',st).gte('spent_on',hFirst).lte('spent_on',last)),
+    q(sb.from('job_posts').select('*').eq('store_id',st).order('created_at',{ascending:false}).limit(100)),
+    q(sb.from('sched_rounds').select('*').eq('store_id',st).eq('month',S.nmKey).neq('status','reset')),
+    q(sb.from('attendance').select('member_id,kind,at').eq('store_id',st).gte('at',first+'T00:00:00+09:00').lte('at',addDay(last,1)+'T12:00:00+09:00')),
+    soft(sb.from('store_notes').select('id,title,data').eq('store_id',st).eq('kind','expiry').is('status',null)),
+    q(sb.from('notifications').select('*').neq('hidden',true).order('created_at',{ascending:false}).limit(20)),
+    q(sb.from('notices').select('id,title,created_at').order('created_at',{ascending:false}).limit(1)),
+    q(sb.from('store_quests').select('*').eq('store_id',st)),q(sb.from('stock').select('*').eq('store_id',st).order('item_id')),
+    q(sb.from('orders').select('*').eq('store_id',st).order('created_at',{ascending:false}).limit(30)),
+    q(sb.from('store_goals').select('month,goal').eq('store_id',st)),q(sb.from('store_fixed').select('month,fixed').eq('store_id',st).order('month')),
+    q(sb.from('day_opens').select('*').eq('store_id',st).eq('day',bizDay())),q(sb.rpc('dealer_count')),
+    !inspectionStore&&S.stores.length>1&&isOwner()?q(sb.rpc('company_month',{p_month:thisMonth()})):Promise.resolve(null),
+    soft(sb.from('inquiries').select('body').eq('store_id',st).like('body','[포스 연동]%').limit(1)),
+    erpUI.load(),S.prodLoaded?Promise.resolve():loadProducts()
+  ]);
+  S.allMembers=all;S.members=all.filter(m=>m.active!==false).sort((a,b)=>rankOf(a)-rankOf(b));S.gone=all.filter(m=>!m.active&&m.role!=='owner'&&(m.checks?.out?.at||'')>=hFirst);
+  const ids=all.map(m=>m.id);S.hist=hist;S.reports=hist.filter(r=>r.report_date>=first);S.expAll=exp;S.expenses=exp.filter(e=>e.spent_on>=first);
+  S.posts=posts.map(p=>p.status==='open'&&p.expires_at&&new Date(p.expires_at)<Date.now()?{...p,status:'expired'}:p);
+  S.round=round[0]||null;S.attStore=att;S.expiry=expiry;S.notiOffset=notis.length;S.notis=visibleNotifications(notis,S.mode);S.noticeTop=nTop[0]||null;S.quests=quests;S.stock=stock;S.orders=orders;S.goals=Object.fromEntries(goals.map(g=>[g.month,+g.goal]));S.fixedM=fixedM;S.open=opens[0]||null;S.dc=dc?.[0];S.coMonth=coMonth;S.posAsk=posAsk[0]?.body.slice(8).split(' — ')[0]||null;S.prodLoaded=true;
+  const memberQuery=(table,build)=>ids.length?q(build(sb.from(table).select('*').in('member_id',ids))):Promise.resolve([]);
+  const [tpl,ov,avails,reqs,offers,fixes,swaps,locks,inc,marks,adv,joins,docs]=await Promise.all([
+    memberQuery('shift_templates',x=>x),memberQuery('shift_overrides',x=>x.gte('work_date',hFirst).lte('work_date',last)),
+    S.round?memberQuery('sched_avail',x=>x.eq('month',S.nmKey)):Promise.resolve([]),
+    memberQuery('shift_reqs',x=>x.eq('status','wait').order('work_date')),memberQuery('shift_offers',x=>x.gte('work_date',TODAY)),
+    memberQuery('att_fix',x=>x.eq('status','wait').order('at')),ids.length?q(sb.from('shift_swaps').select('*').in('from_member',ids).eq('status','mgr').order('work_date')):Promise.resolve([]),
+    q(sb.from('pay_locks').select('*').eq('store_id',st).eq('month',first).eq('on_',true)),
+    memberQuery('incentives',x=>x.eq('month',first)),memberQuery('pay_marks',x=>x.eq('month',first)),memberQuery('advances',x=>x.eq('month',first).order('given_on')),
+    inspectionStore?Promise.resolve([]):q(sb.rpc('join_list',{p_store:st})),
+    q(sb.from('contracts').select('id,member_id,kind,title,status,token,created_at,signed_at').eq('store_id',st).neq('status','void').order('created_at',{ascending:false}).limit(200))
+  ]);
+  Object.assign(S,{tpl,ov,avails,reqs,offers,fixes,swaps,inc,marks,adv,joins,docs,rank:null,bench:null});S.lock=locks[0]||null;
 }
 // 이번 달·지난달 내 숫자를 익명 비교용으로 올림 (다른 매장은 평균만 받음)
 async function syncMetrics() {
@@ -324,25 +330,22 @@ async function loadDealer() {
   S.apps = await q(sb.rpc('my_applications')); S.slots = await q(sb.rpc('my_slots2'));
   [S.saves, S.myBlocks] = (await Promise.all([sb.from('dealer_saves').select('*').eq('on_', true), sb.from('blocks').select('store_id,at').eq('by', 'dealer').eq('on_', true)])).map(r => r.data || []); S.slotDays = await sb.rpc('my_slot_days').then(r => r.data || [], () => []);
   S.wallet = (await q(sb.rpc('my_wallet')))?.[0] || { balance: 0, available: 0 }; if (S.mode === 'dealer') { if (lsGet('ev_ref') && !S.prof?.ref_by) { const c = lsGet('ev_ref'); lsSet('ev_ref', ''); sb.rpc('set_ref', { p_code: c }).then(({ data, error }) => { if (!error) { S.prof.ref_by = 1; toast(`${data}님 초대로 가입했어요`); } }); } S.spinN = await q(sb.rpc('spin_left')); S.spins = await q(sb.from('dealer_spins').select('hand,points,created_at').order('created_at', { ascending: false }).limit(5)); } S.rep = await q(sb.rpc('dealer_rep', { u: S.user.id })).catch(() => null);
-  S.notis = await q(sb.from('notifications').select('*').neq('hidden', true).order('created_at', { ascending: false }).limit(30));
+  {const rows=await q(sb.from('notifications').select('*').neq('hidden',true).order('created_at',{ascending:false}).limit(30));S.notiOffset=rows.length;S.notis=visibleNotifications(rows,S.mode);}
   S.inq = await q(sb.from('inquiries').select('*').eq('from_user', S.user.id).order('created_at', { ascending: false }));
   S.wds = await q(sb.from('withdrawals').select('*').eq('user_id', S.user.id).order('created_at', { ascending: false }).limit(10));
 }
 async function loadHQ() {
-  const [first, last] = monthRange();
-  S.stats = await q(sb.rpc('hq_store_stats', { p_from: first, p_to: last })); S.refRep = await q(sb.rpc('hq_ref_report')).catch(() => []);
-  [S.hqToday, S.hqRev] = await Promise.all([q(sb.rpc('hq_today')), q(sb.rpc('hq_revenue'))]);
-  S.hqStores = await q(sb.from('stores').select('id,company_id,name,area').order('name'));
-  S.companies = await q(sb.from('companies').select('*').order('created_at', { ascending: false }));
-  S.inq = await q(sb.from('inquiries').select('*').order('created_at', { ascending: false }).limit(100));
-  S.hqProfiles = await q(sb.from('profiles').select('id,name,kind,can_post_franchise'));
-  S.hqOrders = await q(sb.from('orders').select('*').order('created_at', { ascending: false }).limit(50));
-  S.hqWds = await q(sb.from('withdrawals').select('*').order('created_at', { ascending: false }).limit(50));
-  await loadProducts();
-  S.notices = await q(sb.from('notices').select('*').order('created_at', { ascending: false }).limit(30));
-  S.hqFr = await q(sb.from('franchise_postings').select('*').order('created_at', { ascending: false })); S.hqLeads = await q(sb.from('franchise_leads').select('*').order('connected_at', { ascending: false }).limit(200));
-  S.hqPays = await q(sb.from('payments').select('*').order('created_at', { ascending: false }).limit(100));
-  S.traffic = (await sb.rpc('hq_traffic', { p_days: 30 })).data || null;
+ const [first,last]=monthRange();
+ const [stats,refRep,hqToday,hqRev,hqStores,companies,inq,hqProfiles,hqOrders,hqWds,,notices,hqFr,hqLeads,hqPays,traffic,notis]=await Promise.all([
+  q(sb.rpc('hq_store_stats',{p_from:first,p_to:last})),q(sb.rpc('hq_ref_report')).catch(()=>[]),q(sb.rpc('hq_today')),q(sb.rpc('hq_revenue')),
+  q(sb.from('stores').select('id,company_id,name,area').order('name')),q(sb.from('companies').select('*').order('created_at',{ascending:false})),
+  q(sb.from('inquiries').select('*').order('created_at',{ascending:false}).limit(100)),q(sb.from('profiles').select('id,name,kind,can_post_franchise')),
+  q(sb.from('orders').select('*').order('created_at',{ascending:false}).limit(50)),q(sb.from('withdrawals').select('*').order('created_at',{ascending:false}).limit(50)),loadProducts(),
+  q(sb.from('notices').select('*').order('created_at',{ascending:false}).limit(30)),q(sb.from('franchise_postings').select('*').order('created_at',{ascending:false})),
+  q(sb.from('franchise_leads').select('*').order('connected_at',{ascending:false}).limit(200)),q(sb.from('payments').select('*').order('created_at',{ascending:false}).limit(100)),
+  Promise.resolve(sb.rpc('hq_traffic',{p_days:30})).then(r=>r.data||null),q(sb.from('notifications').select('*').neq('hidden',true).order('created_at',{ascending:false}).limit(30))
+ ]);
+ Object.assign(S,{stats,refRep,hqToday,hqRev,hqStores,companies,inq,hqProfiles,hqOrders,hqWds,notices,hqFr,hqLeads,hqPays,traffic,notis,notiOffset:notis.length});
 }
 const payOf = p => { const r = erpUI.payroll(p, S.y, S.m, S.tpl, S.ov, S.inc.filter(i => i.member_id === p.id).reduce((a, i) => a + i.amount, 0), TODAY, night()), meal = p.contract === '4대' ? Math.min(200000, +p.checks?.meal || 0) : 0, adv = (S.adv || []).filter(x => x.member_id === p.id).reduce((a, x) => a + x.amount, 0);
   if (r.basis === 'actual') return { ...r, meal:r.meal||0, adv:r.adv||0, xfer:r.xfer??r.net };
@@ -350,14 +353,23 @@ const payOf = p => { const r = erpUI.payroll(p, S.y, S.m, S.tpl, S.ov, S.inc.fil
   const h = typeof holPay === 'function' ? holPay(p) : { done: 0, full: 0 }; if (h.full) { const g = r.gross + h.done, ded = E.dedOf(g, p.contract), fg = r.fullGross + h.full; return { ...r, hol: h.done, meal, adv, gross: g + meal, ded, net: g - ded + meal, fullGross: fg + meal, fullNet: fg - E.dedOf(fg, p.contract) + meal, xfer: Math.max(0, g - ded + meal - adv) }; }
   return { ...r, meal, adv, gross: r.gross + meal, fullGross: r.fullGross + meal, net: r.net + meal, xfer: Math.max(0, r.net + meal - adv) }; };
 const monFirst = () => E.ymd(S.y, S.m, 1), markOf = id => {const legacy=(S.marks||[]).find(x=>x.member_id===id&&x.month===monFirst());if(legacy?.paid_at||!S.actualPayroll)return legacy;const records=(S.workRecords||[]).filter(r=>r.member_id===id&&r.work_date.startsWith(monFirst().slice(0,7))&&r.status==='confirmed'&&Date.parse(r.end_at)<=Date.now()),payments=(S.workPayments||[]).filter(p=>p.member_id===id&&p.status==='paid');const row=S.actualPayroll.members?.find(r=>r.member_id===id),paid=payments.reduce((n,p)=>n+p.amount_net,0);return payments.length&&row&&!row.incomplete&&paid>=(row.xfer??row.net)&&records.every(r=>payments.some(p=>p.work_ids.includes(r.id)))?{paid_at:payments.at(-1).created_at,erp:true}:legacy;};
-const laborOf=(y,m)=>[...S.members.filter(p=>p.role!=='owner'),...(S.gone||[]).filter(p=>(p.checks?.out?.at||'')>=E.ymd(y,m,1))].reduce((n,p)=>{const r=erpUI.payroll(p,y,m,S.tpl,S.ov,0,p.active===false?p.checks?.out?.at||TODAY:TODAY,night());return n+(p.active===false?r.gross:r.fullGross)*((r.contract||p.contract)==='4대'?1.105:1);},0);
+function operatingLabor() {
+  if(S.myRole==='manager'&&S.me?.perms?.pay===false)return {unavailable:true};
+  const all=S.allMembers||[...S.members,...(S.gone||[])],staff=all.filter(p=>p.role!=='owner'),scheduled={};
+  for(const p of staff){const r=E.payroll(p,S.y,S.m,S.tpl,S.ov,0,TODAY,night());scheduled[p.id]=scheduleTotals(r.shifts.map(x=>({...x,date:E.ymd(S.y,S.m,x.d)})),(S.workRecords||[]).filter(x=>x.member_id===p.id),monFirst().slice(0,7));}
+  const payroll=S.actualPayroll||{members:staff.map(p=>{const r=E.payroll(p,S.y,S.m,S.tpl,S.ov,S.inc.filter(i=>i.member_id===p.id).reduce((n,i)=>n+i.amount,0),p.active===false?p.checks?.out?.at||TODAY:TODAY,night()),meal=p.contract==='4대'?Math.min(200000,+p.checks?.meal||0):0;return {...r,member_id:p.id,contract:p.contract,gross:r.gross+meal,projected_gross:r.fullGross+meal};})};
+  const sales=S.reports.reduce((n,r)=>n+(r.sales||0),0);
+  return laborTotals({members:staff,payroll,sales,scheduled});
+}
+const laborOf=(y,m)=>{const period=E.ymd(y,m,1),data=erpUI.periodPayroll(S.store?.id,period);if(data&&(period.slice(0,7)>=(S.store?.labor_actual_from||'9999').slice(0,7)||data.members?.some(r=>r.ledger_count)))return data.members.reduce((n,r)=>n+(r.projected_gross??r.gross)*((r.contract)==='4대'?1.105:1),0);return [...S.members.filter(p=>p.role!=='owner'),...(S.gone||[]).filter(p=>(p.checks?.out?.at||'')>=period)].reduce((n,p)=>{const r=erpUI.payroll(p,y,m,S.tpl,S.ov,0,p.active===false?p.checks?.out?.at||TODAY:TODAY,night());return n+(p.active===false?r.gross:r.fullGross)*((r.contract||p.contract)==='4대'?1.105:1);},0);};
+function scheduleLaborCard(){const r=operatingLabor();if(r.unavailable)return '<section class="card"><h3>직원별 누적 근무</h3><p class="note">급여 조회 권한이 필요해요</p></section>';return `<section class="card" id="schedule-labor"><h3>${S.m}월 직원별 누적 근무</h3><div class="row between"><b>인건비율 ${r.ratio==null?'—':r.ratio.toFixed(1)+'%'}</b><span>현재까지 발생 인건비 <b>₩${E.won(r.cost)}</b></span></div><p class="note">실제 마감 매출 ₩${E.won(r.sales)} 기준 · 휴게 제외 · 4대보험 사업주분 추정 포함${r.incomplete?` · 미확인 ${r.incomplete}건은 누적에서 제외`:''}</p><div class="tbl"><table><thead><tr><th>직원</th><th class="r">누적 시간</th><th class="r">스케줄 시간</th><th class="r">누적 인건비</th><th class="r">매출 대비</th></tr></thead><tbody>${r.rows.filter(x=>x.active||x.cost||x.hours).map(x=>`<tr><td>${esc(x.name)}${!x.active?' <small>퇴사</small>':''}</td><td class="r">${x.hours.toFixed(1)}h</td><td class="r">${x.plannedHours.toFixed(1)}h</td><td class="r">₩${E.won(x.cost)}</td><td class="r">${r.sales?(x.cost/r.sales*100).toFixed(1)+'%':'—'}</td></tr>`).join('')||'<tr><td colspan="5">근무 기록이 없어요</td></tr>'}</tbody></table></div><p class="note">누적은 완료 확인된 근무와 전환 전 스케줄 기준입니다. 스케줄 시간은 이번 달 예정 전체이며 미래 근무를 포함합니다.</p></section>`;}
 
 // ===== 화면 틀 =====
 const TABS = {
   store: [['home', '', '홈'], ['sched', '', '스케줄'], ['sales', '', '매출'], ['staff', '', '직원'], ['jobs', '', '구인'], ['market', '', '장터']],
   staff: [['work', '', '내 근무'], ['attend', '', 'QR 출퇴근'], ['jobs', '', '구인'], ['wallet', '', '지갑'], ['me', '', '내 정보']],
   dealer: [['jobs', '', '구인'], ['mywork', '', '내 근무'], ['lounge', '', '라운지'], ['wallet', '', '지갑'], ['me', '', '내 정보']],
-  hq: [['dash', '', '대시보드'], ['stores', '', '매장'], ['goods', '', '상품'], ['data', '', '데이터'], ['inq', '', '문의함'], ['notice', '', '공지'], ['fr', '', '가맹'], ['rep', '', '신고·정지']]
+  hq: [['dash', '', '대시보드'], ['stores', '', '매장'], ['jobs','','구인광고'], ['goods', '', '상품'], ['data', '', '데이터'], ['inq', '', '문의함'], ['notice', '', '공지'], ['fr', '', '가맹'], ['rep', '', '신고·정지']]
 };
 // 탭·상단 아이콘: 이모지 대신 단색 선 아이콘 (기기마다 같은 모양)
 const ICON = { home: '<path d="M3 11l9-8 9 8v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/>', sched: '<path d="M4 5h16v15H4zM4 10h16M8 3v4M16 3v4"/>', sales: '<circle cx="12" cy="12" r="9"/><path d="M8 9l1.5 6 2.5-5 2.5 5L16 9M8 12h8"/>',
@@ -382,7 +394,7 @@ function render() {
     store: () => ((S.tab === 'more' && S.sub === 'daily' ? vDaily : 0) || ({ improve: vImprove, home: vHome, sched: vSched, sales: vSales, staff: vStaff, jobs: vJobs, more: vMore }[S.tab] || vHome))(),
     staff: () => staffNotice() + ({ learn: vLearn, work: vWork, attend: vAttend, jobs: vBoard, wallet: vWallet, me: vMe }[S.tab] || vWork)(),
     dealer: () => ({ jobs: vBoard, mywork: vMyWork, lounge: vLounge, wallet: vWallet, me: vMe }[S.tab] || vBoard)(),
-    hq: () => ({ dash: vHqDash, goods: vHqGoods, stores: vHqStores, data: vHqData, inq: vHqInq, notice: vHqNotice, fr: vHqFr, rep: vHqRep }[S.tab] || vHqDash)() };
+    hq: () => ({ dash: vHqDash, goods: vHqGoods, stores: vHqStores, jobs: hqOps.adverts, data: vHqData, inq: vHqInq, notice: vHqNotice, fr: vHqFr, rep: vHqRep }[S.tab] || vHqDash)() };
   const lock = S.mode === 'store' && S.company && !S.active ? `<div class="lockbar"><div><b>무료 체험이 끝났어요.</b> 지금은 보기만 돼요 — 입력한 데이터는 그대로 있어요.</div>${isOwner() ? `<span class="row"><button class="btn sm" data-act="plan" data-v="basic">베이직 ₩${E.won(PRICE.basic)}</button><button class="btn sm gold" data-act="plan" data-v="pro">프로 ₩${E.won(PRICE.pro)}</button></span>` : '<button class="btn sm" data-act="ask-owner" data-v="요금제">대표님께 요청</button>'}</div>` : '';
   const c = S.company, offer = companyOffer(c, TODAY), paidPlan = c && (c.plan === 'pro' || c.plan === 'basic') && c.paid_until && new Date(c.paid_until) > now;
   const planbar = S.mode === 'store' && S.tab === 'home' && !S.sub && c && S.active && isOwner() ? `<div class="planbar"><div>${offer.active ? `<b>가입 혜택 · 일반 무료 / 프로 월 9,900원</b><small>${offer.endsOn} 전까지 · 이후 일반 ₩${E.won(PRICING.basicMonthly)} / 프로 ₩${E.won(PRICING.proMonthly)} (회사당 월)</small>` : paidPlan ? `<b>${c.plan === 'pro' ? '프로' : '베이직'} 이용 중</b><small>${new Date(c.paid_until).toLocaleDateString('ko-KR')}까지 · 회사당 월 ₩${E.won(c.plan === 'pro' ? PRICE.pro : PRICE.basic)}</small>` : `<b>무료 체험 D-${trialLeft(c)}</b><small>끝나면 베이직 ₩${E.won(PRICE.basic)} · 프로 ₩${E.won(PRICE.pro)} (회사당 월) · 끝나도 데이터는 그대로 남아요</small>`}</div><button class="btn sm ${paidPlan && c.plan === 'pro' ? '' : 'gold'}" data-act="sub" data-v="pricing">${paidPlan ? '요금제 관리' : '요금제 보기'}</button></div>` : '';
@@ -441,7 +453,7 @@ function vOnboard() {
 
 // ===== 대표·점장 =====
 // 하단 탭 하나에 세부 메뉴를 묶음 (더보기 없음)
-const SUBNAV = { home: [['home', null, '브리핑'], ['improve', null, '매장 개선'], ['more', 'pnl', '월간 손익'], ['more', 'daily', '일 매출'], ['more', 'pricing', '요금제']], sched: [['sched', null, '근무표'], ['more', 'rot', '테이블 로테이션'], ['more', 'qr', 'QR 출퇴근']],
+const SUBNAV = { home: [['home', null, '브리핑'], ['improve', null, '매장 개선'], ['more', 'pnl', '월간 손익'], ['more','analysis','운영 분석'], ['more', 'daily', '일 매출'], ['more', 'pricing', '요금제']], sched: [['sched', null, '근무표'], ['more', 'rot', '테이블 로테이션'], ['more', 'qr', 'QR 출퇴근']],
   sales: [['sales', null, '오픈·마감'], ['more', 'order', '재고·발주']], staff: [['staff', null, '직원·급여'], ['more', 'edu', '교육']], jobs: [['jobs', null, '우리 공고 올리기'], ['more', 'board', '전체 구인 공고']], market: [['more', 'used', '중고 장터'], ['more', 'transfer', '점포 양도양수'], ['more', 'franchise', '가맹 모집']] };
 const SUB_GROUP = { pricing: 'home', franchise: 'market', board: 'jobs', notice: 'home', daily: 'home', pnl: 'home', rot: 'sched', qr: 'sched', order: 'sales', edu: 'staff', used: 'market', transfer: 'market' };
 const groupOf = () => S.tab === 'more' ? SUB_GROUP[S.sub] || null : S.tab === 'improve' ? 'home' : S.tab;
@@ -482,7 +494,7 @@ function pinLock() {
 }
 document.addEventListener('visibilitychange', () => { if (document.hidden) S.hidAt = Date.now(); else if (S.hidAt && Date.now() - S.hidAt > 3 * 60e3) pinLock(); });
 function notiSheet() {
-  const L = S.notis || [];
+  const L = visibleNotifications(S.notis||[],S.mode);
   openSheet(`<div class="row between"><h2 style="margin:0">알림</h2><span class="row" style="gap:6px">${L.some(x => !x.read) ? '<button class="btn sm" data-act="noti-read">모두 읽음</button>' : ''}${L.length ? '<button class="btn sm" data-act="noti-clear">지우기</button>' : ''}</span></div>
   <div class="nlist">${L.map(x => `<div class="li ${x.read ? '' : 'unread'}"><span>${esc(x.body)}</span><small>${fmtDT(x.created_at)}</small></div>`).join('') || '<div class="empty">알림이 없어요</div>'}</div>
   ${L.length >= 20 ? '<button class="btn full" data-act="noti-more">이전 알림 더 보기</button>' : ''}<button class="btn sm" data-act="noti-cfg" style="margin-top:10px">알림 종류 켜고 끄기 · 방해 금지 시간</button>`);
@@ -582,10 +594,8 @@ function eventCard() {
   return `<div class="card"><h3>이벤트 효과 <small>최근 ${ev.length}번</small></h3><div class="evc"><div><small>이벤트한 날 평균</small><b class="num">₩${man(a)}</b></div><div><small>평소 평균</small><b class="num mut">₩${man(b)}</b></div><div><small>차이</small><b class="num ${p >= 0 ? 'up' : 'down'}">${p >= 0 ? '+' : ''}${p}%</b></div></div>${ev.slice(0, 4).map(r => `<div class="li"><span><span class="mut">${r.report_date.slice(5).replace('-', '/')}</span> ${esc(r.detail.event)}</span><b class="num">₩${man(r.sales)}</b></div>`).join('')}</div>`;
 }
 function laborBudget(M, cur) {
-  const pct = +S.store.equip?.labor_pct || 0; if (!isOwner() && !pct) return '';
-  if (!pct) return `<div class="card lbud"><div><b>인건비 예산</b><small>매출의 몇 %까지 쓸지 정하면 넘을 때 알려드려요</small></div><button class="btn sm" data-act="lbud">정하기</button></div>`;
-  const r = M.proj ? M.labor / M.proj * 100 : 0, over = r > pct;
-  return `<div class="card lbud ${over ? 'over' : ''}"><div><b>인건비 ${r.toFixed(1)}% <small class="mut">/ 예산 ${pct}%</small> ${help('lbud')}</b><small>${over ? `예산보다 ₩${man(M.labor - M.proj * pct / 100)} 많아요${cur ? ' · 손님 적은 시간 인원을 줄여보세요' : ''}` : `예산 안이에요 · 여유 ₩${man(M.proj * pct / 100 - M.labor)}`}</small><div class="bar"><i style="width:${Math.min(100, r / pct * 100)}%"></i></div></div>${isOwner() ? '<button class="btn sm" data-act="lbud">바꾸기</button>' : ''}</div>`;
+ const r=operatingLabor();if(r.unavailable)return '';const pct=+S.store.equip?.labor_pct||0,over=pct&&r.ratio>pct;
+ return `<div class="card lbud ${over?'over':''}" id="labor-total"><div><b>인건비율 ${r.ratio==null?'—':r.ratio.toFixed(1)+'%'}${pct?` <small class="mut">/ 예산 ${pct}%</small>`:''}</b><p style="margin:8px 0 4px">현재까지 발생 인건비 <b class="num">₩${E.won(r.cost)}</b></p><small>실제 마감 매출 ₩${E.won(r.sales)} 대비 · 세전 급여 ₩${E.won(r.gross)} + 4대보험 사업주분 추정 ₩${E.won(r.employer)}</small>${r.incomplete?`<p class="note">완료 확인이 필요한 근무 ${r.incomplete}건은 위 누적 금액에서 제외돼요. 스케줄에서 확인하세요.</p>`:''}</div>${isOwner()?`<button class="btn sm" data-act="lbud">${pct?'예산 변경':'예산 설정'}</button>`:''}</div>`;
 }
 // 그 달 고정비: 그 달에 넣은 값, 없으면 가장 최근 달 값을 이어서 씀
 const fixedFor = (y, m) => { const f = E.ymd(y, m, 1), rows = (S.fixedM || []).filter(r => r.month <= f); const r = rows[rows.length - 1]; return { fx: r?.fixed || {}, from: r?.month || null, own: r?.month === f }; };
@@ -658,6 +668,8 @@ function topStrip(M) {
     <div class="card kpi"><div class="l">이번 달 예상 순이익${M.n < 3 && M.est ? ' <small>(지난달 기준 추정)</small>' : ''}</div><div class="v num ${M.left >= 0 ? 'up' : 'down'}">${M.n >= 3 || M.est ? `${M.left < 0 ? '−' : ''}₩${man(Math.abs(M.left))}` : '<small class="mut" style="font-size:13px">마감 3일부터</small>'}</div><small class="mut">매출 ₩${man(M.proj)} − 비용 ₩${man(M.cost)}${M.est ? ' · 지난달 하루 평균으로 예측' : ''}</small></div>
     <button class="card kpi ${prob[3] ? 'go' : ''}" ${prob[3] ? `data-tab="${prob[3]}"` : ''}><div class="l">지금 가장 큰 문제</div><div class="v ${prob[2]}" style="font-size:16px">${esc(prob[0])}</div><small class="mut">${esc(prob[1])}${prob[3] ? ' ›' : ''}</small></button></div>`;
 }
+async function loadOwnerAnalysis(){if(inspectionStore||S.myRole==='manager'&&S.me?.perms?.sales===false)return;if(!(S.myRole==='manager'&&S.me?.perms?.pay===false))await syncMetrics();const [bench,rank]=await Promise.all([q(sb.rpc('bench',{p_store:S.store.id})),q(sb.rpc('store_rank',{p_store:S.store.id,p_from:monthRange()[0],p_to:monthRange()[1]}))]);S.bench=bench;S.rank=rank?.[0]||null;render();}
+function vOwnerAnalysis(){if(S.myRole==='manager'&&S.me?.perms?.sales===false)return '<div class="empty">매출 조회 권한이 필요해요</div>';const M=monthSummary(S.y,S.m),cur=true;return `<h1>운영 분석</h1><p class="sub">필요할 때 열어 보는 AI·매장 비교</p>${cur && isOwner() ? (!hasCompanyPro(S.company) ? proFeatureCard('ai') : `<div class="card"><h3>AI 비서 <span class="pro-tag">PRO 전용</span> <small>우리 매장 숫자로 답하고, 글도 써요</small></h3><div class="row" style="gap:6px"><input id="ai-q" placeholder="질문, 또는 공지·홍보할 내용 (예: 토요일 8시 토너먼트 바인 3만)" style="flex:1;min-width:0"><button class="btn sm pri" data-act="ai-ask">묻기</button></div><div class="row" style="gap:6px;flex-wrap:wrap;margin-top:8px"><button class="chip" data-act="ai-ask" data-q="1">📊 이번 달 총평</button><button class="chip" data-act="ai-write" data-k="notice">📢 직원 공지 쓰기</button><button class="chip" data-act="ai-write" data-k="promo">🎉 손님 홍보글 쓰기</button></div><p class="note" id="ai-a" style="white-space:pre-wrap"></p><button class="btn sm" id="ai-copy" data-act="ai-copy" hidden>복사</button></div>`) : ''}${topStrip(M)}${rankBar()}${lightsCard(false)}${selfCard()}${mrepCard()}`;}
 function vHome() {
   const M = monthSummary(S.y, S.m), [y, m, d] = TODAY.split('-').map(Number), cur = S.y === y && S.m === m, hasStaff = S.members.some(p => p.role !== 'owner');
   const months = Array.from({ length: 6 }, (_, i) => { const dt = new Date(S.y, S.m - 6 + i, 1); return [dt.getFullYear(), dt.getMonth() + 1]; }).map(([yy, mm]) => ({ yy, mm, s: monthSummary(yy, mm) })).filter(x => x.s.n);
@@ -666,9 +678,9 @@ function vHome() {
   // 주 컬럼: 오늘·이번 달 판단에 필요한 것 / 보조 컬럼: 참고 정보 (모바일에선 같은 순서로 세로)
   return `<div class="home">${setupCard()}<div class="hhead">${storeHead('브리핑')}${newN ? `<button class="card nbanner" data-act="sub" data-v="notice"><span class="ntag">공지</span><div><small>운영사에서 새 소식이 왔어요</small><b>${esc(nt.title)}</b></div><span class="mut">›</span></button>` : ''}</div>
   <div class="hmain">${coCard()}
-  ${cur ? noShowCard() + liveCard() + forecastCard() + payDayCard() + iosCard() + startCard() + todoCard() + upcomingCard() + laborCard() + noticeCard() + `<button class="card nowline" data-act="poster"><small>홍보</small><b>🎨 포스터 스튜디오 · 템플릿 6종</b><span class="mut">›</span></button>` : ''}${cur && isOwner() ? (!hasCompanyPro(S.company) ? proFeatureCard('ai') : `<div class="card"><h3>AI 비서 <span class="pro-tag">PRO 전용</span> <small>우리 매장 숫자로 답하고, 글도 써요</small></h3><div class="row" style="gap:6px"><input id="ai-q" placeholder="질문, 또는 공지·홍보할 내용 (예: 토요일 8시 토너먼트 바인 3만)" style="flex:1;min-width:0"><button class="btn sm pri" data-act="ai-ask">묻기</button></div><div class="row" style="gap:6px;flex-wrap:wrap;margin-top:8px"><button class="chip" data-act="ai-ask" data-q="1">📊 이번 달 총평</button><button class="chip" data-act="ai-write" data-k="notice">📢 직원 공지 쓰기</button><button class="chip" data-act="ai-write" data-k="promo">🎉 손님 홍보글 쓰기</button></div><p class="note" id="ai-a" style="white-space:pre-wrap"></p><button class="btn sm" id="ai-copy" data-act="ai-copy" hidden>복사</button></div>`) : ''}${cur ? topStrip(M) : ''}
-  ${(() => { const g = goalOf(S.y, S.m), T = cur && g ? todayTodo(M, g) : []; return T.length ? `<button class="card nowline" ${T[0][3] ? `data-act="goto" data-t="${T[0][3] === 'order' ? 'more' : T[0][3]}" ${T[0][3] === 'order' ? 'data-s="order"' : ''}` : ''}><small>지금 할 일</small><b>${T[0][1]}</b><span class="mut">›</span></button>` : ''; })()}
-  ${rankBar()}
+  ${cur ? noShowCard() + liveCard() + forecastCard() + payDayCard() + iosCard() + startCard() + upcomingCard() + laborCard() + noticeCard() + `<button class="card nowline" data-act="poster"><small>홍보</small><b>🎨 포스터 스튜디오 · 템플릿 6종</b><span class="mut">›</span></button>` : ''}
+
+
   <div class="sech"><h2>${S.m}월 손익</h2>${monthNav()}</div>
   ${goalCard(M)}
   ${laborBudget(M, cur)}
@@ -679,8 +691,8 @@ function vHome() {
     ${Object.entries(M.exp).map(([k, v]) => `<div class="li"><span class="mut">− ${CAT[k] || k}</span><span class="num">₩${man(v)}</span></div>`).join('')}
     <div class="li sum"><b>= ${cur ? '월말 예상 남는 돈' : '남는 돈'}</b><b class="num ${M.left >= 0 ? 'up' : 'down'}">${M.n >= 3 || !cur || M.est ? `${M.left < 0 ? '−' : ''}₩${man(Math.abs(M.left))}${M.left < 0 ? ' 적자' : ''}${cur && M.n < 3 ? ' <small class="mut">추정</small>' : ''}` : '<small class="mut" style="font-size:13px">마감 3일부터 보여요</small>'}</b></div>
     <p class="note" style="margin-bottom:0">매출 = 매일 마감 · 인건비 = 근무표 자동 · 월세 등 = 고정지출에 한 번만 <button class="btn sm" data-act="fixed">고정지출 넣기</button></p><p class="note">${M.bep && M.bep <= E.daysIn(S.y, S.m) ? `손익분기: <b class="up">${S.m}월 ${M.bep}일</b>에 넘어요.` : '이번 달은 손익분기를 못 넘어요.'}</p></div>
-  ${lightsCard(false)}
-  ${selfCard()}
+
+
   </div><details class="hmore" ${matchMedia('(min-width:900px)').matches ? 'open' : ''}><summary class="card">더 보기 <small class="mut">월별 손익 · 우리 지역 딜러 · 고정비 · 오늘 근무표 · 알림</small></summary><div class="hside">
   ${months.length ? `<div class="card"><h3>월별 손익 <small>매출 − 비용 = 남은 돈</small></h3><div class="pnl">${months.map(x => `<div class="pr"><span class="mut">${x.mm}월</span><span class="num">₩${man(x.s.proj)}</span><span class="num mut">−₩${man(x.s.cost)}</span><span class="pb"><i class="${x.s.left >= 0 ? 'g' : 'r'}" style="width:${Math.max(3, Math.abs(x.s.left) / mx * 100)}%"></i></span><b class="num ${x.s.left >= 0 ? 'up' : 'down'}">${x.s.left < 0 ? '−' : '+'}₩${man(Math.abs(x.s.left))}</b></div>`).join('')}</div>${months.at(-1).yy === y && months.at(-1).mm === m ? '<p class="note">이번 달은 월말 예상이에요.</p>' : ''}</div>` : ''}
   ${opsEntry()}
@@ -688,7 +700,7 @@ function vHome() {
   ${hasStaff ? `<div class="card"><div class="row between"><h3 style="margin:0">오늘 근무표 <small>${m}월 ${d}일 (${E.WD[E.wdOf(y, m, d)]})</small></h3><button class="btn sm" data-act="day-open" data-d="${TODAY}">스케줄 →</button></div>${dayTimeline(TODAY, true)}</div>` : ''}
   ${hasStaff ? '' : `<div class="card"><h3>처음 할 일</h3><div class="li"><div><b>① 직원 등록</b><small>시급·계약·계좌까지</small></div><button class="btn sm pri" data-tab="staff">하러 가기</button></div><div class="li"><div><b>② 스케줄 짜기</b><small>요일 기본 + 날짜별 수정</small></div><button class="btn sm" data-tab="sched">하러 가기</button></div><div class="li"><div><b>③ 매일 매출 보고</b></div><button class="btn sm" data-tab="sales">하러 가기</button></div></div>`}
   ${S.joins.length ? `<div class="card" style="border-color:rgba(245,158,11,.5)"><h3>소속 신청 ${S.joins.length}건 <button class="btn sm pri" data-tab="staff">확인</button></h3></div>` : ''}
-  ${S.notis.length ? `<div class="card"><h3>알림</h3>${S.notis.slice(0, 5).map(x => `<div class="li"><span>${esc(x.body)}</span><small>${fmtDT(x.created_at)}</small></div>`).join('')}</div>` : ''}
+  ${S.notis.length ? `<div class="card"><h3>알림</h3>${S.notis.slice(0,5).map(x=>`<div class="li"><span>${esc(x.body)}</span><small>${fmtDT(x.created_at)}</small></div>`).join('')}</div>`:''}
   </div></details></div>`;
 }
 // ===== 매장 개선 (프로) — 순위·경고등·처방·꼭 할 일 =====
@@ -1174,8 +1186,8 @@ function vSched() {
   const need = S.store.need_by_wd || [3, 4, 3, 4, 6, 7, 2], D = E.daysIn(S.y, S.m), lead = E.wdOf(S.y, S.m, 1), staff = S.members.filter(p => p.role !== 'owner');
   if (!staff.length) return `${storeHead('근무')}<div class="card empty">먼저 직원을 등록해 주세요 <button class="btn sm pri" data-tab="staff">직원 등록</button> <button class="btn sm" data-act="helper-add">+ 헬퍼</button></div>`;
   const view = S.schedView || (homeView === 'simple' ? 'day' : 'month');
-  const head = `${storeHead('근무')}<div class="row between" style="margin-top:10px">${view === 'day' ? '<span></span>' : monthNav()}<div class="seg">${[['month', '월간'], ['day', '일간'], ['week', '기본']].map(([k, l]) => `<button data-act="sview" data-v="${k}" aria-pressed="${view === k}">${l}</button>`).join('')}</div></div>
-  ${S.store.need_by_wd ? '' : '<div class="card" style="margin-top:10px;border-color:var(--gold)"><b>먼저 요일별 적정 인원을 정해 주세요</b><small class="mut" style="display:block">아래 달력 위 \'적정 인원\' 칸에 요일마다 필요한 사람 수를 넣으면 부족한 날을 정확히 알려드려요. 지금은 기본값이에요.</small></div>'}${streakCard()}<div class="row" style="justify-content:flex-end;margin-top:8px"><button class="btn sm" data-act="helper-add" title="가입 안 한 헬퍼도 근무·인건비 기록">+ 헬퍼</button><button class="btn sm" data-act="bulk-past" title="지난 날짜 근무를 표로 한 번에">지난 근무 한번에</button><details class="moreb"><summary class="btn sm">⋯ 더보기</summary><div class="moreb-in"><button class="btn sm" data-act="sched-img">${S.m}월 근무표 이미지</button><button class="btn sm" data-act="print">인쇄</button></div></details></div>${S.round?.status || +TODAY.slice(8) >= 15 ? roundCard() : `<details class="card"><summary><b>다음 달 스케줄 자동</b> <small class="mut">보통 20일쯤 시작 · 펼치기</small></summary>${roundCard()}</details>`}${swapCard()}<p class="note" style="margin:6px 0 0">직원 투표 없이 사장님이 바로 넣어도 돼요 · 칸 누르기 → + 또는 복사·붙이기</p>`;
+  const head = `${storeHead('근무')}${scheduleLaborCard()}<div class="row between" style="margin-top:10px">${view === 'day' ? '<span></span>' : monthNav()}<div class="seg">${[['month', '월간'], ['day', '일간'], ['week', '기본']].map(([k, l]) => `<button data-act="sview" data-v="${k}" aria-pressed="${view === k}">${l}</button>`).join('')}</div></div>
+  ${S.store.need_by_wd ? '' : '<div class="card" style="margin-top:10px;border-color:var(--gold)"><b>먼저 요일별 적정 인원을 정해 주세요</b><small class="mut" style="display:block">아래 달력 위 \'적정 인원\' 칸에 요일마다 필요한 사람 수를 넣으면 부족한 날을 정확히 알려드려요. 지금은 기본값이에요.</small></div>'}${streakCard()}<div class="row" style="justify-content:flex-end;margin-top:8px"><button class="btn sm" data-act="helper-add" title="가입 안 한 헬퍼도 근무·인건비 기록">+ 헬퍼</button><button class="btn sm" data-act="bulk-past" title="지난 날짜 근무를 표로 한 번에">지난 근무 한번에</button><details class="moreb"><summary class="btn sm">⋯ 더보기</summary><div class="moreb-in"><button class="btn sm" data-act="sched-img">${S.m}월 근무표 이미지</button><button class="btn sm" data-act="print">인쇄</button></div></details></div>${swapCard()}<p class="note" style="margin:6px 0 0">직원 투표 없이 사장님이 바로 넣어도 돼요 · 칸 누르기 → + 또는 복사·붙이기</p>`;
   if (view === 'week') return `${head}<div class="card"><div class="row" style="justify-content:flex-end"><button class="btn sm" data-act="brk-all">휴게시간 한 번에</button><button class="btn sm" data-act="sched-import">고정 근무 가져오기</button></div><p class="note" style="margin-top:0">매주 반복되는 기본 근무예요. 칸을 눌러 고치세요. 날짜마다 다르면 '월간'에서 그날만 바꾸세요.</p><div class="tbl"><table><thead><tr><th>이름</th>${E.WD.map(w => `<th>${w}</th>`).join('')}</tr></thead><tbody>
     ${staff.map(p => `<tr><td><b>${esc(p.nick)}</b></td>${E.WD.map((_, i) => { const t = S.tpl.find(x => x.member_id === p.id && x.weekday === i); return `<td><button class="chip ${t ? '' : 'add'}" data-act="edit-w" data-m="${p.id}" data-w="${i}">${t ? `${t5(t.start_t)}–${t5(t.end_t)}` : '+'}</button></td>`; }).join('')}</tr>`).join('')}</tbody></table></div></div>`;
   if (view === 'day') { const k = S.schedDay || TODAY, [y, m, d] = k.split('-').map(Number), hol = isHoliday(k), n = staff.filter(p => E.shiftOn(p.id, y, m, d, S.tpl, S.ov)).length, nd = needOn(k, need);
@@ -1328,7 +1340,6 @@ function upcomingCard() {
   staff.filter(p => p.health_exp).forEach(p => { const k = dd(p.health_exp); if (k <= 30) L.push([k >= 0 ? `D-${k}` : '만료', `${esc(p.nick)} 보건증 ${k >= 0 ? '만료 예정' : '만료됨'}`, 'staff']); });
   const ann = (k0, lab) => { if (!k0) return; const [, mm, dd0] = k0.split('-').map(Number); let k = E.ymd(y, mm, dd0); if (dd(k) < 0) k = E.ymd(y + 1, mm, dd0); const n = dd(k); return n <= 7 ? [n ? `D-${n}` : '오늘', lab(k)] : null; };
   staff.forEach(p => { const b = ann(p.birth, () => `${esc(p.nick)} 생일 🎂`); if (b) L.push([...b, 'staff']); const j = p.joined_on && ann(p.joined_on, k => `${esc(p.nick)} 입사 ${+k.slice(0, 4) - +p.joined_on.slice(0, 4)}주년`); if (j && +j[1].match(/(\d+)주년/)?.[1] > 0) L.push([...j, 'staff']); });
-  const low = staff.filter(p => +p.hourly_rate && +p.hourly_rate < minWage()); if (low.length) L.unshift(['⚠️', `${low.map(p => esc(p.nick)).join('·')} 시급이 ${y}년 최저임금(₩${E.won(minWage())})보다 낮아요`, 'rate']);
   if (!L.length) return '';
   return `<div class="card upc"><h3>다가오는 일 ${help('upc')} <small>${L.length}개</small></h3>${L.slice(0, 8).map(([t, b, go]) => `<div class="li"><span><span class="pill ${/오늘|지남|만료|⚠️/.test(t) ? 'r' : 'y'}">${t}</span> ${b}</span>${go.startsWith('ins:') ? `<button class="btn sm" data-act="ins-done" data-m="${go.slice(4)}">신고함</button>` : go === 'rate' ? '<button class="btn sm pri" data-act="rate-bulk">맞추기</button>' : go === 'wht' ? '<button class="btn sm" data-act="wht">금액 보기</button>' : go === 'ops' ? '<button class="btn sm" data-act="ops-open">보기</button>' : `<button class="btn sm" data-tab="staff">보기</button>`}</div>`).join('')}</div>`;
 }
@@ -1440,6 +1451,7 @@ async function manage(postId, kind) {
   const ef = $('#pedit-' + postId); if (ef) { enhanceInputs(ef); xfeeBox(ef); }
 }
 function vMore() {
+ if(S.sub==='analysis')return vOwnerAnalysis();
   const sub = S.sub;
   if (!sub) return vHome();
   const back = '';
@@ -1924,7 +1936,7 @@ function vMe() {
 // ===== 운영사 =====
 function trafficCard() {
   const T = S.traffic; if (!T) return ''; const D = T.daily || [], mx = Math.max(1, ...D.map(x => x.visitors)), MN = { guest: '비로그인', store: '대표·점장', staff: '직원', dealer: '딜러', hq: '운영사', onboard: '가입 중' }, UA = { pc: 'PC', mobile: '모바일 웹', app: '설치 앱' };
-  return `<div class="card"><h3>방문자 <small>최근 30일 · 같은 기기는 하루 1번만 셈</small></h3><div class="grid2" style="gap:8px"><div class="kpi"><div class="l">오늘</div><div class="v num">${T.today}</div></div><div class="kpi"><div class="l">최근 7일</div><div class="v num">${T.w7}</div></div><div class="kpi"><div class="l">최근 30일</div><div class="v num">${T.m30}</div></div><div class="kpi"><div class="l">로그인 사용자 DAU · MAU</div><div class="v num">${T.dau} · ${T.mau}</div></div></div>
+  return `<div class="card"><h3>방문자 <button class="btn sm" data-act="hq-traffic">자세히 보기</button> <small>최근 30일 · 같은 기기는 하루 1번만 셈</small></h3><div class="grid2" style="gap:8px"><div class="kpi"><div class="l">오늘</div><div class="v num">${T.today}</div></div><div class="kpi"><div class="l">최근 7일</div><div class="v num">${T.w7}</div></div><div class="kpi"><div class="l">최근 30일</div><div class="v num">${T.m30}</div></div><div class="kpi"><div class="l">로그인 사용자 DAU · MAU</div><div class="v num">${T.dau} · ${T.mau}</div></div></div>
   <div class="tbars">${D.map(x => `<i title="${x.d} 방문 ${x.visitors} · 로그인 ${x.users} · 가입 ${x.signups}" style="height:${Math.max(2, x.visitors / mx * 100)}%">${x.signups ? '<b></b>' : ''}</i>`).join('')}</div><div class="row between mut" style="font-size:11px"><span>${(D[0]?.d || '').slice(5)}</span><span>● 표시 = 그날 가입자 있음</span><span>오늘</span></div>
   <div class="li"><span>누가 왔나</span><small>${Object.entries(T.by_mode || {}).sort((a, b) => b[1] - a[1]).map(([k, n]) => `${MN[k] || k} ${n}`).join(' · ') || '-'}</small></div><div class="li"><span>어디서 왔나</span><small>${(T.by_ref || []).map(r => `${esc(r.ref)} ${r.n}`).join(' · ') || '-'}</small></div><div class="li"><span>기기</span><small>${Object.entries(T.by_ua || {}).map(([k, n]) => `${UA[k] || k} ${n}`).join(' · ') || '-'}</small></div><div class="li"><span>전체 가입자</span><b class="num">${T.users}명</b></div></div>`;
 }
@@ -2783,7 +2795,7 @@ const EVK = { sales_entry: '마감 입력', schedule_created: '스케줄 저장'
 async function taxiLoad() { S.taxi = (await sb.from('dealer_taxi').select('*').order('d', { ascending: false }).limit(200)).data || []; }
 async function tplLoad() { S.tpls = (await sb.from('hq_tpl').select('*').eq('on_', true).order('id')).data || []; }
 // 화면 연결
-{ const o = vHome; vHome = () => { const h = o(); return h.replace('<div class="hmain">', `<div class="hmain">${mrepCard()}`); }; }
+{ const o = vHome; vHome = () => { const h = o(); return h; }; }
 { const o = vWork; vWork = () => { const h = o(); return S.sub === 'ops' ? h : h.replace('<h1>내 근무</h1>', `<h1>내 근무</h1>${staffFav()}`); }; }
 { const o = vHqDash; vHqDash = () => { if (!S.hqOps && !S.hqOpsBusy) { S.hqOpsBusy = 1; sb.rpc('hq_ops').then(({ data }) => { S.hqOps = data || {}; S.hqOpsBusy = 0; if (S.tab === 'dash') render(); }); } return o(); }; }
 { const o = vHqInq; vHqInq = () => { if (!S.tpls) { S.tpls = []; tplLoad().then(render); } return o(); }; }
@@ -2803,6 +2815,7 @@ function a11yFix() {
 { const o = after68; after68 = () => { o(); a11yFix(); if (S.mode === 'store' && S.tab === 'sales') { const R = window.SpeechRecognition || window.webkitSpeechRecognition; document.querySelectorAll('#mic').forEach(m => { if (!R) m.remove(); }); if (R) ['card', 'transfer'].forEach(n => { const i = $(`#report-form [name=${n}]`); if (i && !i.nextElementSibling?.classList?.contains('mic2')) i.insertAdjacentHTML('afterend', `<button type="button" class="btn sm mic2" data-act="mic" data-v="${n}" aria-label="말로 입력">🎤</button>`); }); } }; }
 installInspectionGuard({active:()=>!!inspectionStore&&!!S.prof?.is_hq,storeName:()=>S.store?.name,toast});
 installHQStoreView({S,sb,A:A68,openSheet,busy,E});
+const hqOps=installHQOperations({S,sb,A:A68,openSheet,busy,render:()=>render(),TODAY});
 Object.assign(A68, {
   order: () => { if (isOwner() || !isMgr()) return false; const items = Object.entries(S.cart).filter(([, n]) => n > 0).map(([id, n]) => ({ id: +id, q: n, price: item(id).sp })); if (!items.length) return toast('담은 상품이 없어요'); busy(async () => { const total = items.reduce((a, i) => a + i.price * i.q, 0); await q(sb.from('store_items').insert({ store_id: S.store.id, kind: 'order_req', title: items.map(i => `${item(i.id)?.n}×${i.q}`).join(', ').slice(0, 80), data: { items, total, by: myNick() } })); S.cart = {}; await reload(); toast('대표님께 발주 승인을 요청했어요'); }); },
   'rq-ok': (b, d) => busy(async () => { const x = S.items.find(i => String(i.id) === d.v); await q(sb.from('store_items').update({ status: 'ok' }).eq('id', d.v)); const ch = x && await applyReq(x); await reload(); toast(ch ? '승인했어요. 근무표 끝나는 시간을 바꿔 급여에 반영했어요' : '승인했어요. 직원에게 알림이 가요'); }),
@@ -3021,9 +3034,9 @@ document.addEventListener('click', e => {
   if (a === 'unblk') return busy(async () => { await q(sb.from('blocks').update({ on_: false }).match({ store_id: S.store.id, dealer_id: d.v, by: 'store' })); closeSheet(); toast('차단을 풀었어요'); });
   if (a === 'snote') return openSheet(`<h2>딜러에게 한마디</h2><p class="sub">딜러 근무 카드에 보이고 알림이 가요</p><form class="f" id="snote-form" data-s="${d.s}" data-p="${d.p}" data-k="${d.k}"><input name="note" maxlength="200" placeholder="예: 오늘 진행 깔끔했어요! 다음에도 부를게요" required><button class="btn pri full" style="margin-top:8px">보내기</button></form>`);
   if (a === 'notis') { notiSheet(); return; }
-  if (a === 'noti-read') return busy(async () => { await q(sb.from('notifications').update({ read: true }).eq('read', false)); (S.notis || []).forEach(x => x.read = true); notiSheet(); render(); });
+  if (a === 'noti-read') return busy(async () => { await q(sb.from('notifications').update({ read: true }).in('id',(S.notis||[]).filter(x=>!x.read).map(x=>x.id))); (S.notis || []).forEach(x => x.read = true); notiSheet(); render(); });
   if (a === 'noti-clear') return busy(async () => { const ids = (S.notis || []).map(x => x.id); await q(sb.from('notifications').update({ hidden: true, read: true }).in('id', ids)); S.notis = []; notiSheet(); render(); toast('알림을 지웠어요'); });
-  if (a === 'noti-more') return busy(async () => { const L = S.notis || [], more = await q(sb.from('notifications').select('*').neq('hidden', true).order('created_at', { ascending: false }).range(L.length, L.length + 29)); S.notis = [...L, ...more]; notiSheet(); });
+  if (a === 'noti-more') return busy(async () => { const L=S.notis||[],offset=S.notiOffset??L.length,more=await q(sb.from('notifications').select('*').neq('hidden',true).order('created_at',{ascending:false}).range(offset,offset+29));S.notiOffset=offset+more.length;S.notis=visibleNotifications([...new Map([...L,...more].map(x=>[x.id,x])).values()],S.mode);notiSheet(); });
   if (a === 'noti-cfg') { closeSheet(); return menuSheet(); }
   if (a === 'dnd') { const v = S.prof?.dnd || {}; return openSheet(`<h2>방해 금지 시간</h2><p class="sub">이 시간엔 알림 소리를 안 내요. 끝나면 모아서 보내요.</p><form class="f" id="dnd-form"><div class="grid2"><label class="fl">시작<input type="time" name="f" value="${v.f || '04:00'}"></label><label class="fl">끝<input type="time" name="t" value="${v.t || '11:00'}"></label></div><button class="btn pri full">켜기</button>${v.f ? '<button type="button" class="btn full" data-act="dnd-off" style="margin-top:8px">끄기</button>' : ''}</form>`); }
   if (a === 'dnd-off') return busy(async () => { await q(sb.from('profiles').update({ dnd: null }).eq('id', S.user.id)); S.prof.dnd = null; closeSheet(); toast('방해 금지를 껐어요'); });
@@ -3074,7 +3087,8 @@ document.addEventListener('click', e => {
   if (a === 'logout') busy(async () => { S.byMe = 1; closeSheet(); await sb.auth.signOut(); });
   if (a === 'onb') { S.onb = d.v || null; render(); }
   if (a === 'close') closeSheet();
-  if (a === 'goto') { S.tab = d.t; S.sub = d.s || null; render(); scrollTo(0, 0); }
+  if (a === 'goto') { S.tab = d.t; S.sub = d.s || null;closeSheet(); render(); scrollTo(0, 0);if(d.s==='analysis')return busy(loadOwnerAnalysis); }
+  if(a==='sub'&&d.v==='analysis'){S.tab='more';S.sub='analysis';closeSheet();render();if(!inspectionStore)return busy(loadOwnerAnalysis);return;}
   if (a === 'sub') { S.tab = d.v ? 'more' : 'home'; S.sub = d.v || null; closeSheet(); render(); scrollTo(0, 0); if (d.v === 'used') busy(async () => { S.used = await q(sb.from('used_items').select('*').order('created_at', { ascending: false }).limit(100)); render(); }); if (d.v === 'rot') busy(async () => { await loadRot(); render(); }); if (d.v === 'transfer') busy(listingsLoad); if (d.v === 'franchise') busy(frLoad); if (d.v === 'board') busy(async () => { S.board = await q(sb.rpc('job_board')); render(); }); if (d.v === 'notice') busy(async () => { S.notices = await q(sb.from('notices').select('*').order('created_at', { ascending: false }).limit(30)); try { localStorage.setItem('ev-notice', S.notices[0]?.id || '') } catch { } render(); }); if (d.v === 'edu') busy(loadEdu); if (d.v === 'inq') busy(async () => { S.inq = await q(sb.from('inquiries').select('*').eq('from_user', S.user.id).order('created_at', { ascending: false })); render(); }); }
   if (a === 'mon') busy(async () => { S.m += +d.v; if (S.m > 12) { S.m = 1; S.y++; } if (S.m < 1) { S.m = 12; S.y--; } await reload(); });
   if (a === 'stab') { S.staffTab = d.v; render(); }
@@ -3921,7 +3935,6 @@ function laborCard() {
   if (!isOwner()) return '';
   const st = S.members.filter(p => p.role !== 'owner'), [y, m, d] = TODAY.split('-').map(Number), k0 = addDay(TODAY, -E.wdOf(y, m, d));
   const I = [
-    ['최저임금 미만 시급', st.filter(p => p.hourly_rate && p.hourly_rate < minWage() && (p.labor_law ?? p.contract === '4대')), '과태료·체불 위험'],
     ['근로계약서 안 보냄', needContract(), '미작성 시 500만 원 이하 벌금'],
     ['보건증 만료·30일 내 만료', st.filter(p => p.health_exp && p.health_exp <= addDay(TODAY, 30)), '위생 점검 때 걸려요'],
     ['이번 주 52시간 넘음', st.filter(p => weekHours(p.id, k0) > 52), '연장근로 한도 초과']].filter(x => x[1].length);
@@ -4549,7 +4562,7 @@ function attendanceCard() {
 function vCurrentWeek() {
   const [y,m,d]=TODAY.split('-').map(Number),monday=addDay(TODAY,-E.wdOf(y,m,d)),start=S.erpWeekStart||monday;
   const days=Array.from({length:7},(_,i)=>addDay(start,i));
-  return `${storeHead('근무')}<div class="row between"><button class="btn sm" data-act="erp-week" data-date="${addDay(start,-7)}">이전 주</button><b>${start.slice(5)}–${days[6].slice(5)}</b><button class="btn sm" data-act="erp-week" data-date="${addDay(start,7)}">다음 주</button></div><div class="row" style="gap:8px;margin:12px 0"><button class="btn pri" data-act="work-add">근무 추가</button><button class="btn" data-act="helper-add">헬퍼 추가</button><button class="btn" data-act="erp-week-copy" data-date="${start}">지난주 복사</button><button class="btn sm" data-act="sview" data-v="month">월 달력</button><button class="btn sm" data-act="sview" data-v="week">반복 근무 설정</button></div>${days.map(date=>{const [yy,mm,dd]=date.split('-').map(Number),actual=(S.workRecords||[]).filter(r=>r.work_date===date&&r.status!=='void'),rows=S.members.filter(p=>p.role!=='owner').map(p=>{const records=actual.filter(r=>r.member_id===p.id),t=E.shiftOn(p.id,yy,mm,dd,S.tpl,S.ov);if(!records.length&&!t)return '';return `<div class="li"><b>${esc(p.nick)}</b><span>${records.length?records.map(r=>`${new Date(r.start_at).toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit',timeZone:'Asia/Seoul'})}–${r.end_at?new Date(r.end_at).toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit',timeZone:'Asia/Seoul'}):'근무 중'} <small>${r.source==='qr'?'QR':'직접 입력'}</small>`).join('<br>'):`${t.s.slice(0,5)}–${t.e.slice(0,5)} <small>예정</small>`}</span><button class="btn sm" data-act="edit-d" data-m="${p.id}" data-d="${date}">예정 수정</button></div>`;}).join('');return `<div class="card"><h3>${date.slice(5)} ${E.WD[E.wdOf(yy,mm,dd)]}${date===TODAY?' · 오늘':''}</h3><button class="btn sm" data-act="sub-day" data-d="${date}">이 날 대타 구하기</button>${rows||'<p class="note">근무가 없어요.</p>'}</div>`;}).join('')}<details class="card"><summary>다음 달 스케줄 · 자동 설정</summary>${roundCard()}</details>`;
+  return `${storeHead('근무')}${scheduleLaborCard()}<div class="row between"><button class="btn sm" data-act="erp-week" data-date="${addDay(start,-7)}">이전 주</button><b>${start.slice(5)}–${days[6].slice(5)}</b><button class="btn sm" data-act="erp-week" data-date="${addDay(start,7)}">다음 주</button></div><div class="row" style="gap:8px;margin:12px 0"><button class="btn pri" data-act="work-add">근무 추가</button><button class="btn" data-act="helper-add">헬퍼 추가</button><button class="btn" data-act="erp-week-copy" data-date="${start}">지난주 복사</button><button class="btn sm" data-act="sview" data-v="month">월 달력</button><button class="btn sm" data-act="sview" data-v="week">반복 근무 설정</button></div>${days.map(date=>{const [yy,mm,dd]=date.split('-').map(Number),actual=(S.workRecords||[]).filter(r=>r.work_date===date&&r.status!=='void'),rows=S.members.filter(p=>p.role!=='owner').map(p=>{const records=actual.filter(r=>r.member_id===p.id),t=E.shiftOn(p.id,yy,mm,dd,S.tpl,S.ov);if(!records.length&&!t)return '';return `<div class="li"><b>${esc(p.nick)}</b><span>${records.length?records.map(r=>`${new Date(r.start_at).toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit',timeZone:'Asia/Seoul'})}–${r.end_at?new Date(r.end_at).toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit',timeZone:'Asia/Seoul'}):'근무 중'} <small>${r.source==='qr'?'QR':'직접 입력'}</small>`).join('<br>'):`${t.s.slice(0,5)}–${t.e.slice(0,5)} <small>예정</small>`}</span><button class="btn sm" data-act="edit-d" data-m="${p.id}" data-d="${date}">예정 수정</button></div>`;}).join('');return `<div class="card"><h3>${date.slice(5)} ${E.WD[E.wdOf(yy,mm,dd)]}${date===TODAY?' · 오늘':''}</h3><button class="btn sm" data-act="sub-day" data-d="${date}">이 날 대타 구하기</button>${rows||'<p class="note">근무가 없어요.</p>'}</div>`;}).join('')}`;
 }
 { const old=vSched;vSched=()=>{if(homeView==='simple'&&!S.erpSchedEntered){S.schedView='current-week';S.erpSchedEntered=true;}return homeView==='simple'&&(!S.schedView||S.schedView==='current-week')?vCurrentWeek():old();}; }
 A68['erp-week']=(b,d)=>{S.erpWeekStart=d.date;S.schedView='current-week';render();};
@@ -4588,15 +4601,15 @@ function compactChrome() {
 }
 
 const erpUI = installERPUI({S,sb,q,A68,F68,openSheet,closeSheet,reload,toast,esc,TODAY,night,isOwner,monthRange,bizDay});
-{ const old=loadStore;loadStore=async()=>{await old();if(!inspectionStore&&!(S.myRole==='manager'&&S.me?.perms?.pay===false))await syncMetrics();S.bench=inspectionStore?null:await q(sb.rpc('bench',{p_store:S.store.id}));}; }
+{ const old=loadStore;loadStore=async()=>{await old();const metrics=!inspectionStore&&!(S.myRole==='manager'&&S.me?.perms?.pay===false)?syncMetrics():Promise.resolve();if(S.tab==='improve'||S.sub==='analysis'){await metrics;S.bench=inspectionStore?null:await q(sb.rpc('bench',{p_store:S.store.id}));}else metrics.catch(()=>{});}; }
 { const old=loadStaff;loadStaff=async()=>{await old();await erpUI.load();}; }
 { const old=vStaff;vStaff=()=>{let h=old(); if(homeView==='simple')h=h.replace('<h1>직원·급여</h1>','<h1>직원·급여</h1><div class="row" style="gap:8px;margin:12px 0"><button class="btn pri" data-act="work-add">근무 추가</button><button class="btn" data-act="helper-add">헬퍼 추가</button></div>');return h+erpUI.workCard();}; }
 { const old=vWork;vWork=()=>old()+erpUI.workCard(); }
 { const old=vSales;vSales=()=>{let h=old();const report=S.reports.find(r=>r.report_date===bizDay());if(homeView==='simple'&&report){h=h.replace(/<form class="f card openbar" id="open-form">[\s\S]*?<\/form>/,'');h=h.replace(/<form class="f card" id="report-form"[^>]*>/,tag=>'<details class="card"><summary>마감 완료 · 내역 확인/수정</summary>'+tag);const i=h.indexOf('</form>',h.indexOf('id="report-form"'));if(i>=0)h=h.slice(0,i+7)+'</details>'+h.slice(i+7);}return h;}; }
 
 function simpleMenu() {
-  const groups = [['운영', [['jobs','구인·대타'],['more','재고·발주','order'],['more','QR 출퇴근','qr'],...(CFG().rotation?[['more','테이블 로테이션','rot']]:[])]], ['분석', [['more','월별 손익','pnl'],['more','일 매출','daily'],['improve','PRO 운영 분석']]], ['더 많은 기능', [['more','중고 장터','used'],['more','점포 양도양수','transfer'],['more','가맹 모집','franchise'],['more','직원 교육','edu'],['more','운영사 공지','notice']]], ['설정', [['more','매장 설정','settings'],['more','요금제','pricing']]]];
-  openSheet(`<h2>더보기</h2>${groups.map(([title,items])=>`<details class="card" ${title==='운영'?'open':''}><summary>${title}</summary>${items.filter(x=>(x[2]!=='transfer'||isOwner())&&!hideTab(x[0])&&!(S.myRole==='manager'&&S.me?.perms?.sales===false&&['pnl','daily'].includes(x[2]))&&!(S.myRole==='manager'&&S.me?.perms?.sales===false&&x[0]==='improve')).map(([t,l,sub])=>`<button class="btn full" data-act="goto" data-t="${t}" ${sub?`data-s="${sub}"`:''}>${l}</button>`).join('')}</details>`).join('')}<button class="btn full" data-act="erp-ai">AI 운영 분석 · PRO 전용</button><button class="btn full" data-act="poster">홍보 포스터</button>${isOwner()?`<details class="card"><summary>선택 기능 설정</summary><button class="btn full" data-act="erp-rotation">로테이션 메뉴 ${CFG().rotation?'끄기':'켜기'}</button></details>`:''}<button class="btn full" data-act="erp-fixed">이번 달 고정비</button><button class="btn full" data-act="menu">화면·알림 설정</button><button class="btn full" data-act="home-view" data-v="detail">자세히보기로 전환</button><button class="btn full" data-act="close">닫기</button>`);
+  const groups = [['운영', [['jobs','구인·대타'],['more','재고·발주','order'],['more','QR 출퇴근','qr'],...(CFG().rotation?[['more','테이블 로테이션','rot']]:[])]], ['분석', [['more','월별 손익','pnl'],['more','운영 분석','analysis'],['more','일 매출','daily'],['improve','PRO 운영 분석']]], ['더 많은 기능', [['more','중고 장터','used'],['more','점포 양도양수','transfer'],['more','가맹 모집','franchise'],['more','직원 교육','edu'],['more','운영사 공지','notice']]], ['설정', [['more','매장 설정','settings'],['more','요금제','pricing']]]];
+  openSheet(`<h2>더보기</h2>${groups.map(([title,items])=>`<details class="card" ${title==='운영'?'open':''}><summary>${title}</summary>${items.filter(x=>(x[2]!=='transfer'||isOwner())&&!hideTab(x[0])&&!(S.myRole==='manager'&&S.me?.perms?.sales===false&&['pnl','daily','analysis'].includes(x[2]))&&!(S.myRole==='manager'&&S.me?.perms?.sales===false&&x[0]==='improve')).map(([t,l,sub])=>`<button class="btn full" data-act="goto" data-t="${t}" ${sub?`data-s="${sub}"`:''}>${l}</button>`).join('')}</details>`).join('')}<button class="btn full" data-act="erp-ai">AI 운영 분석 · PRO 전용</button><button class="btn full" data-act="poster">홍보 포스터</button>${isOwner()?`<details class="card"><summary>선택 기능 설정</summary><button class="btn full" data-act="erp-rotation">로테이션 메뉴 ${CFG().rotation?'끄기':'켜기'}</button></details>`:''}<button class="btn full" data-act="erp-fixed">이번 달 고정비</button><button class="btn full" data-act="menu">화면·알림 설정</button><button class="btn full" data-act="home-view" data-v="detail">자세히보기로 전환</button><button class="btn full" data-act="close">닫기</button>`);
 }
 function simpleLaborSummary() {
   if(S.myRole==='manager'&&S.me?.perms?.pay===false)return {ready:false,todayReady:false,today:0,month:0,projected:0,incomplete:1,note:'급여 조회 권한이 필요해요',unavailable:true};
@@ -4614,13 +4627,13 @@ function vSimpleHome() {
   const day=bizDay(),[y,m,d] = day.split('-').map(Number), report=S.reports.find(r=>r.report_date===day), staff=S.members.filter(p=>p.role!=='owner'), planned=staff.filter(p=>E.shiftOn(p.id,y,m,d,S.tpl,S.ov));
   const dailySpend=(+report?.expense||0)+(S.expenses||[]).filter(e=>e.spent_on===day&&e.source!=='close').reduce((n,e)=>n+(+e.amount||0),0);
   const lab=simpleLaborSummary(), M=monthSummary(y,m), enough=M.n>=3||M.est;
-  const todo=todoCard();
+  const todo="";
   return `<section class="simple-home">${storeHead('오늘 우리 매장')}<p class="sub">${m}월 ${d}일 (${E.WD[E.wdOf(y,m,d)]}) · ${report?'마감 완료':S.open?'영업 중':'영업 전'}</p>
   <div class="simple-home-stats"><div class="card kpi"><div class="l">오늘 매출</div><div class="v num">${report?'₩'+man(report.sales):'마감 전'}</div><small class="mut">${report?'마감 확정':'매출을 입력하면 표시돼요'}</small></div><div class="card kpi"><div class="l">오늘 인건비</div><div class="v num">${lab.todayReady?'₩'+man(lab.today):'실제 집계 전'}</div><small class="mut">${lab.note}</small></div><div class="card kpi"><div class="l">오늘 남은 돈</div><div class="v num">${report&&lab.todayReady&&!lab.incomplete?'₩'+man(report.sales-lab.today-dailySpend):'집계 중'}</div><small class="mut">고정비 반영 전 · 매출−인건비−당일 지출</small></div></div>
   <div class="simple-home-actions"><button class="btn pri" data-tab="sales">${report?'마감 내역 확인':S.open?'매출 입력 · 마감':'매출 입력 · 오픈'}</button><button class="btn" data-act="work-add">근무 추가</button><button class="btn" data-act="cash-open">금고 입출금</button></div>
   ${todo?`<details class="card"><summary>확인할 일 ${todo.match(/<small>(\d+)개<\/small>/)?.[1]||''}</summary>${todo}</details>`:''}
   <div class="card"><div class="row between"><h3>오늘 근무</h3><button class="btn sm" data-tab="sched">근무표 보기</button></div>${planned.length?planned.map(p=>{const t=E.shiftOn(p.id,y,m,d,S.tpl,S.ov);return `<div class="li"><b>${esc(p.nick)}</b><span>${esc(t.s.slice(0,5))}–${esc(t.e.slice(0,5))}</span></div>`;}).join(''):'<p class="note">예정된 근무가 없어요. 근무 추가에서 직접 기록할 수 있어요.</p>'}${!staff.length?'<button class="btn" data-tab="staff">직원 등록</button>':''}</div>
-  <div class="card simple-home-month"><div><h3>${m}월 운영</h3><p>누적 인건비 <b>${lab.ready?'₩'+man(lab.month):'기록 확인'}</b> · 예정 포함 <b>${lab.unavailable?'권한 필요':'₩'+man(lab.projected)}</b></p><p class="note">예상 남은 돈 ${enough&&!lab.unavailable?'₩'+man(M.left):'마감 기록이 더 필요해요'} · ${lab.incomplete||0}건 근무 확인 필요 · 전환일 전은 기존 스케줄 포함</p></div><button class="btn sm" data-act="home-view" data-v="detail">전체 현황 보기</button></div></section>`;
+  ${laborBudget(M,true)}<div class="card simple-home-month"><div><h3>${m}월 운영</h3><p>누적 인건비 <b>${lab.ready?'₩'+man(lab.month):'기록 확인'}</b> · 예정 포함 <b>${lab.unavailable?'권한 필요':'₩'+man(lab.projected)}</b></p><p class="note">예상 남은 돈 ${enough&&!lab.unavailable?'₩'+man(M.left):'마감 기록이 더 필요해요'} · ${lab.incomplete||0}건 근무 확인 필요 · 전환일 전은 기존 스케줄 포함</p></div><button class="btn sm" data-act="home-view" data-v="detail">전체 현황 보기</button></div></section>`;
 }
 
 {
