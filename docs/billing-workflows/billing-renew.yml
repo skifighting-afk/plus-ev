@@ -1,0 +1,27 @@
+name: Renew card subscriptions
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '*/15 * * * *'
+permissions: {}
+concurrency:
+  group: billing-renew
+  cancel-in-progress: false
+jobs:
+  renew:
+    if: vars.BILLING_RENEW_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Renew due subscriptions
+        env:
+          BILLING_SCHEDULER_SECRET: ${{ secrets.BILLING_SCHEDULER_SECRET }}
+          BILLING_FUNCTION_URL: ${{ vars.BILLING_FUNCTION_URL }}
+        run: |
+          test ${#BILLING_SCHEDULER_SECRET} -ge 32
+          test "$BILLING_FUNCTION_URL" = 'https://hkcmsjwuwopxritafreg.supabase.co/functions/v1/billing'
+          result=$(curl --fail-with-body --silent --show-error --max-time 240 "$BILLING_FUNCTION_URL" \
+            -H 'Content-Type: application/json' \
+            -H "x-billing-scheduler: $BILLING_SCHEDULER_SECRET" \
+            --data '{"action":"run"}')
+          printf '%s' "$result" | python3 -c 'import json,sys; r=json.load(sys.stdin); assert r.get("ok") is True and r.get("failed",0)==0, "Billing renewal needs attention"'
