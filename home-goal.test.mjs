@@ -1,0 +1,11 @@
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+import vm from 'node:vm';
+const src=readFileSync(new URL('./app.js',import.meta.url),'utf8');
+const c={S:{y:2026,m:10},now:new Date(2026,9,15),E:{daysIn:()=>31},goalOf:()=>40000000,goalSuggest:()=>null,isOwner:()=>true,nextMon:()=>[2026,11],man:String,todayTodo:()=>[['','old task','obsolete instruction']]};
+vm.createContext(c);vm.runInContext(src.slice(src.indexOf('function goalCard('),src.indexOf('function selfCard(')),c);
+const html=c.goalCard({sales:21740000,proj:44930000,el:14});
+assert.ok(html.includes('54%'),'goal progress remains visible');
+assert.ok(!html.includes('오늘 할 일'),'goal card must not reintroduce removed home tasks');
+assert.ok(!html.includes('old task'));
+console.log('Home goal: target progress retained without task block');
