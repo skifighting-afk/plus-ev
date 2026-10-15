@@ -1,4 +1,4 @@
-import { installHQStoreView } from './hq-store-view.js?v=106';
+import { installHQStoreView } from './hq-store-view.js?v=107';
 import { jobDefaults } from './workflow-policy.js';
 import { installERPUI } from './erp-ui.js?v=105';
 import { initialHomeView, ownerNavigation, cashSales, reportPatch } from './ui-policy.js';

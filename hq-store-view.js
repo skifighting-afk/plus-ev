@@ -9,7 +9,7 @@ export async function loadHQStore({sb,isHQ,storeId,month}) {
  if(!stores[0])throw Error('매장을 찾지 못했어요');
  const [members,reports,expenses,records,payroll]=await Promise.all([
   read(sb.from('members').select('id,nick,role,job_role,active').eq('store_id',storeId)),
-  read(sb.from('daily_reports').select('report_date,sales,card,transfer,cash_diff,expense_cash').eq('store_id',storeId).gte('report_date',month).lte('report_date',last).order('report_date',{ascending:false})),
+  read(sb.from('daily_reports').select('report_date,sales,card,transfer,cash_diff').eq('store_id',storeId).gte('report_date',month).lte('report_date',last).order('report_date',{ascending:false})),
   read(sb.from('expenses').select('spent_on,amount').eq('store_id',storeId).gte('spent_on',month).lte('spent_on',last)),
   read(sb.from('work_records').select('member_id,work_date,start_at,end_at,break_min,status,source').eq('store_id',storeId).gte('work_date',month).lte('work_date',last)),
   read(sb.rpc('actual_payroll',{p_store:storeId,p_month:month}))]);
