@@ -1,0 +1,11 @@
+import assert from 'node:assert/strict';
+import {installERPUI} from './erp-ui.js';
+globalThis.document={addEventListener(){}};
+const sb={from(table){let date;const b={select(){return b;},eq(key,value){if(['report_date','business_date'].includes(key))date=value;return b;},then(resolve){resolve({data:table==='daily_reports'?[{detail:{owner_withdrawal:date==='2026-10-14'?20000:0}}]:[]});}};return b;}};
+const api=installERPUI({S:{mode:'store',myRole:'owner',store:{id:'s'},cashMoves:[]},sb,q:async value=>(await value).data,A68:{},F68:{}});
+const f={dataset:{withdrawalDate:'2026-10-15'},elements:{date:{value:'2026-10-14'},owner_withdrawal:{value:'100000'}}};
+await api.refreshClosingDate(f,'2026-10-14');
+assert.equal(f.elements.owner_withdrawal.value,20000,'programmatic date change must replace the prior day withdrawal');
+assert.equal(f.dataset.withdrawalDate,'2026-10-14');assert.equal(f.dataset.withdrawalLoading,undefined);
+f.elements.date.value='2026-10-15';await api.refreshClosingDate(f,'2026-10-14');assert.equal(f.dataset.withdrawalDate,'2026-10-14','stale response cannot mark another date loaded');
+console.log('Closing dates: imported receipt dates reload withdrawal and stale responses are ignored');

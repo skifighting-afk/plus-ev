@@ -1,6 +1,6 @@
 import * as E from './engine.js';
 import { calculateActualPayroll } from './labor-engine.js';
-import { expectedCash } from './cash-engine.js';
+import { expectedCash,closingCash } from './cash-engine.js?v=105';
 export function installERPUI({S,sb,q,A68,F68,openSheet,closeSheet,reload,toast,esc,TODAY,night,isOwner,monthRange,bizDay,clock=Date.now}) {
   const req=()=>crypto.randomUUID(),won=E.won,month=()=>E.ymd(S.y,S.m,1),num=v=>Number(String(v).replaceAll(',',''));
   const canPay=()=>S.mode==='store'&&!(S.myRole==='manager'&&S.me?.perms?.pay===false);
@@ -8,6 +8,15 @@ export function installERPUI({S,sb,q,A68,F68,openSheet,closeSheet,reload,toast,e
   async function ensurePeriods(storeId,periods) {
     if(cacheUser!==S.user?.id){cache.clear();cacheUser=S.user?.id;}
     await Promise.all([...new Set(periods)].map(async period=>{const value=await q(sb.rpc('actual_payroll',{p_store:storeId,p_month:period}));cache.set(storeId+':'+period.slice(0,7),value);}));
+  }
+  async function loadCashDate(date){if(!canPay())return;const rows=await q(sb.from('cash_movements').select('*').eq('store_id',S.store.id).eq('business_date',date));S.cashMoves=[...(S.cashMoves||[]).filter(m=>m.business_date!==date),...rows];}
+  async function refreshClosingDate(form,date){
+    const token=String(+(form.dataset.withdrawalToken||0)+1);form.dataset.withdrawalToken=token;form.dataset.withdrawalLoading='1';
+    try{const [rows]=await Promise.all([q(sb.from('daily_reports').select('detail').eq('store_id',S.store.id).eq('report_date',date)),loadCashDate(date)]);
+      if(form.dataset.withdrawalToken!==token||form.elements.date.value!==date)return false;
+      if(form.elements.owner_withdrawal)form.elements.owner_withdrawal.value=rows[0]?.detail?.owner_withdrawal??'';
+      form.dataset.withdrawalDate=date;return true;
+    }finally{if(form.dataset.withdrawalToken===token)delete form.dataset.withdrawalLoading;}
   }
   const dates=v=>{const calendarDate=+v.s.slice(0,2)<8?new Date(Date.parse(v.date+'T00:00:00Z')+864e5).toISOString().slice(0,10):v.date;let end=calendarDate+'T'+v.e+':00+09:00';const start=calendarDate+'T'+v.s+':00+09:00';if(v.e<=v.s)end=new Date(Date.parse(end)+864e5).toISOString();return {p_date:v.date,p_start:start,p_end:end,p_break:num(v.brk)};};
   async function load() {
@@ -44,7 +53,7 @@ export function installERPUI({S,sb,q,A68,F68,openSheet,closeSheet,reload,toast,e
   A68['erp-work-cancel']=(b,d)=>cancel('erp_void_work',{p_work:d.id,p_revision:+d.rev});
   A68['erp-cash-cancel']=(b,d)=>cancel('reverse_cash',{p_movement:d.id});
   F68['erp-cancel-form']=async(f,v)=>{await q(sb.rpc(f.dataset.rpc,{...JSON.parse(f.dataset.args),p_request:f.dataset.request,p_reason:v.reason}));closeSheet();await reload();toast('원본을 보존하고 취소 기록을 남겼어요');};
-  A68['cash-open']=()=>{if(!canPay())return toast('금고 관리 권한이 없어요');const moves=S.cashMoves||[];openSheet(`<h2>금고 입출금</h2><p class="note">대표 인출은 비용이 아닙니다. 현금 급여는 지급 기록에서 처리해 주세요.</p><form class="f" id="erp-cash-form" data-request="${req()}"><div class="grid2"><label class="fl">구분<select name="direction"><option value="out">돈 빼기</option><option value="in">돈 넣기</option></select></label><label class="fl">금액<input name="amount" class="erp-money" inputmode="numeric" required placeholder="금액 입력"></label></div><label class="fl">영업일<input name="date" type="date" required value="${bizDay()}"></label><label class="fl">사유<input name="reason" required maxlength="120" placeholder="대표 인출, 추가 시재 등"></label><button class="btn pri full">입출금 기록</button></form><details class="card"><summary>이번 달 기록 ${moves.length}건</summary>${moves.map(m=>`<div class="li"><div>${m.business_date} · ${esc(m.reason)}<br><b>${m.direction==='in'?'+':'−'}₩${won(m.amount)}</b></div>${!['payroll','reversal'].includes(m.source)&&!moves.some(x=>x.reverses_id===m.id)?`<button class="btn sm" data-act="erp-cash-cancel" data-id="${m.id}">취소</button>`:''}</div>`).join('')}</details><p class="note">마감한 날짜의 입출금을 추가하면 금고 차액을 다시 대조해 주세요.</p><button class="btn full" data-act="close">닫기</button>`);};
+  A68['cash-open']=()=>{if(!canPay())return toast('금고 관리 권한이 없어요');const moves=S.cashMoves||[];openSheet(`<h2>금고 입출금</h2><p class="note">대표 인출은 비용이 아닙니다. 현금 급여는 지급 기록에서 처리해 주세요.</p><form class="f" id="erp-cash-form" data-request="${req()}"><div class="grid2"><label class="fl">구분<select name="direction"><option value="out">돈 빼기</option><option value="in">돈 넣기</option></select></label><label class="fl">금액<input name="amount" class="erp-money" inputmode="numeric" required placeholder="금액 입력"></label></div><label class="fl">영업일<input name="date" type="date" required value="${bizDay()}"></label><label class="fl">사유<input name="reason" required maxlength="120" placeholder="대표 인출, 추가 시재 등"></label><button class="btn pri full">입출금 기록</button></form><details class="card"><summary>이번 달 기록 ${moves.length}건</summary>${moves.map(m=>`<div class="li"><div>${m.business_date} · ${esc(m.reason)}<br><b>${m.direction==='in'?'+':'−'}₩${won(m.amount)}</b>${m.closing_report_date?'<small>마감에서 수정</small>':''}</div>${!m.closing_report_date&&!['payroll','reversal'].includes(m.source)&&!moves.some(x=>x.reverses_id===m.id)?`<button class="btn sm" data-act="erp-cash-cancel" data-id="${m.id}">취소</button>`:''}</div>`).join('')}</details><p class="note">마감한 날짜의 입출금을 추가하면 금고 차액을 다시 대조해 주세요.</p><button class="btn full" data-act="close">닫기</button>`);};
   F68['erp-cash-form']=async(f,v)=>{await q(sb.rpc('record_cash',{p_request:f.dataset.request,p_store:S.store.id,p_date:v.date,p_direction:v.direction,p_amount:num(v.amount),p_reason:v.reason}));closeSheet();await reload();toast('금고 입출금을 기록했어요 · 마감 대사를 확인해 주세요');};
   document.addEventListener('input',e=>{if(e.target.classList?.contains('erp-money')){const el=e.target,pos=el.selectionStart,old=el.value;el.value=old.replace(/[^0-9]/g,'').replace(/\B(?=(\d{3})+(?!\d))/g,',');if(pos!=null&&el===document.activeElement)el.setSelectionRange(Math.max(0,pos+el.value.length-old.length),Math.max(0,pos+el.value.length-old.length));}});
   document.addEventListener('change',e=>{if(e.target.name==='member'&&e.target.form?.id==='erp-helper-form'){const m=S.members.find(x=>x.id===e.target.value);if(m){const f=e.target.form;f.elements.nick.value=m.nick;f.elements.basis.value=m.checks?.pay_basis||'hourly';f.elements.amount.value=won(m.checks?.pay_basis==='daily'?m.checks.daily_rate:m.hourly_rate);}}});
@@ -64,5 +73,5 @@ export function installERPUI({S,sb,q,A68,F68,openSheet,closeSheet,reload,toast,e
     const fullGross=row.projected_gross??row.gross+future+futureActual.gross;
     return {...raw,...row,fullGross,fullNet:fullGross-E.dedOf(fullGross-(row.meal||0),row.contract||p.contract),shifts,days:shifts.filter(s=>s.done).length,hours:shifts.reduce((n,s)=>n+s.hours,0),brk:shifts.reduce((n,s)=>n+s.brk,0),basis:'actual'};
   }
-  return {load,workCard,payroll,expectedCash,ensurePeriods};
+  return {load,workCard,payroll,expectedCash,closingCash,ensurePeriods,loadCashDate,refreshClosingDate};
 }
