@@ -14,6 +14,7 @@ function boot(saved = '', blocked = false) {
   const c = {
     initialHomeView,
     compactChrome: () => {},
+    laborBudget: () => '<div>인건비율 · 현재까지 발생 인건비</div>',
     bizDay: () => '2026-10-13',
     simpleLaborSummary: () => ({ready:false, projected:0, incomplete:0, note:'스케줄 예상'}),
     S: { mode: 'store', tab: 'home', sub: null, store: { id: 's', need_by_wd: [] }, company: {}, user: { id: 'u' }, members: [], reports: [], hist: [], open: null, tpl: [], ov: [] },
@@ -34,6 +35,7 @@ function boot(saved = '', blocked = false) {
 const a = boot(); a.c.render();
 assert.ok(!a.view.innerHTML.includes('EXISTING HOME'), 'simple home is the default');
 assert.ok(a.view.innerHTML.includes('간편보기'));
+assert.ok(a.view.innerHTML.includes('현재까지 발생 인건비'));
 a.click('simple');
 assert.ok(!a.view.innerHTML.includes('EXISTING HOME'));
 assert.ok(a.view.innerHTML.includes('매출 입력 · 오픈'));

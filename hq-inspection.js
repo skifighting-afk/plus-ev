@@ -7,7 +7,7 @@ export function readOnlyClient(client,active){
  return new Proxy(client,{get(target,key){if(key==='rpc')return (name,args)=>{if(active()&&!reads.has(name))return fail();return target.rpc(name,args)};if(key==='from')return (...args)=>wrapChain(target.from(...args));if(key==='functions')return new Proxy(target.functions,{get(t,k){if(k==='invoke')return (...args)=>active()?fail():t.invoke(...args);return t[k]}});if(key==='storage')return wrap(target.storage);if(key==='auth')return wrap(target.auth,mutations);const v=target[key];return typeof v==='function'?v.bind(target):v}});
 }
 const actions=new Set(['close','sub','mon','stab','empf','sview','wk','day-open','day-go','day-rep','sales-mode','staff-edit','cash-open','refresh','print','audit','slip-preview','home-view','goto','erp-more','erp-fixed','fixed','notice-open','pnl','sales-filter']);
-const subs=new Set(['settings','pnl','daily','order','notice','edu','used','board','pricing']);
+const subs=new Set(['analysis','settings','pnl','daily','order','notice','edu','used','board','pricing']);
 export function allowedInspectionAction(d){if(d.tab)return ['home','sched','sales','staff','jobs','market','more','improve'].includes(d.tab);if(!actions.has(d.act))return false;if(d.act==='sub')return !d.v||subs.has(d.v);if(d.act==='goto')return !d.s||subs.has(d.s);return true;}
 export function installInspectionGuard({active,storeName,toast}){
  const block=e=>{e.preventDefault();e.stopImmediatePropagation();toast('운영사 조회 전용입니다')};

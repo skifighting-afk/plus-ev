@@ -1,4 +1,4 @@
-import { installERP } from './erp-mock.js?v=106';
+import { installERP } from './erp-mock.js?v=110';
 import { PRICING } from '../pricing.js';
 import { companyOffer } from '../company-offer.js';
 // 테스트용 가짜 Supabase — 실제 DB 규칙(RPC)을 간단히 흉내냄
@@ -18,7 +18,7 @@ const compActive = co => !!co && (companyOffer(co).active || (co.plan === 'pro' 
 function builder(t) {
   DB[t] = DB[t] || [];
   let op = 'select', payload = null, filters = [], single = false, order = null, lim = 0;
-  const b = { select() { return b }, eq(k, v) { filters.push(r => r[k] === v); return b }, neq(k, v) { filters.push(r => r[k] !== v); return b }, not(k, o, v) { const re = new RegExp('^' + String(v).replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/%/g, '.*') + '$'); filters.push(r => !re.test(String(r[k] ?? ''))); return b }, in(k, v) { filters.push(r => v.includes(r[k])); return b }, gte(k, v) { filters.push(r => r[k] >= v); return b }, lte(k, v) { filters.push(r => r[k] <= v); return b }, like(k, v) { const re = new RegExp('^' + v.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/%/g, '.*') + '$'); filters.push(r => re.test(r[k] || '')); return b },
+  const b = { select() { return b }, eq(k, v) { filters.push(r => r[k] === v); return b }, neq(k, v) { filters.push(r => r[k] !== v); return b }, not(k, o, v) { const re = new RegExp('^' + String(v).replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/%/g, '.*') + '$'); filters.push(r => !re.test(String(r[k] ?? ''))); return b }, in(k, v) { filters.push(r => v.includes(r[k])); return b }, gte(k, v) { filters.push(r => r[k] >= v); return b }, lte(k, v) { filters.push(r => r[k] <= v); return b }, lt(k,v){filters.push(r=>r[k]<v);return b}, like(k, v) { const re = new RegExp('^' + v.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/%/g, '.*') + '$'); filters.push(r => re.test(r[k] || '')); return b },
     order(k, o) { order = [k, o?.ascending !== false]; return b }, limit(n) { lim = n; return b }, range(a, z) { lim = z + 1; return b }, or() { return b }, is(k, v) { filters.push(r => (r[k] ?? null) === v); return b }, single() { single = true; return b }, maybeSingle() { single = true; return b },
     insert(p) { op = 'insert'; payload = p; return b }, update(p) { op = 'update'; payload = p; return b }, upsert(p) { op = 'upsert'; payload = p; return b }, delete() { op = 'delete'; return b },
     then(res, rej) { try { res(run()) } catch (e) { res({ data: null, error: e }) } } };
@@ -65,6 +65,7 @@ function fulfill(o) { const r = DB.payments.find(x => x.order_id === o); if (r.s
 window.__autoPayMethod = 'CARD';
 window.TossPayments = () => ({ payment: () => ({ requestPayment: async o => { window.__lastPay = o; setTimeout(() => window.__evPayReturn({ pay: 'ok', paymentKey: 'pk_test', orderId: o.orderId, amount: o.amount.value }), 30); } }) });
 const RPC = window.__RPC = {
+  hq_traffic_details({p_from,p_to}){if(!DB.profiles.find(p=>p.id===user?.id)?.is_hq)throw Error('운영사만 볼 수 있어요');return {unique_visitors:0,logged_users:0,daily:Array.from({length:Math.round((Date.parse(p_to)-Date.parse(p_from))/864e5)+1},(_,i)=>({d:new Date(Date.parse(p_from)+i*864e5).toISOString().slice(0,10),visitors:0,users:0,signups:0})).reverse(),by_ref:[],devices:[],modes:[],pages:[],people:[]};},
   guest_visit: ({ p_id }) => { const g = DB.store_guests.find(x => x.id === p_id); if (!g) return 0; g.visits = (g.visits || 0) + 1; g.last_at = TODAY0(); return g.visits; },
   area_dealers() { return { sido: '서울', gu: '강남구', all: 128, sido_n: 64, gu_n: 12, verified: 41, now_on: 3, worked: 37, alert_on: 52, new7: 5, posts30: 18 } },
   hq_dealers() { return DB.profiles.filter(p => p.kind === 'dealer' || p.open_to_sub).map(p => ({ id: p.id, name: p.name, phone: p.phone, verified: !!p.phone_verified_at, area: p.area, career_months: p.career_months || 0, created_at: p.created_at || new Date().toISOString(), done: DB.job_slots.filter(j => j.dealer_id === p.id && ['DONE', 'PAID'].includes(j.status)).length, noshow: 0, now_on: false, banned: false, last_work: null, open_to_sub: !!p.open_to_sub })) },
