@@ -1,6 +1,6 @@
 import { readOnlyClient, installInspectionGuard } from './hq-inspection.js?v=108';
 const inspectionStore = new URLSearchParams(location.search).get('hq_store');
-import { installHQStoreView } from './hq-store-view.js?v=108';
+import { installHQStoreView } from './hq-store-view.js?v=109';
 import { jobDefaults } from './workflow-policy.js';
 import { installERPUI } from './erp-ui.js?v=105';
 import { initialHomeView, ownerNavigation, cashSales, reportPatch } from './ui-policy.js';
