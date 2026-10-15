@@ -1,0 +1,4 @@
+[functions.billing]
+# The function independently validates user JWTs with auth.getUser. Scheduler calls
+# require a separate >=32-character secret and cannot execute owner actions.
+verify_jwt = false

@@ -5,6 +5,7 @@ import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js
 import * as E from './engine.js?v=95-urgent-offer';
 import { PRICING, applyPricing } from './pricing.js';
 import { companyOffer } from './company-offer.js';
+import { createBillingClient } from './billing.js';
 import { hasCompanyPro, nextAttendance } from './feature-policy.js';
 import { scanAttendance } from './qr-attendance.js';
 import { laborBody, payslipBody, sigPad } from './docs.js';
@@ -114,6 +115,38 @@ const TOSS_CLIENT_KEY = 'test_ck_D5GePWvyJnrK0W0k6q8gLzN97Eoq', PAY_TEST = TOSS_
 const loadToss = () => window.TossPayments ? Promise.resolve() : new Promise((ok, no) => { const sc = document.createElement('script'); sc.src = 'https://js.tosspayments.com/v2/standard'; sc.onload = ok; sc.onerror = () => no(new Error('결제창을 불러오지 못했어요')); document.head.append(sc); });
 // 결제수단 — 카드 / 카카오페이 / 네이버페이 / 토스페이 / 계좌이체 (토스페이먼츠 한 곳으로)
 const PAYM = [['CARD', '', '신용·체크카드', null], ['KAKAOPAY', '🟡', '카카오페이', 'KAKAOPAY'], ['NAVERPAY', '🟢', '네이버페이', 'NAVERPAY'], ['TOSSPAY', '', '토스페이', 'TOSSPAY'], ['TRANSFER', '', '계좌이체', null]];
+async function billingAPI(action,args={}) {
+ const {data,error}=await sb.functions.invoke('billing',{body:{action,...args}});
+ if(error||!data?.ok) throw Error(data?.message||'정기결제 연결을 준비 중이에요. 잠시 후 다시 확인해 주세요');
+ return data;
+}
+const billingClient=createBillingClient({api:billingAPI,store:{getItem:k=>sessionStorage.getItem(k),setItem:(k,v)=>sessionStorage.setItem(k,v),removeItem:k=>sessionStorage.removeItem(k)},origin:location.origin,pathname:location.pathname});
+async function billingPlan(plan) {
+ if(!isOwner())return toast('대표님만 정기결제를 시작할 수 있어요');
+ try {
+  const state=await billingClient.status(S.company.id);
+  if(state.subscription&&['active','review'].includes(state.subscription.status))return billingManage();
+  const quote=await billingClient.quote(S.company.id,plan);
+  S.billingQuote={...quote,plan,company:S.company.id};
+  openSheet(`<h2>${plan==='pro'?'프로':'베이직'} 카드 정기결제</h2>${state.test?'<p class="note">심사용 테스트 결제예요. 실제 돈이 나가지 않고 운영 서비스 이용기간은 변경되지 않아요.</p>':''}<p>첫 결제 ₩${E.won(quote.amount)} (부가세 포함), 이후 30일마다 자동 결제됩니다.</p><p>가입 혜택 종료 후에는 30일마다 ₩${E.won(quote.normal_amount)}이 청구됩니다. 가입 혜택은 회사 가입일부터 6개월이며 결제일에 적용되는 금액으로 청구해요.</p><p>요금제의 ‘정기결제 관리’에서 해지와 카드 삭제를 요청할 수 있어요. 이미 결제한 이용기간은 유지되며 환불은 <a href="legal.html#refund" target="_blank" rel="noopener">환불 규정</a>을 따릅니다.</p><label class="tog"><span>위 금액·주기·해지 안내를 확인했고, 카드 등록 후 즉시 첫 결제 및 이후 자동결제에 동의합니다.</span><input id="billing-consent" type="checkbox"></label><button class="btn pri full" data-act="billing-register">동의하고 카드 등록하기</button>`);
+ }catch(e){toast(e.message);}
+}
+async function billingRegister() {
+ if(!$('#billing-consent')?.checked)return toast('정기결제 안내에 동의해 주세요');
+ const q=S.billingQuote;if(!q||q.company!==S.company.id)return toast('요금제를 다시 선택해 주세요');
+ if(navigator.serviceWorker?.controller) {
+  const safe=await new Promise(resolve=>{const channel=new MessageChannel();const timer=setTimeout(()=>resolve(false),2000);channel.port1.onmessage=e=>{clearTimeout(timer);resolve(e.data==='billing-safe-v1');channel.port1.close();};navigator.serviceWorker.controller.postMessage({type:'billing-cache-check'},[channel.port2]);});
+  if(!safe)throw Error('앱을 새로고침한 뒤 카드 등록을 다시 진행해 주세요');
+ }
+ const s=await billingClient.begin(q.company,q.plan,q);await loadToss();
+ await window.TossPayments(s.clientKey).payment({customerKey:s.customer_key}).requestBillingAuth({method:'CARD',...billingClient.urls(s.session),customerEmail:S.user.email});
+}
+async function billingManage() {
+ try {const state=await billingClient.status(S.company.id),s=state.subscription;
+  if(!s)return toast('등록된 정기결제가 없어요');
+  openSheet(`<h2>정기결제 관리</h2><p>${state.test?'심사용 테스트 · ':''}${s.plan==='pro'?'프로':'베이직'} · ${esc(s.status==='active'?'이용 중':s.status==='canceled'?'해지됨':s.status==='review'?'결제 확인 필요':'카드 등록 대기')}</p><p>등록 카드: ${esc(s.card||'없음')}</p>${s.period_end?`<p>결제한 이용기간: ${new Date(s.period_end).toLocaleDateString('ko-KR')}까지</p>`:''}${s.next_charge_at?`<p>다음 결제일: ${new Date(s.next_charge_at).toLocaleDateString('ko-KR')}</p>`:''}<p>해지하면 다음 자동결제가 중단되고 등록 카드가 삭제됩니다. 이미 결제된 기간은 유지됩니다.</p>${s.status!=='canceled'?'<button class="btn full" data-act="billing-cancel">정기결제 해지 및 카드 삭제</button>':''}${s.status==='active'?'<button class="btn full" data-act="billing-retry">결제 결과 다시 확인</button>':''}`);
+ }catch(e){toast(e.message);}
+}
 async function pay(kind, arg = {}) {
   if (PAY_TEST && !S.prof?.is_hq) { openSheet(`<h2>🛠 준비중</h2><p class="sub">유료 기능은 결제 연결을 마치는 대로 열려요.</p>${kind === 'post' || kind === 'post_extra' ? '<p class="note">공고는 유료 옵션(상단 고정·끌어올리기 등)을 빼면 지금 바로 무료로 올릴 수 있어요.</p>' : ''}<button class="btn pri full" data-act="close">확인</button>`); return; }
   const o = (await q(sb.rpc('pay_start', { p_kind: kind, p_arg: arg })))[0];
@@ -215,6 +248,11 @@ async function boot() {
   try {
     if (!S.pricingLoaded) { applyPricing(await q(sb.from('pricing').select('key,amount'))); S.pricingLoaded = true; pushState(); } // 가격은 서버 한 곳
     const pr = new URLSearchParams(location.search); if (pr.get('share')) return shareView(pr.get('share'));
+    if (S.user && pr.get('billing')) {
+      history.replaceState(null,'',location.pathname);
+      if(pr.get('billing')==='fail')toast('카드 등록을 취소했거나 등록하지 못했어요. 다시 시도해 주세요');
+      else try {const r=await billingClient.complete(pr);toast(r.paid?(r.test?'테스트 정기결제를 확인했어요':'정기결제가 시작됐어요'):'결제 처리 중이에요. 요금제 관리에서 결과를 확인해 주세요');}catch(e){toast(e.message);}
+    }
     if (S.user && pr.get('pay')) { history.replaceState(null, '', location.pathname); await payReturn(pr); } if (S.user && pr.get('altpay')) { history.replaceState(null, '', location.pathname); await altpayReturn(pr); }
     if (!S.user) { Object.assign(S, { mode: 'auth', onb: null, tab: null, sub: null, company: null, stores: [], store: null }); return render(); }
     S.prof = (await q(sb.from('profiles').select('*').eq('id', S.user.id).maybeSingle())) || { name: '' };
@@ -1451,7 +1489,7 @@ function vMore() {
     <div class="prHero"><span class="prEy">오픈 프로모션</span><h2>회사 가입일부터 6개월<br><em>일반 무료 · 프로 9,900원</em></h2><p>${st}</p></div>
     <div class="prRep"><div><s>단톡방 · 수기 출근부</s><b>QR 출퇴근</b></div><div><s>급여 엑셀 · 계산기</s><b>급여 자동 계산</b></div><div><s>거래처 전화 · 장부 앱</s><b>발주 · 손익</b></div><div><s>구인 사이트 · 지인 연락</s><b>딜러 구인</b></div></div>
     <div class="prGrid">${P.map(([k, n, amt, f]) => `<div class="prCard ${k === 'pro' ? 'pro' : ''} ${c.plan === k && paid ? 'cur' : ''}">${k === 'pro' ? '<span class="pill y">추천</span>' : ''}<h3>${n}</h3><div class="prAmt"><b class="num">₩${E.won(amt)}</b><span>회사당 / 월</span></div><ul>${f.map(x => `<li>${x}</li>`).join('')}</ul>${btn(k, n)}</div>`).join('')}</div>
-    <p class="note">가입일부터 6개월 종료 후 일반 월 ₩${E.won(PRICING.basicMonthly)} · 프로 월 ₩${E.won(PRICING.proMonthly)}입니다. 카드 · 카카오페이 · 네이버페이 · 토스페이 · 계좌이체로 30일씩 선결제하며 자동 갱신되지 않아요. 매장이 몇 곳이든 요금은 같아요. 구인 · 장터 · 가맹은 건별 결제예요. <a href="legal.html#refund" target="_blank" rel="noopener">환불 규정</a> · <a href="legal.html#terms" target="_blank" rel="noopener">이용약관</a></p>${payNote()}`;
+    <p class="note">가입일부터 6개월 종료 후 일반 월 ₩${E.won(PRICING.basicMonthly)} · 프로 월 ₩${E.won(PRICING.proMonthly)}입니다. 유료 요금제는 카드 등록과 동의 후 30일마다 자동 결제됩니다. 베이직 무료 이용에는 카드가 필요 없어요. 정기결제 관리에서 해지할 수 있으며, 이미 결제한 기간은 유지됩니다. 매장이 몇 곳이든 요금은 같아요. 구인 · 장터 · 가맹은 별도 건별 결제예요. <a href="legal.html#refund" target="_blank" rel="noopener">환불 규정</a> · <a href="legal.html#terms" target="_blank" rel="noopener">이용약관</a></p>${own?'<button class="btn full" data-act="billing-manage">정기결제 관리 · 해지 · 카드 삭제</button>':''}`;
   }
   if (sub === 'settings') {
     const c = S.company || {}, offer = companyOffer(c, TODAY), pro = c.plan === 'pro', paid = (c.plan === 'pro' || c.plan === 'basic') && c.paid_until && new Date(c.paid_until) > now;
@@ -3286,7 +3324,11 @@ document.addEventListener('click', e => {
     await q(sb.from('orders').insert({ store_id: S.store.id, items, total, tax_invoice: $('#tax-inv')?.checked !== false })); S.cart = {}; await reload(); toast('주문했어요. 도착 예정일은 아래 주문 기록에서 볼 수 있어요'); });
   if (a === 'ostat') busy(async () => { await q(sb.from('orders').update({ status: d.v }).eq('id', d.o)); await reload(); toast(`${d.v}(으)로 바꿨어요`); });
   if (a === 'plan' && d.v === 'basic' && companyOffer(S.company, TODAY).active) return busy(async () => { if (S.company.plan === 'pro' && S.company.paid_until && new Date(S.company.paid_until) > now) return toast('현재 프로 이용 기간이 남아 있어요'); await q(sb.rpc('set_plan', { p_plan: 'basic' })); await reload(); closeSheet(); toast('가입일부터 6개월간 일반 구독은 무료예요'); });
-  if (a === 'plan' && (d.v === 'pro' || d.v === 'basic')) return pay('plan', { plan: d.v });
+  if (a === 'plan' && (d.v === 'pro' || d.v === 'basic')) return busy(()=>billingPlan(d.v));
+  if (a === 'billing-register') return busy(billingRegister);
+  if (a === 'billing-manage') return busy(billingManage);
+  if (a === 'billing-retry') return busy(async()=>{const r=await billingClient.retry(S.company.id);toast(r.paid?'결제를 확인했어요':'결제 처리 중이에요. 잠시 후 다시 확인해 주세요');await reload();});
+  if (a === 'billing-cancel') {if(!confirm('정기결제를 해지하고 등록 카드를 삭제할까요? 다음 자동결제가 중단되며 이미 결제한 기간은 유지됩니다.'))return;return busy(async()=>{const r=await billingClient.cancel(S.company.id);closeSheet();toast(r.cardDeletionPending?'해지됐어요. 카드 삭제는 재시도 중이에요':'해지와 카드 삭제를 완료했어요');await reload();});}
   if (a === 'ai-draft') { track('ai_schedule_click'); return toast('준비 중이에요. 신청이 많은 매장부터 먼저 열어드릴게요'); } // ponytail: fake door — 클릭 수요 확인 후 개발
   if (a === 'withdraw') busy(async () => { const n = await q(sb.rpc('withdraw', { p_instant: d.v === '1' })); await reload(); toast(d.v === '1' ? `₩${E.won(n)} 번개 출금을 요청했어요` : `₩${E.won(n)} 출금을 요청했어요. 다음 영업일에 들어가요`); });
   if (a === 'tickets') return toast('지원권 없이 무료로 무제한 지원할 수 있어요');

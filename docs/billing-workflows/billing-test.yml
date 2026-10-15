@@ -1,0 +1,24 @@
+name: Billing contract tests
+on:
+  pull_request:
+    paths: ['billing*', 'supabase/**', 'migrations/toss-billing.sql', 'tests/billing-sql.test.mjs', 'app.js', 'sw.js', '.github/workflows/billing-test.yml']
+  push:
+    branches: [main, codex/toss-billing]
+    paths: ['billing*', 'supabase/**', 'migrations/toss-billing.sql', 'tests/billing-sql.test.mjs', 'app.js', 'sw.js', '.github/workflows/billing-test.yml']
+permissions:
+  contents: read
+jobs:
+  billing:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: npm install --prefix "$RUNNER_TEMP/billing-test" --no-audit --no-fund --ignore-scripts @electric-sql/pglite@0.3.14
+      - name: Run unit and PostgreSQL contract tests
+        run: |
+          export PGLITE_MODULE="file://$RUNNER_TEMP/billing-test/node_modules/@electric-sql/pglite/dist/index.js"
+          node --test '*.test.mjs' supabase/functions/billing/core.test.mjs tests/billing-sql.test.mjs
+          node --check app.js
+          node --check supabase/functions/billing/index.ts
