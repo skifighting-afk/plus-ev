@@ -16,7 +16,7 @@ export function laborBody(t) {
     `   - 연장·휴일근로 가산 및 주휴수당: ${t.law ? '근로기준법에 따라 지급' : '해당 없음'}`,
     `   - 임금지급일: 매월 ${t.payday}일 (휴일인 경우 전일 지급)`,
     `   - 지급방법: 근로자 명의 예금통장에 입금${t.bank ? ` (${t.bank})` : ''}`,
-    `6. 소득 신고·공제: ${t.contract === '4대' ? '4대 사회보험(국민연금·건강보험·고용보험·산재보험) 적용' : '사업소득 3.3% 원천징수'}`,
+    `6. 소득 신고·공제: ${t.contract === '없음' ? '공제 없음 (앱 계산 설정)' : t.contract === '4대' ? '4대 사회보험(국민연금·건강보험·고용보험·산재보험) 적용' : '사업소득 3.3% 원천징수'}`,
     `7. 연차유급휴가: 근로기준법에서 정하는 바에 따라 부여함`,
     `8. 근로계약서 교부: 사업주는 계약 체결과 동시에 본 계약서를 전자문서로 근로자에게 교부하며, 근로자는 언제든 +EV 앱에서 열람·출력할 수 있다.`,
     `9. 기타: 이 계약에 정함이 없는 사항은 근로기준법령에 의한다.`,
@@ -28,7 +28,7 @@ export function payslipBody(t) {
   const L = t.lines.map(([n, v]) => `   ${n.padEnd(8, ' ')} ${W(v).padStart(12, ' ')}원`).join('\n');
   return [
     `${t.company_name} · ${t.store_name}`,
-    `성명: ${t.employee_name}   직책: ${t.role}   ${t.contract === '4대' ? '4대보험' : '3.3% 사업소득'}`,
+    `성명: ${t.employee_name}   직책: ${t.role}   ${t.contract === '없음' ? '공제 없음' : t.contract === '4대' ? '4대보험' : '3.3% 사업소득'}`,
     `귀속: ${t.period}   지급일: ${t.pay_date}`,
     `근무: ${t.days}일 · ${t.hours}시간 (시급 ${W(t.hourly)}원)`,
     '',
@@ -37,7 +37,7 @@ export function payslipBody(t) {
     `   ${'지급총액'.padEnd(8, ' ')} ${W(t.gross).padStart(12, ' ')}원`,
     '',
     '[공제 내역]',
-    `   ${(t.contract === '4대' ? '4대보험 근로자분' : '소득세 3.3%').padEnd(8, ' ')} ${('-' + W(t.ded)).padStart(12, ' ')}원`,
+    `   ${(t.contract === '없음' ? '공제 없음' : t.contract === '4대' ? '4대보험 근로자분' : '소득세 3.3%').padEnd(8, ' ')} ${('-' + W(t.ded)).padStart(12, ' ')}원`,
     '',
     `실지급액: ${W(t.net)}원`,
     t.bank ? `입금 계좌: ${t.bank}` : null,

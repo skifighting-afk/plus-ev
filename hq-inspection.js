@@ -1,12 +1,12 @@
 const fail=()=>{throw Error('운영사 조회 전용 화면에서는 변경할 수 없어요')};
-const reads=new Set(['actual_payroll','dealer_count','job_board','academy_board','my_academy','my_quiz','hq_store_stats']);
+const reads=new Set(['actual_payroll','operating_payroll','dealer_count','job_board','academy_board','my_academy','my_quiz','hq_store_stats']);
 export function readOnlyClient(client,active){
  const wrap=(obj,blocked=new Set())=>new Proxy(obj,{get(target,key){const value=target[key];if(typeof value!=='function')return value;return (...args)=>{if(active()&&blocked.has(key))return fail();const result=value.apply(target,args);return result&&typeof result==='object'?wrapChain(result):result}}});
  const mutations=new Set(['insert','update','upsert','delete','upload','remove','move','copy','createSignedUploadUrl','updateUser','signUp','signInWithPassword','signInWithOAuth','signOut','resetPasswordForEmail']);
  const wrapChain=obj=>new Proxy(obj,{get(target,key){const value=target[key];if(typeof value!=='function')return value;if(key==='then'||key==='catch'||key==='finally')return value.bind(target);return (...args)=>{if(active()&&mutations.has(key))return fail();const result=value.apply(target,args);return result&&typeof result==='object'?wrapChain(result):result}}});
  return new Proxy(client,{get(target,key){if(key==='rpc')return (name,args)=>{if(active()&&!reads.has(name))return fail();return target.rpc(name,args)};if(key==='from')return (...args)=>wrapChain(target.from(...args));if(key==='functions')return new Proxy(target.functions,{get(t,k){if(k==='invoke')return (...args)=>active()?fail():t.invoke(...args);return t[k]}});if(key==='storage')return wrap(target.storage);if(key==='auth')return wrap(target.auth,mutations);const v=target[key];return typeof v==='function'?v.bind(target):v}});
 }
-const actions=new Set(['close','sub','mon','stab','empf','sview','wk','day-open','day-go','day-rep','sales-mode','staff-edit','cash-open','refresh','print','audit','slip-preview','home-view','goto','erp-more','erp-fixed','fixed','notice-open','pnl','sales-filter']);
+const actions=new Set(['close','workflow-theme','sub','mon','stab','empf','sview','wk','day-open','day-go','day-rep','closing-date','sales-mode','staff-edit','cash-open','refresh','print','audit','slip-preview','home-view','goto','erp-more','erp-fixed','fixed','notice-open','pnl','sales-filter']);
 const subs=new Set(['analysis','settings','pnl','daily','order','notice','edu','used','board','pricing']);
 export function allowedInspectionAction(d){if(d.tab)return ['home','sched','sales','staff','jobs','market','more','improve'].includes(d.tab);if(!actions.has(d.act))return false;if(d.act==='sub')return !d.v||subs.has(d.v);if(d.act==='goto')return !d.s||subs.has(d.s);return true;}
 export function installInspectionGuard({active,storeName,toast}){

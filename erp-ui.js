@@ -4,10 +4,10 @@ import { expectedCash,closingCash } from './cash-engine.js?v=105';
 export function installERPUI({S,sb,q,A68,F68,openSheet,closeSheet,reload,toast,esc,TODAY,night,isOwner,monthRange,bizDay,clock=Date.now}) {
   const req=()=>crypto.randomUUID(),won=E.won,month=()=>E.ymd(S.y,S.m,1),num=v=>Number(String(v).replaceAll(',',''));
   const canPay=()=>S.mode==='store'&&!(S.myRole==='manager'&&S.me?.perms?.pay===false);
-  const cache=new Map(),cacheAt=new Map();let cacheUser=S.user?.id;
+  const cache=new Map(),reportCache=new Map(),cacheAt=new Map();let cacheUser=S.user?.id;
   async function ensurePeriods(storeId,periods,{force=false}={}) {
-    if(cacheUser!==S.user?.id){cache.clear();cacheAt.clear();cacheUser=S.user?.id;}
-    await Promise.all([...new Set(periods)].map(async period=>{const key=storeId+':'+period.slice(0,7);if(!force&&cache.has(key)&&clock()-(cacheAt.get(key)||0)<60000)return;const value=await q(sb.rpc('actual_payroll',{p_store:storeId,p_month:period}));cache.set(key,value);cacheAt.set(key,clock());}));
+    if(cacheUser!==S.user?.id){cache.clear();reportCache.clear();cacheAt.clear();cacheUser=S.user?.id;}
+    await Promise.all([...new Set(periods)].map(async period=>{const key=storeId+':'+period.slice(0,7);if(!force&&cache.has(key)&&clock()-(cacheAt.get(key)||0)<60000)return;const [value,report]=await Promise.all([q(sb.rpc('actual_payroll',{p_store:storeId,p_month:period})),q(sb.rpc('operating_payroll',{p_store:storeId,p_month:period}))]);cache.set(key,value);reportCache.set(key,report);cacheAt.set(key,clock());}));
   }
   async function loadCashDate(date){if(!canPay())return;const rows=await q(sb.from('cash_movements').select('*').eq('store_id',S.store.id).eq('business_date',date));S.cashMoves=[...(S.cashMoves||[]).filter(m=>m.business_date!==date),...rows];}
   async function refreshClosingDate(form,date){
@@ -20,14 +20,15 @@ export function installERPUI({S,sb,q,A68,F68,openSheet,closeSheet,reload,toast,e
   }
   const dates=v=>{const calendarDate=+v.s.slice(0,2)<8?new Date(Date.parse(v.date+'T00:00:00Z')+864e5).toISOString().slice(0,10):v.date;let end=calendarDate+'T'+v.e+':00+09:00';const start=calendarDate+'T'+v.s+':00+09:00';if(v.e<=v.s)end=new Date(Date.parse(end)+864e5).toISOString();return {p_date:v.date,p_start:start,p_end:end,p_break:num(v.brk)};};
   async function load() {
-    if(cacheUser!==S.user?.id){cache.clear();cacheAt.clear();cacheUser=S.user?.id;}
-    S.actualPayroll=null;S.workRecords=[];S.workPayments=[];S.cashMoves=[];
+    if(cacheUser!==S.user?.id){cache.clear();reportCache.clear();cacheAt.clear();cacheUser=S.user?.id;}
+    S.actualPayroll=null;S.operatingPayroll=null;S.workRecords=[];S.workPayments=[];S.cashMoves=[];
     if(!S.store?.id||!['store','staff'].includes(S.mode))return;
     if(S.mode==='store'&&!canPay())return;
     const [first,last]=monthRange(),start=new Date(Date.parse(first+'T00:00:00Z')-7*864e5).toISOString().slice(0,10);
-    const results=await Promise.all([sb.from('work_records').select('*').eq('store_id',S.store.id).gte('work_date',start).lte('work_date',new Date(Date.parse(last+'T00:00:00Z')+7*864e5).toISOString().slice(0,10)).order('start_at',{ascending:false}),sb.from('work_payments').select('*').eq('store_id',S.store.id).eq('period_month',first),sb.rpc('actual_payroll',{p_store:S.store.id,p_month:first}),S.mode==='store'?sb.from('cash_movements').select('*').eq('store_id',S.store.id).gte('business_date',first).lte('business_date',last).order('created_at',{ascending:false}):Promise.resolve({data:[],error:null})]);
+    const results=await Promise.all([sb.from('work_records').select('*').eq('store_id',S.store.id).gte('work_date',start).lte('work_date',new Date(Date.parse(last+'T00:00:00Z')+7*864e5).toISOString().slice(0,10)).order('start_at',{ascending:false}),sb.from('work_payments').select('*').eq('store_id',S.store.id).eq('period_month',first),sb.rpc('actual_payroll',{p_store:S.store.id,p_month:first}),S.mode==='store'?sb.from('cash_movements').select('*').eq('store_id',S.store.id).gte('business_date',first).lte('business_date',last).order('created_at',{ascending:false}):Promise.resolve({data:[],error:null}),S.mode==='store'?sb.rpc('operating_payroll',{p_store:S.store.id,p_month:first}):Promise.resolve({data:null,error:null})]);
     for(const r of results)if(r.error)throw Error(r.error.message);
-    [S.workRecords,S.workPayments,S.actualPayroll,S.cashMoves]=results.map(r=>r.data||[]);
+    [S.workRecords,S.workPayments,S.actualPayroll,S.cashMoves]=results.slice(0,4).map(r=>r.data||[]);S.operatingPayroll=results[4]?.data||null;
+    if(S.operatingPayroll)reportCache.set(S.store.id+':'+first.slice(0,7),S.operatingPayroll);
     cache.set(S.store.id+':'+first.slice(0,7),S.actualPayroll);cacheAt.set(S.store.id+':'+first.slice(0,7),clock());
     const periods=[...Array.from({length:6},(_,i)=>new Date(Date.UTC(S.y,S.m-2-i,1)).toISOString().slice(0,10)),...Array.from({length:3},(_,i)=>new Date(Date.UTC(+TODAY.slice(0,4),+TODAY.slice(5,7)-2-i,1)).toISOString().slice(0,10))];
     if(S.store.labor_actual_from){
@@ -38,7 +39,7 @@ export function installERPUI({S,sb,q,A68,F68,openSheet,closeSheet,reload,toast,e
     if(!S.store.labor_actual_from||(last<S.store.labor_actual_from&&!S.workRecords.some(r=>r.status!=='void'&&r.work_date.startsWith(first.slice(0,7)))))S.actualPayroll=null;
   }
   async function enable() {if(!canPay())throw Error('급여 관리 권한이 없어요');if(!S.store.labor_actual_from){if(!isOwner())throw Error('대표님이 실제 근무 집계를 시작한 뒤 이용할 수 있어요');S.store.labor_actual_from=await q(sb.rpc('erp_enable_actual',{p_store:S.store.id}));}}
-  const timeFields=()=>`<label class="fl">근무일<input name="date" type="date" value="${bizDay()}" required></label><div class="grid2"><label class="fl">출근<input name="s" type="time" required></label><label class="fl">퇴근<input name="e" type="time" required></label></div><label class="fl">휴게 (분)<input name="brk" type="number" min="0" value="30" required></label><p class="note">근무일은 영업일이에요. 새벽 8시 전 시작은 다음 날 시각으로, 퇴근이 출근보다 이르면 다음 날 퇴근으로 기록해요.</p>`;
+  const timeFields=()=>`<label class="fl">근무일<input name="date" type="date" value="${bizDay()}" required></label><div class="grid2"><label class="fl">출근<input name="s" type="time" required></label><label class="fl">퇴근<input name="e" type="time" required></label></div><label class="fl">휴게 (분)<input name="brk" type="number" min="0" value="0" required></label><p class="note">근무일은 영업일이에요. 새벽 8시 전 시작은 다음 날 시각으로, 퇴근이 출근보다 이르면 다음 날 퇴근으로 기록해요.</p>`;
   const helperFields=()=>`<label class="fl">기존 헬퍼<select name="member"><option value="">새 헬퍼 등록</option>${S.members.filter(m=>m.emp_type==='헬퍼').map(m=>`<option value="${m.id}">${esc(m.nick)}</option>`).join('')}</select></label><label class="fl">이름<input name="nick" required maxlength="20" placeholder="헬퍼 이름"></label><div class="grid2"><label class="fl">급여 방식<select name="basis"><option value="hourly">시급</option><option value="daily">일당</option></select></label><label class="fl">약정 금액 (원)<input name="amount" class="erp-money" inputmode="numeric" required placeholder="금액 입력"></label></div><p class="note">약정 기본금액이에요. 계약에 따른 야간수당·공제는 급여 내역에서 구분해요. 신규 헬퍼는 기존 3.3% 계약으로 등록돼요. 신규 일당은 약정 기본총액, 시급은 야간수당 적용으로 시작하며 기존 헬퍼의 수당 설정은 유지해요.</p>`;
   A68['work-add']=()=>{if(!canPay())return toast('급여 관리 권한이 없어요');openSheet(`<h2>근무 추가</h2><form class="f" id="erp-work-form" data-request="${req()}"><label class="fl">직원<select name="member" required>${[...S.members,...(S.gone||[])].filter(m=>m.role!=='owner').map(m=>`<option value="${m.id}">${esc(m.nick)}</option>`).join('')}</select></label>${timeFields()}<button class="btn pri full">근무 저장</button></form><button class="btn full" data-act="helper-add">새 헬퍼와 근무 함께 추가</button><button class="btn full" data-act="close">닫기</button>`);};
   A68['helper-add']=()=>{if(!canPay())return toast('급여 관리 권한이 없어요');openSheet(`<h2>헬퍼 · 근무 추가</h2><form class="f" id="erp-helper-form" data-request="${req()}">${helperFields()}${timeFields()}<p class="note">저장 후 미지급으로 표시돼요. 지급했다면 근무 기록에서 현금·이체를 선택해 완료 표시하세요.</p><button class="btn pri full">헬퍼 · 근무 저장</button></form><button class="btn full" data-act="close">닫기</button>`);};
@@ -77,5 +78,5 @@ export function installERPUI({S,sb,q,A68,F68,openSheet,closeSheet,reload,toast,e
     const fullGross=row.projected_gross??row.gross+future+futureActual.gross;
     return {...raw,...row,fullGross,fullNet:fullGross-E.dedOf(fullGross-(row.meal||0),row.contract||p.contract),shifts,days:shifts.filter(s=>s.done).length,hours:shifts.reduce((n,s)=>n+s.hours,0),brk:shifts.reduce((n,s)=>n+s.brk,0),basis:'actual'};
   }
-  return {periodPayroll:(storeId,period)=>canPay()?cache.get(storeId+':'+period.slice(0,7)):undefined,load,workCard,payroll,expectedCash,closingCash,ensurePeriods,loadCashDate,refreshClosingDate};
+  return {periodPayroll:(storeId,period)=>canPay()?(reportCache.get(storeId+':'+period.slice(0,7))||cache.get(storeId+':'+period.slice(0,7))):undefined,load,workCard,payroll,expectedCash,closingCash,ensurePeriods,loadCashDate,refreshClosingDate};
 }
