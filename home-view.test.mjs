@@ -14,6 +14,7 @@ function boot(saved = '', blocked = false) {
   const c = {
     initialHomeView,
     compactChrome: () => {},
+    enhanceFoldableCards: () => {},
     laborBudget: () => '<div>인건비율 · 현재까지 발생 인건비</div>',
     bizDay: () => '2026-10-13',
     simpleLaborSummary: () => ({ready:false, projected:0, incomplete:0, note:'스케줄 예상'}),

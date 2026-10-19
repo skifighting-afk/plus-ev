@@ -58,7 +58,7 @@ export function juhuOf(p, y, m, sh, today, prevSh = []) {
 }
 export function tax33(g) { const it = floor10(g * 0.03), lt = floor10(it * 0.1); return it + lt; }
 export function ins4(g) { const hp = floor10(g * 0.03595); return floor10(g * 0.0475) + hp + floor10(hp * 0.1314) + floor10(g * 0.009); }
-export const dedOf = (g, c) => (c === '4대' ? ins4(g) : tax33(g));
+export const dedOf = (g, c) => (c === '없음' ? 0 : c === '4대' ? ins4(g) : tax33(g));
 
 export function payroll(p, y, m, tpl, ov, inc, today, night) {
   const sh = shiftsOf(p, y, m, tpl, ov, today, night), d = sh.filter(x => x.done), r = k => Math.round(d.reduce((a, x) => a + x[k], 0));

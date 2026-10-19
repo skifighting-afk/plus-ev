@@ -931,3 +931,7 @@ html.ui-dense .card{padding:10px 12px;margin-bottom:8px}html.ui-dense .li{paddin
 #tabs:not([hidden])~#site-foot{padding-bottom:calc(96px + env(safe-area-inset-bottom))}
 body.kiosk #site-foot,body.printing #site-foot,html.printing #site-foot{display:none}
 @media print{#site-foot{display:none}}
+
+.workflow-fold>summary{cursor:pointer;font-weight:700;min-height:44px;display:flex;align-items:center;gap:8px}.workflow-fold>summary:before{content:'▸'}.workflow-fold[open]>summary:before{content:'▾'}.workflow-fold-body{margin-top:12px}.workflow-fold-body>.card:last-child{margin-bottom:0}.closing-entry>summary{font-weight:700;cursor:pointer;min-height:44px}.dcell[role=button]{cursor:pointer}.dcell[role=button]:focus-visible{outline:2px solid var(--accent,#8fe3c4);outline-offset:2px}
+
+.workflow-fold .workflow-inner{border:0;box-shadow:none;margin:0;padding:8px 0 0;background:transparent}.workflow-fold .workflow-inner>h3:first-child{margin-top:0}.workflow-fold:has(#labor-total)>summary{color:var(--text-primary,#fff)}

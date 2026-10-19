@@ -1,4 +1,4 @@
-import { installERP } from './erp-mock.js?v=110';
+import { installERP } from './erp-mock.js?v=113';
 import { PRICING } from '../pricing.js';
 import { companyOffer } from '../company-offer.js';
 // 테스트용 가짜 Supabase — 실제 DB 규칙(RPC)을 간단히 흉내냄

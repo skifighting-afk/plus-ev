@@ -1,0 +1,72 @@
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+const {PGlite}=await import(process.env.PGLITE_MODULE||'@electric-sql/pglite');
+const db=new PGlite();
+const sql=readFileSync(new URL('../migrations/simple-erp-payments.sql',import.meta.url),'utf8');
+await db.exec(`CREATE ROLE anon;CREATE ROLE authenticated;CREATE SCHEMA auth;
+CREATE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql AS $$SELECT nullif(current_setting('test.uid',true),'')::uuid$$;
+CREATE FUNCTION is_hq() RETURNS boolean LANGUAGE sql AS $$SELECT coalesce(current_setting('test.hq',true),'false')='true'$$;
+CREATE TABLE stores(id uuid PRIMARY KEY,labor_actual_from date,night_start time,night_end time,equip jsonb,holidays jsonb);
+CREATE TABLE members(id uuid PRIMARY KEY,store_id uuid,user_id uuid,role text,active boolean,checks jsonb,contract text,hourly_rate int,night_pay boolean,labor_law boolean);
+CREATE TABLE shift_templates(member_id uuid,weekday int,start_t time,end_t time,break_min int);
+CREATE TABLE shift_overrides(member_id uuid,work_date date,off boolean,start_t time,end_t time,break_min int);
+CREATE TABLE work_records(id uuid,member_id uuid,store_id uuid,work_date date,start_at timestamptz,end_at timestamptz,break_min int,source text,status text,pay_basis text,base_rate int,pay_snapshot jsonb);
+CREATE TABLE incentives(member_id uuid,month date,amount int);CREATE TABLE advances(LIKE incentives);
+CREATE FUNCTION erp_pay_access(uuid) RETURNS boolean LANGUAGE sql AS $$SELECT coalesce(current_setting('test.owner',true),'false')='true'$$;
+SELECT set_config('test.uid','11111111-1111-4111-8111-111111111111',false),set_config('test.owner','true',false);
+INSERT INTO stores VALUES('22222222-2222-4222-8222-222222222222','2026-01-01','22:00','06:00','{}','{}');
+INSERT INTO members VALUES('33333333-3333-4333-8333-333333333333','22222222-2222-4222-8222-222222222222','11111111-1111-4111-8111-111111111111','staff',true,'{}','3.3',10000,false,false);`);
+await db.exec(sql.slice(0,sql.indexOf('CREATE OR REPLACE FUNCTION public.record_pay')));
+const before=(await db.query("select pg_get_functiondef('actual_payroll(uuid,date)'::regprocedure) d")).rows[0].d;
+// Load the existing payment function verbatim; creating the reporting RPC must not rewrite it.
+await db.exec('CREATE TABLE work_payments(id uuid);');
+await db.exec(sql.slice(sql.indexOf('CREATE OR REPLACE FUNCTION public.record_pay'),sql.indexOf('CREATE OR REPLACE FUNCTION public.reverse_pay')));
+const paymentBefore=(await db.query("select pg_get_functiondef('record_pay(uuid,uuid,uuid[],text,date,uuid,date)'::regprocedure) d")).rows[0].d;
+await db.exec(readFileSync(new URL('../migrations/operating-payroll.sql',import.meta.url),'utf8'));
+assert.equal((await db.query("select pg_get_functiondef('record_pay(uuid,uuid,uuid[],text,date,uuid,date)'::regprocedure) d")).rows[0].d,paymentBefore);
+assert.equal((await db.query("select pg_get_functiondef('actual_payroll(uuid,date)'::regprocedure) d")).rows[0].d,before);
+const store='22222222-2222-4222-8222-222222222222', member='33333333-3333-4333-8333-333333333333';
+async function report(){return (await db.query(`select operating_payroll('${store}','2026-01-01') d`)).rows[0].d;}
+await db.exec(`INSERT INTO shift_overrides VALUES('${member}','2026-01-05',false,'09:00','17:00',0),('${member}','2026-01-06',false,'09:00','17:00',60);`);
+let r=await report();assert.equal(r.gross,150000);assert.equal(r.members[0].hours,15);assert.equal(r.incomplete,0);assert.equal(r.projected_gross,150000);assert.deepEqual(r.daily,[{date:'2026-01-05',hours:8,gross:80000,cost:80000},{date:'2026-01-06',hours:7,gross:70000,cost:70000}]);
+await db.exec("UPDATE stores SET labor_actual_from='2027-01-01'");assert.equal((await report()).gross,150000);
+await db.exec("UPDATE stores SET labor_actual_from='2026-01-01'");
+await db.exec(`INSERT INTO work_records SELECT gen_random_uuid(),member_id,store_id,work_date,start_at,start_at+interval '4 hours',0,'qr','confirmed',pay_basis,base_rate,pay_snapshot FROM erp_schedule_record('${member}','2026-01-05');`);
+r=await report();assert.equal(r.gross,110000);assert.equal(r.members[0].hours,11);assert.equal(r.members[0].ledger_count,1);
+await db.exec("UPDATE work_records SET status='open',end_at=null");r=await report();assert.equal(r.gross,70000);assert.equal(r.incomplete,1);
+await db.exec("UPDATE work_records SET status='conflict'");assert.equal((await report()).incomplete,1);
+await db.exec("UPDATE work_records SET status='void'");r=await report();assert.equal(r.gross,70000);assert.equal(r.incomplete,0);
+await db.exec(`UPDATE members SET active=false,checks='{"out":{"at":"2026-01-31"}}'`);assert.equal((await report()).gross,70000);
+await db.exec(`UPDATE members SET active=true;INSERT INTO members SELECT '44444444-4444-4444-8444-444444444444',store_id,'55555555-5555-4555-8555-555555555555','staff',true,'{}',contract,hourly_rate,false,false FROM members;SELECT set_config('test.owner','false',false)`);
+assert.equal((await report()).members.length,1);
+await db.exec("SELECT set_config('test.uid','66666666-6666-4666-8666-666666666666',false)");await assert.rejects(report(),/권한/);
+await db.exec("SELECT set_config('test.hq','true',false)");assert.equal((await report()).members.length,2);
+await db.exec("SELECT set_config('test.uid','',false)");await assert.rejects(report(),/로그인/);
+await db.exec(`SELECT set_config('test.uid','11111111-1111-4111-8111-111111111111',false);INSERT INTO shift_overrides VALUES('${member}','2099-01-05',false,'09:00','17:00',0);`);
+r=(await db.query(`select operating_payroll('${store}','2099-01-01') d`)).rows[0].d;assert.equal(r.gross,0);assert.equal(r.projected_gross,80000);
+// Business date moves early-morning post-cutover shifts to the following calendar day.
+const overnight=(await db.query(`select (start_at at time zone 'Asia/Seoul')::text start,break_min from erp_schedule_record('${member}','2099-01-05')`)).rows[0];
+assert.equal(overnight.break_min,0);
+await db.exec(`UPDATE shift_overrides SET start_t='01:00',end_t='05:00' WHERE work_date='2099-01-05';`);
+assert.match((await db.query(`select (start_at at time zone 'Asia/Seoul')::text start from erp_schedule_record('${member}','2099-01-05')`)).rows[0].start,/2099-01-06 01:00/);
+// Holiday, overtime and weekly amounts flow through the established pay functions.
+await db.exec(`UPDATE members SET labor_law=true WHERE id='${member}';UPDATE stores SET equip='{"five":true}',holidays='{"2026-01-06":true}';`);
+r=await report();assert.equal(r.members.find(x=>x.member_id===member).hol,35000);
+// A completed weekly schedule qualifies for the same weekly allowance formula.
+await db.exec(`UPDATE work_records SET status='confirmed',end_at=start_at+interval '8 hours',pay_snapshot=pay_snapshot||'{"labor_law":true}';UPDATE stores SET holidays='{}';`);
+r=await report();assert.equal(r.members.find(x=>x.member_id===member).juhu,30000);
+await db.exec(`UPDATE members SET contract='4대' WHERE id='${member}';UPDATE work_records SET pay_snapshot=pay_snapshot||'{"contract":"4대"}'`);
+r=await report();assert.equal(r.daily.find(d=>d.date==='2026-01-05').cost,88400);assert.equal(r.daily.find(d=>d.date==='2026-01-06').cost,77350);assert.equal(r.daily.reduce((n,d)=>n+d.gross,0),150000);assert.equal(r.gross,180000);
+const acl=(await db.query("select has_function_privilege('anon','operating_payroll(uuid,date)','execute') anon,has_function_privilege('authenticated','operating_payroll(uuid,date)','execute') authenticated")).rows[0];assert.deepEqual(acl,{anon:false,authenticated:true});
+assert.equal((await db.query('select count(*)::int n from work_records')).rows[0].n,1);
+await db.close();console.log('Operating payroll SQL: accrual, cutoff, breaks, QR precedence, warnings, void, former staff, future forecast, access, immutable payment payroll passed');
+
+const {installERP}=await import('../demo/erp-mock.js');
+const DB={profiles:[{id:'owner'}],stores:[{id:'s',company_id:'c',labor_actual_from:'2026-01-01',equip:{}}],members:[{id:'owner-m',user_id:'owner',company_id:'c',store_id:'s',role:'owner',active:true},{id:'m',user_id:'staff',company_id:'c',store_id:'s',role:'staff',active:true,contract:'3.3',hourly_rate:10000,labor_law:false,checks:{}}],attendance:[],shift_templates:[],shift_overrides:[{member_id:'m',work_date:'2026-01-05',start_t:'09:00',end_t:'17:00',break_min:0},{member_id:'m',work_date:'2099-01-05',start_t:'09:00',end_t:'17:00',break_min:0}],incentives:[],advances:[],pay_marks:[],pay_locks:[]},RPC={};
+let caller='owner';installERP({DB,RPC,me:()=>caller,canManage:()=>caller==='owner',uid:()=>crypto.randomUUID()});
+const demo=month=>RPC.operating_payroll({p_store:'s',p_month:month});
+assert.equal(demo('2026-01-01').gross,80000);assert.deepEqual(demo('2026-01-01').daily,[{date:'2026-01-05',hours:8,gross:80000,cost:80000}]);assert.equal(demo('2026-01-01').incomplete,0);assert.equal(demo('2099-01-01').gross,0);assert.equal(demo('2099-01-01').projected_gross,80000);
+DB.work_records.push({id:'qr',store_id:'s',member_id:'m',work_date:'2026-01-05',start_at:'2026-01-05T00:00Z',end_at:'2026-01-05T04:00Z',break_min:0,status:'confirmed',source:'qr',pay_basis:'hourly',base_rate:10000,pay_snapshot:{contract:'3.3',labor_law:false}});
+assert.equal(demo('2026-01-01').gross,40000);DB.work_records[0].status='void';assert.equal(demo('2026-01-01').gross,0);assert.equal(DB.work_records.length,1);assert.equal(DB.work_payments.length,0);
+caller='outsider';assert.throws(()=>demo('2026-01-01'));caller='staff';assert.equal(demo('2026-01-01').members.length,1);
+console.log('Operating payroll demo: immediate schedule accrual, future forecast, QR precedence, void and own-staff access passed');
