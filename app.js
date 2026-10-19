@@ -121,7 +121,6 @@ const loadToss = () => window.TossPayments ? Promise.resolve() : new Promise((ok
 // 결제수단 — 카드 / 카카오페이 / 네이버페이 / 토스페이 / 계좌이체 (토스페이먼츠 한 곳으로)
 const PAYM = [['CARD', '', '신용·체크카드', null], ['KAKAOPAY', '🟡', '카카오페이', 'KAKAOPAY'], ['NAVERPAY', '🟢', '네이버페이', 'NAVERPAY'], ['TOSSPAY', '', '토스페이', 'TOSSPAY'], ['TRANSFER', '', '계좌이체', null]];
 async function pay(kind, arg = {}) {
-  if (PAY_TEST && !S.prof?.is_hq) { openSheet(`<h2>🛠 준비중</h2><p class="sub">유료 기능은 결제 연결을 마치는 대로 열려요.</p>${kind === 'post' || kind === 'post_extra' ? '<p class="note">공고는 유료 옵션(상단 고정·끌어올리기 등)을 빼면 지금 바로 무료로 올릴 수 있어요.</p>' : ''}<button class="btn pri full" data-act="close">확인</button>`); return; }
   const o = (await q(sb.rpc('pay_start', { p_kind: kind, p_arg: arg })))[0];
   if (window.__autoPayMethod) return payGo(o, window.__autoPayMethod);
   S.payOrder = o; const last = (() => { try { return localStorage.getItem('ev-paym') } catch { return null } })() || 'CARD', co = S.mode === 'store' && isOwner();
@@ -135,12 +134,13 @@ async function payGo(o, m) {
   // 플레이스토어 앱 안이면 구글 대체결제 안내창 → 신고 토큰부터 (구글 정책, 한국). 돌아오면 altpayReturn이 이어서 결제
   if (IN_APP && !o.gp) { lsSet('ev-altpay', JSON.stringify({ o, m })); location.href = 'intent://altpay?o=' + o.order_id + '#Intent;scheme=plusev;package=kr.plusevapp.twa;end'; return; }
   const pm = PAYM.find(x => x[0] === m) || PAYM[0], easy = pm[3];
-  await loadToss(); const back = location.origin + location.pathname;
-  await window.TossPayments(TOSS_CLIENT_KEY).payment({ customerKey: S.user.id }).requestPayment({ method: easy ? 'CARD' : m, ...(easy ? { card: { flowMode: 'DIRECT', easyPay: easy } } : {}), amount: { currency: 'KRW', value: o.amount }, orderId: o.order_id, orderName: o.order_name, successUrl: back + '?pay=ok', failUrl: back + '?pay=fail', customerEmail: S.user.email });
+  await loadToss(); const ok = PAY_TEST && !S.prof?.is_hq ? 'test' : 'ok'; const back = location.origin + location.pathname;
+  await window.TossPayments(TOSS_CLIENT_KEY).payment({ customerKey: S.user.id }).requestPayment({ method: easy ? 'CARD' : m, ...(easy ? { card: { flowMode: 'DIRECT', easyPay: easy } } : {}), amount: { currency: 'KRW', value: o.amount }, orderId: o.order_id, orderName: o.order_name, successUrl: back + '?pay=' + ok, failUrl: back + '?pay=fail', customerEmail: S.user.email });
 }
 // 결제창에서 돌아왔을 때 (successUrl에 paymentKey·orderId·amount가 붙어 와요)
 async function payReturn(pr) {
   if (pr.get('pay') === 'fail') { toast(pr.get('message') || '결제를 취소했어요'); return; }
+  if (pr.get('pay') === 'test') { openSheet(`<h2>결제창 확인 완료</h2><p class="sub">지금은 정식 결제 오픈 전 테스트 단계라 실제로 청구되지 않았고, 요금제도 바뀌지 않았어요.</p><button class="btn pri full" data-act="close">확인</button>`); return; }
   const { data, error } = await sb.functions.invoke('pay-confirm', { body: { paymentKey: pr.get('paymentKey'), orderId: pr.get('orderId'), amount: +pr.get('amount') } });
   if (error || !data?.ok) { toast((data && data.message) || '결제 확인에 실패했어요. 운영사에 문의해 주세요'); return; }
   track('paid', { kind: data.kind, amount: data.amount });
@@ -155,7 +155,7 @@ async function altpayReturn(pr) {
   await payGo({ ...p.o, gp: 1 }, p.m);
 }
 window.__evPayReturn = async p => { await payReturn(new URLSearchParams(p)); await boot(); };
-const payNote = () => PAY_TEST ? '<p class="note">정식 결제 오픈 전이라 지금은 돈이 나가지 않아요. 오픈하면 미리 알려드려요.</p>' : '';
+const payNote = () => PAY_TEST ? '<p class="note">정식 결제 오픈 전 테스트 단계예요. 결제창은 열리지만 실제로 돈이 나가지 않고 요금제도 바뀌지 않아요.</p>' : '';
 
 // ===== 상태 =====
 const S = { user: null, prof: null, mode: null, tab: null, sub: null, company: null, stores: [], store: null, members: [], tpl: [], ov: [], reports: [], hist: [], expenses: [], expAll: [], inc: [], joins: [], rank: null, cart: {}, stock: [], orders: [],
@@ -425,7 +425,7 @@ function vAuth() {
     <button class="btn pri full" type="submit">${up ? '가입하기' : '로그인'}</button>${up ? '' : '<p class="note" style="text-align:center"><button type="button" class="tlink" data-act="pw-forgot">비밀번호를 잊으셨나요?</button></p>'}</form>${location.pathname.includes('/demo') ? '' : `<div class="or"><span>또는</span></div><button type="button" class="btn full kakao" data-act="kakao">카카오로 ${up ? '시작하기' : '로그인'}</button>`}${up ? '<p class="note">가입하면 바로 시작돼요. 가입하면 <a href="legal.html#terms" target="_blank" rel="noopener">이용약관</a>과 <a href="legal.html#privacy" target="_blank" rel="noopener">개인정보처리방침</a>에 동의한 것으로 봐요.</p>' : ''}</div>
   <div class="card demo-go" style="margin-top:12px"><h3>👀 가입 없이 먼저 둘러보기</h3><p class="sub" style="margin:6px 0">가짜 매장 '로얄플러시'로 실제 화면을 눌러 볼 수 있어요. 아무것도 저장되지 않아요.</p><div class="row" style="gap:6px"><a class="btn pri" style="flex:1;text-align:center" href="demo/?as=owner">사장님 화면</a><a class="btn" style="flex:1;text-align:center" href="demo/?as=staff">직원 화면</a></div></div>
   <div class="card" style="margin-top:12px"><h3>요금 안내</h3><p class="sub" style="margin:6px 0">회사 가입일부터 6개월간 일반(베이직) 무료 · 프로 월 9,900원 · 이후 일반 월 ${E.won(PRICING.basicMonthly)}원 / 프로 월 ${E.won(PRICING.proMonthly)}원 (회사당) · 딜러 구인 공고 무료</p><p class="note"><a href="legal.html#pricing" target="_blank" rel="noopener">상품·요금 자세히</a> · <a href="legal.html#refund" target="_blank" rel="noopener">환불 규정</a></p></div>
-  <footer class="note" style="margin:18px 0 8px;line-height:1.7;opacity:.75">플러스이브이 · 대표 김경인 · 사업자등록번호 430-51-01099<br>서울특별시 구로구 경서로 7, 1층 101호(개봉동, 드림빌) · 전화 010-4823-2636 · skifighting@gmail.com<br>통신판매업 신고 진행 중 · <a href="legal.html#terms" target="_blank" rel="noopener">이용약관</a> · <a href="legal.html#privacy" target="_blank" rel="noopener">개인정보처리방침</a></footer>`;
+`;
 }
 function vOnboard() {
   const k = S.onb;

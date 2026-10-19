@@ -1,0 +1,13 @@
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+import vm from 'node:vm';
+const src=readFileSync(new URL('./app.js',import.meta.url),'utf8');
+let requests=[],approvals=0,starts=0,sheet='';
+const S={prof:{is_hq:false},mode:'store',company:{},user:{id:'reviewer',email:'review@example.com'}};
+const c={S,PAY_TEST:true,TOSS_CLIENT_KEY:'test_key',IN_APP:false,PAYM:[['CARD','','card',null]],location:{origin:'https://plusevapp.kr',pathname:'/'},localStorage:{setItem(){},getItem(){return null}},$:()=>null,loadToss:async()=>{},window:{TossPayments:()=>({payment:()=>({requestPayment:async o=>requests.push(o)})})},sb:{rpc:async()=>{starts++;return {data:[{order_id:'review-order',order_name:'프로',amount:9900}]}},functions:{invoke:async()=>{approvals++;return {data:{ok:true}}}}},q:async p=>(await p).data,openSheet:h=>sheet=h,toast(){},track(){},isOwner:()=>true,esc:String,E:{won:String},payNote:()=>''};
+vm.createContext(c);vm.runInContext(src.slice(src.indexOf('async function pay('),src.indexOf('const IN_APP =')),c);
+await c.pay('plan');assert.equal(starts,1,'ordinary test user can create checkout order');assert.ok(!sheet.includes('준備中'));assert.ok(sheet.includes('결제하기'));
+await c.payGo({order_id:'review-order',order_name:'프로',amount:9900},'CARD');assert.equal(requests[0].successUrl,'https://plusevapp.kr/?pay=test');
+await c.payReturn(new URLSearchParams('pay=test&paymentKey=test&orderId=review-order&amount=9900'));assert.equal(approvals,0,'test checkout must never approve or grant a plan');assert.ok(sheet.includes('결제창 확인 완료'));
+S.prof.is_hq=true;await c.payGo({order_id:'hq-order',order_name:'프로',amount:9900},'CARD');assert.equal(requests[1].successUrl,'https://plusevapp.kr/?pay=ok','HQ flow remains unchanged');
+console.log('Toss review: checkout access, test return without approval and HQ route passed');

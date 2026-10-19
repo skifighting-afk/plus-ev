@@ -22,7 +22,7 @@
 button,input,select,textarea{font:inherit;color:inherit}
 .top{position:sticky;top:0;z-index:20;display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 16px;padding-top:max(10px,env(safe-area-inset-top));background:rgba(var(--bg-rgb),.92);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
 .brand{display:flex;align-items:center;gap:10px}.brand img{border-radius:50%}.brand b{font-family:Archivo,Manrope,sans-serif;font-weight:800;font-size:22px;letter-spacing:-.03em;display:flex;align-items:flex-start;line-height:1}.brand b sup{font-size:.52em;line-height:1;margin:-.05em .04em 0 0;vertical-align:baseline}.brand small{display:none}
-#view{max-width:760px;margin:0 auto;padding:14px 16px 110px}
+#view{max-width:760px;margin:0 auto;padding:14px 16px 24px}
 .boot{padding:80px 0;text-align:center;color:var(--muted)}
 #tabs{position:fixed;bottom:0;left:0;right:0;z-index:20;display:flex;justify-content:space-around;background:rgba(15,20,32,.96);backdrop-filter:blur(10px);border-top:1px solid var(--line);padding:6px 4px max(8px,env(safe-area-inset-bottom))}
 #tabs button{flex:1;max-width:120px;background:none;border:0;display:grid;justify-items:center;gap:2px;padding:6px 2px;color:var(--muted);font-size:11.5px;cursor:pointer;border-radius:10px}
@@ -922,3 +922,12 @@ html.ui-dense .card{padding:10px 12px;margin-bottom:8px}html.ui-dense .li{paddin
 .erp-simple #u-fab,.erp-simple .favbar{display:none!important}.erp-simple .card{box-shadow:none}.erp-simple .emp .acct{font-size:14px}.erp-simple .simple-home .sub{margin-bottom:14px}
 
 @media(max-width:600px){.simple-home-stats{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.simple-home-stats>.kpi:first-child{grid-column:1/-1}.simple-home .kpi{padding:14px}.simple-home .kpi .v{font-size:24px}.simple-home-actions{grid-template-columns:repeat(3,minmax(0,1fr))}.simple-home-actions .btn{font-size:13px;padding:10px 5px;white-space:normal;min-height:52px}}
+
+/* 모든 화면의 사업자 정보 및 정책 */
+#site-foot{max-width:760px;margin:0 auto;padding:20px 16px 24px;border-top:1px solid var(--line,#343b40);color:#929da5;font-size:12px;line-height:1.8;overflow-wrap:anywhere}
+#site-foot nav{display:flex;flex-wrap:wrap;gap:8px 16px}
+#site-foot a{color:inherit;text-decoration:underline;text-underline-offset:3px}
+#site-foot p{margin:12px 0 0}
+#tabs:not([hidden])~#site-foot{padding-bottom:calc(96px + env(safe-area-inset-bottom))}
+body.kiosk #site-foot,body.printing #site-foot,html.printing #site-foot{display:none}
+@media print{#site-foot{display:none}}
