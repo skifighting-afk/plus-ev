@@ -28,7 +28,7 @@ export function payslipBody(t) {
   const L = t.lines.map(([n, v]) => `   ${n.padEnd(8, ' ')} ${W(v).padStart(12, ' ')}원`).join('\n');
   return [
     `${t.company_name} · ${t.store_name}`,
-    `성명: ${t.employee_name}   직책: ${t.role}   ${t.contract === '없음' ? '공제 없음' : t.contract === '4대' ? '4대보험' : '3.3% 사업소득'}`,
+    `성명: ${t.employee_name}   직책: ${t.role}   ${t.contract === '없음' ? '공제 없음' : (t.contract === '4대' ? '4대보험' : t.contract === '없음' ? '공제 없음' : '3.3% 사업소득')}`,
     `귀속: ${t.period}   지급일: ${t.pay_date}`,
     `근무: ${t.days}일 · ${t.hours}시간 (시급 ${W(t.hourly)}원)`,
     '',
