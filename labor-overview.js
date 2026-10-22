@@ -1,6 +1,6 @@
 export function laborTotals({members=[],payroll={members:[]},sales=0,scheduled={}}) {
  const names=new Map(members.map(m=>[m.id,m]));
- const rows=(payroll?.members||[]).map(r=>{const m=names.get(r.member_id)||{},plan=scheduled[r.member_id]||{},gross=Number(r.gross)||0,projected=Number(r.projected_gross??gross),contract=r.contract||m.contract,employer=contract==='4대'?Math.round(gross*.105):0;return {...r,id:r.member_id,name:m.nick||'퇴사 직원',active:m.active!==false,gross,cost:gross+employer,employer,hours:Number(r.hours)||0,plannedHours:Number(plan.hours)||0,plannedBreak:Number(plan.brk)||0,projectedCost:Math.round(projected*(contract==='4대'?1.105:1))};});
+ const rows=(payroll?.members||[]).map(r=>{const m=names.get(r.member_id)||{},plan=scheduled[r.member_id]||{},gross=Number(r.gross)||0,projected=Number(r.projected_gross??gross),contract=r.contract||m.contract,meal=Number(r.meal)||0,employer=contract==='4대'?Math.round(Math.max(0,gross-meal)*.105):0;return {...r,id:r.member_id,name:m.nick||'퇴사 직원',active:m.active!==false,gross,cost:gross+employer,employer,hours:Number(r.hours)||0,plannedHours:Number(plan.hours)||0,plannedBreak:Number(plan.brk)||0,projectedCost:Math.round(projected+(contract==='4대'?Math.max(0,projected-meal)*.105:0))};});
  const sum=k=>rows.reduce((n,r)=>n+r[k],0),cost=sum('cost');
  return {rows,gross:sum('gross'),employer:sum('employer'),cost,projected:sum('projectedCost'),hours:sum('hours'),ratio:sales>0?cost/sales*100:null,sales,incomplete:Number(payroll?.incomplete)||rows.reduce((n,r)=>n+(Number(r.incomplete)||0),0)};
 }

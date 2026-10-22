@@ -9,3 +9,8 @@ console.log('Labor overview: actual-sales ratio, former staff, gross cost, insur
 
 const plan=scheduleTotals([{date:'2026-10-15',hours:8,brk:0},{date:'2026-10-16',hours:7.5,brk:30}],[{work_date:'2026-10-15',start_at:'2026-10-15T09:00:00Z',end_at:'2026-10-15T13:00:00Z',break_min:0,status:'planned'},{work_date:'2026-10-17',start_at:'2026-10-17T09:00:00Z',end_at:'2026-10-17T13:00:00Z',break_min:30,status:'confirmed'},{work_date:'2026-10-18',status:'void',start_at:'2026-10-18T09:00:00Z',end_at:'2026-10-18T13:00:00Z'}],'2026-10');
 assert.deepEqual(plan,{hours:15,brk:60},'manual plans replace same-day templates, preserve explicit zero breaks and exclude void work');
+
+// 2026-10-23: 식대(비과세)에는 4대보험 사업주분을 붙이지 않는다 — 노량진 김준영 180h10m × 15,000 + 식대 200,000
+{ const { laborTotals: lt } = await import('./labor-overview.js');
+  const r = lt({ members:[{id:'k',nick:'김준영',contract:'4대'}], payroll:{members:[{member_id:'k',contract:'4대',gross:2902500,meal:200000,hours:180.1667}]}, sales:30830000 });
+  if (r.rows[0].cost !== 3186263) throw Error('식대 보험료 제외 실패: '+r.rows[0].cost); console.log('meal-insurance ok'); }
