@@ -82,7 +82,7 @@ body.busy{cursor:progress}body.busy .btn{pointer-events:none;opacity:.7}
 .chat .bub{max-width:85%;padding:10px 14px;border-radius:14px;margin-top:8px;font-size:14px;line-height:1.5;background:var(--card2)}.chat .bub.me{margin-left:auto;background:rgba(var(--brand-rgb),.18);width:fit-content}
 /* 매장 개선 */
 .rkv{display:grid;text-align:center}.rkv small{font-size:12px;color:var(--muted)}.rkv b{font-size:17px;color:var(--text-primary)}
-.lights{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px}.light{display:flex;justify-content:space-between;align-items:center;gap:8px;border:1px solid var(--line);border-radius:10px;padding:10px 12px}.light small{display:block;color:var(--muted);font-size:12px}
+.lights{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px}.light:not(html){display:flex;justify-content:space-between;align-items:center;gap:8px;border:1px solid var(--line);border-radius:10px;padding:10px 12px}.light small{display:block;color:var(--muted);font-size:12px}
 .promo{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between;margin-top:12px;padding:10px 12px;border-radius:10px;background:rgba(var(--brand-rgb),.08);font-size:14px}
 .radar{display:grid;grid-template-columns:minmax(0,220px) 1fr;gap:12px;align-items:center}@media(max-width:520px){.radar{grid-template-columns:1fr}.radar svg{max-width:240px;margin:auto}}
 .sbar{display:grid;grid-template-columns:80px 1fr 30px;gap:8px;align-items:center;font-size:12.5px;margin:6px 0}.sbar i{position:relative;height:8px;background:var(--card2);border-radius:4px}.sbar i b{position:absolute;inset:0 auto 0 0;background:var(--green);border-radius:4px}.sbar i em{position:absolute;left:50%;top:-3px;bottom:-3px;border-left:2px dashed var(--gold)}
@@ -935,3 +935,6 @@ body.kiosk #site-foot,body.printing #site-foot,html.printing #site-foot{display:
 .workflow-fold>summary{cursor:pointer;font-weight:700;min-height:44px;display:flex;align-items:center;gap:8px}.workflow-fold>summary:before{content:'▸'}.workflow-fold[open]>summary:before{content:'▾'}.workflow-fold-body{margin-top:12px}.workflow-fold-body>.card:last-child{margin-bottom:0}.closing-entry>summary{font-weight:700;cursor:pointer;min-height:44px}.dcell[role=button]{cursor:pointer}.dcell[role=button]:focus-visible{outline:2px solid var(--accent,#8fe3c4);outline-offset:2px}
 
 .workflow-fold .workflow-inner{border:0;box-shadow:none;margin:0;padding:8px 0 0;background:transparent}.workflow-fold .workflow-inner>h3:first-child{margin-top:0}.workflow-fold:has(#labor-total)>summary{color:var(--text-primary,#fff)}
+.name-btn{border:0;background:none;padding:0;color:var(--text);font:inherit;text-decoration:underline;text-underline-offset:3px;cursor:pointer}
+@media (min-width:1100px){html.light #tabs{background:none}}
+.sched-folds .workflow-inner>h3:first-child{display:none}.sched-folds>.workflow-fold{margin-bottom:10px}
