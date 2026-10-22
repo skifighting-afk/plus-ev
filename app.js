@@ -691,7 +691,7 @@ function vHome() {
     ${Object.entries(M.exp).map(([k, v]) => `<div class="li"><span class="mut">− ${CAT[k] || k}</span><span class="num">₩${man(v)}</span></div>`).join('')}
     <div class="li sum"><b>= ${cur ? '월말 예상 남는 돈' : '남는 돈'}</b><b class="num ${M.left >= 0 ? 'up' : 'down'}">${M.n >= 3 || !cur || M.est ? `${M.left < 0 ? '−' : ''}₩${man(Math.abs(M.left))}${M.left < 0 ? ' 적자' : ''}${cur && M.n < 3 ? ' <small class="mut">추정</small>' : ''}` : '<small class="mut" style="font-size:13px">마감 3일부터 보여요</small>'}</b></div>
     <p class="note" style="margin-bottom:0">매출 = 매일 마감 · 인건비 = 근무표 자동 · 월세 등 = 고정지출에 한 번만 <button class="btn sm" data-act="fixed">고정지출 넣기</button></p><p class="note">${M.bep && M.bep <= E.daysIn(S.y, S.m) ? `손익분기: <b class="up">${S.m}월 ${M.bep}일</b>에 넘어요.` : '이번 달은 손익분기를 못 넘어요.'}</p></div>
-  ${fold('briefing','브리핑 · 매장 알림',goalCard(M)+setupCard()+coCard()+(cur ? noShowCard() + liveCard() + forecastCard() + payDayCard() + iosCard() + startCard() + upcomingCard() + laborCard() + noticeCard() + `<button class="card nowline" data-act="poster"><small>홍보</small><b>🎨 포스터 스튜디오 · 템플릿 6종</b><span class="mut">›</span></button>` : ''))}
+  ${goalCard(M)}${fold('briefing','브리핑 · 매장 알림',setupCard()+coCard()+(cur ? noShowCard() + liveCard() + forecastCard() + payDayCard() + iosCard() + startCard() + upcomingCard() + laborCard() + noticeCard() + `<button class="card nowline" data-act="poster"><small>홍보</small><b>포스터 스튜디오 · 템플릿 6종</b><span class="mut">›</span></button>` : ''))}
 
 
 
@@ -1187,6 +1187,8 @@ const whoDays = L => Object.entries(L.reduce((a, [n]) => (a[n] = (a[n] || 0) + 1
 const hueOf = id => [...String(id)].reduce((a, c) => a + c.charCodeAt(0), 0) * 47 % 360;
 /* 달력 표시용: '근무 추가'·QR로 기록된 실제 출퇴근 시간을 그날 예정 대신 보여준다 (데이터는 안 바꿈) */
 /* 달력 칩 시각: 정각이면 '19', 아니면 '19:30' */
+/* 근무시간 9.67 → '9h40m' (소수 표시가 헷갈린다는 매장 요청) */
+const hm = h => { const t = Math.round(h * 60), H = Math.floor(t / 60), M = t % 60; return M ? `${H}h${M}m` : `${H}h`; };
 const hhmm = t => { const v = t5(t); return v.endsWith(':00') ? v.slice(0, 2) : v; };
 const kstHM = at => new Date(Date.parse(at) + 9 * 36e5).toISOString().slice(11, 16);
 const ovSeen = () => { const rec = (S.workRecords || []).filter(r => r.status !== 'void' && r.end_at), keys = new Set(rec.map(r => r.member_id + r.work_date)); return [...rec.map(r => ({ member_id: r.member_id, work_date: r.work_date, start_t: kstHM(r.start_at), end_t: kstHM(r.end_at), break_min: r.break_min, off: false })), ...(S.ov || []).filter(o => !keys.has(o.member_id + o.work_date))]; };
@@ -1209,7 +1211,7 @@ function vSched() {
     const k = E.ymd(S.y, S.m, d), list = staff.map(p => ({ p, t: E.shiftOn(p.id, S.y, S.m, d, S.tpl, OV) })).filter(x => x.t), nd = needOn(k, need), hol = isHoliday(k);
     if (list.length < nd) short++;
     if (inWk(d)) cells += `<div class="cell ${list.length < nd ? 'short' : ''} ${k === TODAY ? 'today' : ''} ${S.selCell === k ? 'csel' : ''}" data-d="${k}" data-act="cellsel"><div class="ch"><button class="dn ${hol ? 'hol' : ''}" data-act="day-open" data-d="${k}" title="일간 근무표">${d}${hol ? '<small>휴</small>' : ''}</button><span class="pill ${list.length < nd ? (nd - list.length >= 2 ? 'r' : 'y') : 'g'}">${list.length}/${nd}</span></div>
-      ${list.map(({ p, t }) => `<div role="button" tabindex="0" class="chip ${p.job_role === '딜러' ? '' : 'fl'} ${t.ov ? 'ov' : ''} ${selHas(p.id, k) ? 'sel' : ''}" draggable="true" data-act="chip" data-m="${p.id}" data-d="${k}" title="${esc(p.nick)} ${t5(t.s)}–${t5(t.e)}" style="--hc:${hueOf(p.id)}"><span class="nm">${esc(p.nick)}</span><small>${hhmm(t.s)}–${hhmm(t.e)}</small><small class="hr">${+Math.max(0,hoursOf(t5(t.s),t5(t.e))-(t.brk??0)/60).toFixed(1)}h</small></div>`).join('')}
+      ${list.map(({ p, t }) => `<div role="button" tabindex="0" class="chip ${p.job_role === '딜러' ? '' : 'fl'} ${t.ov ? 'ov' : ''} ${selHas(p.id, k) ? 'sel' : ''}" draggable="true" data-act="chip" data-m="${p.id}" data-d="${k}" title="${esc(p.nick)} ${t5(t.s)}–${t5(t.e)}" style="--hc:${hueOf(p.id)}"><span class="nm">${esc(p.nick)}</span><small>${hhmm(t.s)}–${hhmm(t.e)}</small><small class="hr">${hm(Math.max(0,hoursOf(t5(t.s),t5(t.e))-(t.brk??0)/60))}</small></div>`).join('')}
       <button class="chip add" data-act="add-d" data-d="${k}">+</button></div>`;
   }
   const SL = S.sels || [], one = SL.length === 1 ? (() => { const x = SL[0], p = S.members.find(q => q.id === x.m), t = p && shiftOf(x.m, x.d), [, mm, dd] = x.d.split('-').map(Number); return t ? `<span><b>${esc(p.nick)} · ${mm}/${dd} ${t5(t.s)}–${t5(t.e)}</b></span><span class="row"><button class="btn sm" data-act="edit-d" data-m="${p.id}" data-d="${x.d}">수정</button><button class="btn sm" data-act="sel-copy">복사</button><button class="btn sm" data-act="sel-off">휴무</button><button class="btn sm" data-act="unsel">✕</button></span>` : ''; })() : '';
