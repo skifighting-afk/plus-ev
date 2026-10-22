@@ -2125,7 +2125,7 @@ const rgb = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16)).join(',');
 function applyTheme(k) {
   const t = THEMES[k] || THEMES.mint, v = t.v, r = document.documentElement.style;
   [['--bg', v.bg], ['--surface-1', v.s1], ['--surface-2', v.s2], ['--surface-3', v.s3], ['--text-primary', v.tx], ['--text-secondary', v.t2], ['--text-muted', v.mu], ['--brand', v.br], ['--positive', v.br], ['--brand-2', v.b2], ['--on-brand', v.on], ['--warning', v.go], ['--danger', v.dn], ['--brand-rgb', rgb(v.br)], ['--gold-rgb', rgb(v.go)], ['--danger-rgb', rgb(v.dn)], ['--bg-rgb', rgb(v.bg)]].forEach(([n, x]) => r.setProperty(n, x));
-  const ln = v.ln || '236,239,241', lt = !!v.ln; r.setProperty('--border-subtle', `rgba(${ln},${lt ? .09 : .06})`); r.setProperty('--border', `rgba(${ln},${lt ? .16 : .11})`);
+  const ln = v.ln || '236,239,241', lt = !!v.ln; r.setProperty('--border-subtle', `rgba(${ln},${lt ? .2 : .06})`); r.setProperty('--border', `rgba(${ln},${lt ? .3 : .11})`); // 밝은 화면: 매장 모니터에서도 칸 경계가 보이게 진하게
   document.documentElement.classList.toggle('light', lt);
   document.querySelector('meta[name=theme-color]')?.setAttribute('content', v.bg);
 }

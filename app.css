@@ -945,3 +945,9 @@ body.kiosk #site-foot,body.printing #site-foot,html.printing #site-foot{display:
 .cell .chip small{display:block!important;font-size:11px;color:var(--text-secondary,var(--muted));font-variant-numeric:tabular-nums;overflow:hidden;text-overflow:ellipsis}
 .cell .chip .nr{display:flex;justify-content:space-between;align-items:baseline;gap:4px;min-width:0}.cell .chip .nr .nm{min-width:0;overflow:hidden}
 .cell .chip .hr{font-style:normal;font-size:11px;color:var(--text-secondary,var(--muted));flex:none;font-variant-numeric:tabular-nums}
+/* 밝은 화면: 카드·칸 테두리와 입력칸을 분명하게 (매장 모니터에서 흰 화면이 한 덩어리로 보이던 문제) */
+html.light .card:not(.workflow-inner),html.light .cell{border:1px solid var(--border)}
+html.light .card:not(.workflow-inner){box-shadow:0 1px 3px rgba(20,24,27,.08)}
+html.light .cell .chip{border-top:1px solid var(--border-subtle);border-right:1px solid var(--border-subtle);border-bottom:1px solid var(--border-subtle)}
+html.light input:not([type=checkbox]):not([type=radio]),html.light select,html.light textarea{background:#fff;border:1px solid var(--border);color:var(--text-primary)}
+html.light .tbl td,html.light .tbl th{border-bottom-color:var(--border-subtle)}
