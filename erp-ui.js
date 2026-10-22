@@ -89,8 +89,9 @@ export function installERPUI({S,sb,q,A68,F68,openSheet,closeSheet,reload,toast,e
     if(!row)throw Error('이 매장·월의 급여 집계를 먼저 불러와 주세요');
     if(storeId!==S.store?.id||y!==S.y||m!==S.m)return {...raw,...row,fullGross:row.projected_gross??row.gross,fullNet:row.net,days:row.days||0,brk:row.brk||0,basis:'actual'};
     const actual=calculateActualPayroll({member:p,records:(S.workRecords||[]).filter(r=>r.member_id===p.id&&r.work_date.startsWith(E.ymd(y,m,1).slice(0,7))&&Date.parse(r.end_at)<=clock()),previousWeekRecords:(S.workRecords||[]).filter(r=>r.member_id===p.id&&r.work_date<E.ymd(y,m,1)&&Date.parse(r.end_at)<=clock()),period:E.ymd(y,m,1).slice(0,7),nightWindow});
-    const verifiedDates=new Set((S.workRecords||[]).filter(r=>r.member_id===p.id&&r.status!=='void').map(r=>r.work_date));
-    const shifts=[...raw.shifts.filter(r=>r.date<S.store.labor_actual_from&&!verifiedDates.has(r.date)),...actual.shifts];
+    // 근무 기록(취소 포함)이 있는 날은 기록, 없으면 지난 스케줄을 그대로 인정 (달력에 넣으면 확정 · 매장 요청)
+    const verifiedDates=new Set((S.workRecords||[]).filter(r=>r.member_id===p.id).map(r=>r.work_date));
+    const shifts=[...raw.shifts.filter(r=>r.done&&!verifiedDates.has(r.date)),...actual.shifts];
     const actualDates=new Set((S.workRecords||[]).filter(r=>r.member_id===p.id&&r.status!=='void').map(r=>r.work_date));
     const future=raw.shifts.filter(r=>r.date>=today&&!actualDates.has(r.date)).reduce((n,r)=>n+r.gross,0);
     const futureActual=calculateActualPayroll({member:p,records:(S.workRecords||[]).filter(r=>r.member_id===p.id&&['confirmed','planned'].includes(r.status)&&Date.parse(r.end_at)>clock()).map(r=>({...r,status:'confirmed'})),period,nightWindow});

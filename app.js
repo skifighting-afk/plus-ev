@@ -6,7 +6,7 @@ import { readOnlyClient, installInspectionGuard } from './hq-inspection.js?v=113
 const inspectionStore = new URLSearchParams(location.search).get('hq_store');
 import { installHQStoreView } from './hq-store-view.js?v=109';
 import { jobDefaults } from './workflow-policy.js';
-import { installERPUI } from './erp-ui.js?v=122';
+import { installERPUI } from './erp-ui.js?v=130';
 import { initialHomeView, ownerNavigation, cashSales, reportPatch } from './ui-policy.js';
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
 import * as E from './engine.js?v=113';
