@@ -12,5 +12,5 @@ assert.deepEqual(plan,{hours:15,brk:60},'manual plans replace same-day templates
 
 // 2026-10-23: 인건비 = 근무시간 × 시급 (식대·4대보험 추정 미포함) — 노량진 김준영 180h10m × 15,000
 { const { laborTotals: lt } = await import('./labor-overview.js');
-  const r = lt({ members:[{id:'k',nick:'김준영',contract:'4대'}], payroll:{members:[{member_id:'k',contract:'4대',gross:2902500,meal:200000,hours:180.1667}]}, sales:30830000 });
+  const r = lt({ members:[{id:'k',nick:'김준영',contract:'4대'}], payroll:{members:[{member_id:'k',contract:'4대',gross:2702500,meal:200000,hours:180.1667}]}, sales:30830000 });
   if (r.rows[0].cost !== 2702500) throw Error('시간×시급 아님: '+r.rows[0].cost); console.log('hours-x-wage ok'); }

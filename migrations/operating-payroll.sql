@@ -62,8 +62,8 @@ BEGIN
  SELECT sums.*,0 missing_count,coalesce((SELECT sum(amount) FROM incentives WHERE member_id=sums.member_id AND month=date_trunc('month',p_month)::date),0)::integer inc,
  CASE WHEN contract='4대' THEN least(200000,coalesce(coalesce((SELECT (w.pay_snapshot->>'meal')::integer FROM records w WHERE w.member_id=sums.member_id AND w.source<>'legacy' AND w.status<>'void' AND date_trunc('month',w.work_date)=date_trunc('month',p_month) ORDER BY w.start_at LIMIT 1),(SELECT (checks->>'meal')::integer FROM members WHERE id=sums.member_id)),0)) ELSE 0 END meal,
  coalesce((SELECT sum(amount) FROM advances WHERE member_id=sums.member_id AND month=date_trunc('month',p_month)::date),0)::integer adv
- FROM sums), totals AS (SELECT *,base+np+otp+juhu+hol+inc+meal gross FROM extras), net AS (
- SELECT totals.*,public.erp_deduction(gross-meal,contract) ded,coalesce(f.forecast_base,base+np+otp+juhu+hol)+inc+meal projected_gross FROM totals LEFT JOIN forecasts f ON f.member_id=totals.member_id)
+ FROM sums), totals AS (SELECT *,base+np+otp+juhu+hol+inc gross FROM extras), net AS (
+ SELECT totals.*,public.erp_deduction(greatest(0,gross-meal),contract) ded,coalesce(f.forecast_base,base+np+otp+juhu+hol)+inc projected_gross FROM totals LEFT JOIN forecasts f ON f.member_id=totals.member_id)
  SELECT jsonb_build_object('members',coalesce(jsonb_agg(to_jsonb(net)||jsonb_build_object('incomplete',incomplete+missing_count,'net',gross-ded,'xfer',greatest(0,gross-ded-adv))),'[]'::jsonb),
  'daily',coalesce((SELECT jsonb_agg(to_jsonb(d) ORDER BY d.date) FROM (
  SELECT a.work_date date,sum((a.a->>'hours')::numeric) hours,round(sum((a.a->>'gross')::numeric)) gross,
