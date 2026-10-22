@@ -24,12 +24,13 @@ export function installERP({DB,RPC,me,canManage,uid}) {
     DB.work_records.push(r);return r.id;
   };
   RPC.register_helper_work_v2=a=>RPC.register_helper_work(a);
+  RPC.register_helper_work_v3=a=>RPC.register_helper_work(a);
   RPC.register_helper_work=a=>{
     if(!access(a.p_store))fail('급여 관리 권한이 없어요');const old=DB.work_records.find(x=>x.request_id===a.p_request);if(old)return old.id;
     if(!['hourly','daily'].includes(a.p_basis)||!Number.isSafeInteger(a.p_amount)||a.p_amount<=0||!a.p_nick?.trim()||a.p_nick.trim().length>20)fail('이름과 시급·일당 금액을 확인해 주세요');
     let m=DB.members.find(x=>x.id===a.p_member&&x.store_id===a.p_store&&x.emp_type==='헬퍼');let created=false;
     if(a.p_member&&!m)fail('이 매장의 헬퍼를 선택해 주세요');
-    if(!m){m={id:uid(),company_id:DB.stores.find(s=>s.id===a.p_store).company_id,store_id:a.p_store,role:'staff',nick:a.p_nick.trim(),emp_type:'헬퍼',contract:'3.3',hourly_rate:a.p_basis==='hourly'?a.p_amount:0,night_pay:!!a.p_night,labor_law:false,active:true,joined_on:a.p_date,checks:{pay_basis:a.p_basis,daily_rate:a.p_basis==='daily'?a.p_amount:0}};DB.members.push(m);created=true;}
+    if(!m){m={id:uid(),company_id:DB.stores.find(s=>s.id===a.p_store).company_id,store_id:a.p_store,role:'staff',nick:a.p_nick.trim(),emp_type:'헬퍼',contract:a.p_contract||'3.3',hourly_rate:a.p_basis==='hourly'?a.p_amount:0,night_pay:!!a.p_night,labor_law:false,active:true,joined_on:a.p_date,checks:{pay_basis:a.p_basis,daily_rate:a.p_basis==='daily'?a.p_amount:0}};DB.members.push(m);created=true;}
     try {const id=RPC.record_work({...a,p_member:m.id});Object.assign(DB.work_records.find(x=>x.id===id),{pay_basis:a.p_basis,base_rate:a.p_amount});return id;}
     catch(e){if(created)DB.members.splice(DB.members.indexOf(m),1);throw e;}
   };
