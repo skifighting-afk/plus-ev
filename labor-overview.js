@@ -1,6 +1,7 @@
+// 2026-10-23 매장 요청: 인건비 = 근무시간 × 시급(+매장이 켠 수당). 식대·4대보험 추정은 자동으로 더하지 않는다
 export function laborTotals({members=[],payroll={members:[]},sales=0,scheduled={}}) {
  const names=new Map(members.map(m=>[m.id,m]));
- const rows=(payroll?.members||[]).map(r=>{const m=names.get(r.member_id)||{},plan=scheduled[r.member_id]||{},gross=Number(r.gross)||0,projected=Number(r.projected_gross??gross),contract=r.contract||m.contract,meal=Number(r.meal)||0,employer=contract==='4대'?Math.round(Math.max(0,gross-meal)*.105):0;return {...r,id:r.member_id,name:m.nick||'퇴사 직원',active:m.active!==false,gross,cost:gross+employer,employer,hours:Number(r.hours)||0,plannedHours:Number(plan.hours)||0,plannedBreak:Number(plan.brk)||0,projectedCost:Math.round(projected+(contract==='4대'?Math.max(0,projected-meal)*.105:0))};});
+ const rows=(payroll?.members||[]).map(r=>{const m=names.get(r.member_id)||{},plan=scheduled[r.member_id]||{},gross=Number(r.gross)||0,projected=Number(r.projected_gross??gross),contract=r.contract||m.contract,meal=Number(r.meal)||0,employer=0;return {...r,id:r.member_id,name:m.nick||'퇴사 직원',active:m.active!==false,gross,cost:Math.max(0,gross-meal),employer,hours:Number(r.hours)||0,plannedHours:Number(plan.hours)||0,plannedBreak:Number(plan.brk)||0,projectedCost:Math.round(Math.max(0,projected-meal))};});
  const sum=k=>rows.reduce((n,r)=>n+r[k],0),cost=sum('cost');
  return {rows,gross:sum('gross'),employer:sum('employer'),cost,projected:sum('projectedCost'),hours:sum('hours'),ratio:sales>0?cost/sales*100:null,sales,incomplete:Number(payroll?.incomplete)||rows.reduce((n,r)=>n+(Number(r.incomplete)||0),0)};
 }

@@ -67,7 +67,7 @@ BEGIN
  SELECT jsonb_build_object('members',coalesce(jsonb_agg(to_jsonb(net)||jsonb_build_object('incomplete',incomplete+missing_count,'net',gross-ded,'xfer',greatest(0,gross-ded-adv))),'[]'::jsonb),
  'daily',coalesce((SELECT jsonb_agg(to_jsonb(d) ORDER BY d.date) FROM (
  SELECT a.work_date date,sum((a.a->>'hours')::numeric) hours,round(sum((a.a->>'gross')::numeric)) gross,
- round(sum((a.a->>'gross')::numeric*CASE WHEN coalesce(a.pay_snapshot->>'contract',m.contract::text)='4대' THEN 1.105 ELSE 1 END)) cost
+ round(sum((a.a->>'gross')::numeric*1)) cost
  FROM amounts a JOIN members m ON m.id=a.member_id
  WHERE a.work_date>=date_trunc('month',p_month)::date AND a.status='confirmed' AND a.end_at<=now()
  GROUP BY a.work_date) d),'[]'::jsonb),
