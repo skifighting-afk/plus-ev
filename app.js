@@ -4674,4 +4674,4 @@ document.addEventListener('click', e => {
 
 document.addEventListener('keydown',e=>{if(!['Enter',' '].includes(e.key)||!e.target.matches?.('.dcell[role="button"]'))return;e.preventDefault();e.target.click();});
 
-{const originalRender=render;render=()=>{originalRender();$('#view')?.classList.toggle('sales-folds',S.mode==='store'&&S.tab==='sales'&&!S.sub);if(S.mode!=='store'||!['home','sched','sales'].includes(S.tab)||S.sub)return;let prefs={};try{prefs=JSON.parse(lsGet('ev-folds')||'{}')}catch{}enhanceFoldableCards($('#view'),prefs,(id,open)=>{let latest={};try{latest=JSON.parse(lsGet('ev-folds')||'{}')}catch{}latest[id]=open;lsSet('ev-folds',JSON.stringify(latest));});};}
+{const originalRender=render;render=()=>{originalRender();$('#view')?.classList?.toggle('sales-folds',S.mode==='store'&&S.tab==='sales'&&!S.sub);if(S.mode!=='store'||!['home','sched','sales'].includes(S.tab)||S.sub)return;let prefs={};try{prefs=JSON.parse(lsGet('ev-folds')||'{}')}catch{}enhanceFoldableCards($('#view'),prefs,(id,open)=>{let latest={};try{latest=JSON.parse(lsGet('ev-folds')||'{}')}catch{}latest[id]=open;lsSet('ev-folds',JSON.stringify(latest));});};}
