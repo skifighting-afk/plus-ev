@@ -43,8 +43,7 @@ export function calculateActualPayroll({member,records=[],previousWeekRecords=[]
   }
   const sum=k=>Math.round(shifts.reduce((n,s)=>n+s[k],0));
   const juhu=Math.round([...weeks].filter(([d])=>d.startsWith(period)).reduce((n,[,w])=>n+(w.hours>=15?Math.min(w.hours,40)/40*8*w.base/w.hours:0),0));
-  const contract=[...shifts].sort((a,b)=>Date.parse(a.start_at)-Date.parse(b.start_at))[0]?.pay_snapshot?.contract||member.contract;
-  if(new Set(shifts.map(r=>r.pay_snapshot?.contract||member.contract)).size>1)incomplete++;
+  const contract=member.contract; // 세금은 직원 정보의 현재 선택을 따른다
   const base=sum('base'),np=sum('nightPay'),otp=sum('otPay'),hol=sum('hol'),gross=base+np+otp+juhu+hol,ded=E.dedOf(gross,contract);
   return {contract,days:shifts.length,hours:shifts.reduce((n,s)=>n+s.hours,0),brk:sum('brk'),base,np,otp,hol,juhu,inc:0,gross,ded,net:gross-ded,fullGross:gross,fullNet:gross-ded,shifts,incomplete,basis:'actual'};
 }

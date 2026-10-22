@@ -14,7 +14,8 @@ assert.equal(r.conflicts.length,2);assert.equal(r.confirmed.length,0);
 r=reconcileWork({memberId:'m',storeId:'s',attendance:[...a,...a],manualRecords:[]});assert.equal(r.confirmed.length,1);
 const result=calculateActualPayroll({member,records:[manual],period:'2026-10',nightWindow:['22:00','06:00']});
 assert.equal(result.gross,42000);assert.equal(result.hours,3.5);assert.equal(result.ded,1380);
-assert.equal(calculateActualPayroll({member:{...member,contract:'4대'},records:[{...manual,pay_snapshot:{contract:'3.3'}}],period:'2026-10'}).ded,1380,'recorded contract protects historical deductions');
+// 2026-10-23: 세금은 입력 당시 기록이 아니라 직원 정보의 현재 선택을 따른다 (노량진 3.3%→없음 변경 반영 안 되던 문제)
+assert.equal(calculateActualPayroll({member:{...member,contract:'없음'},records:[{...manual,pay_snapshot:{contract:'3.3'}}],period:'2026-10'}).ded,0,'current member contract decides deductions');
 assert.equal(calculateActualPayroll({member,records:[{...manual,pay_basis:'daily',base_rate:120000}],period:'2026-10'}).gross,120000);
 assert.equal(calculateActualPayroll({member,records:[{...manual,end_at:null,status:'open'}],period:'2026-10'}).gross,0);
 assert.throws(()=>calculateActualPayroll({member,records:[{...manual,break_min:500}],period:'2026-10'}));

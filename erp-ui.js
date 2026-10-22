@@ -1,6 +1,6 @@
 import * as E from './engine.js';
-import { calculateActualPayroll } from './labor-engine.js';
-import { foldSection } from './store-workflow.js?v=115';
+import { calculateActualPayroll } from './labor-engine.js?v=122';
+import { foldSection } from './store-workflow.js?v=122';
 import { expectedCash,closingCash } from './cash-engine.js?v=105';
 export function installERPUI({S,sb,q,A68,F68,openSheet,closeSheet,reload,toast,esc,TODAY,night,isOwner,monthRange,bizDay,clock=Date.now}) {
   const req=()=>crypto.randomUUID(),won=E.won,month=()=>E.ymd(S.y,S.m,1),num=v=>Number(String(v).replaceAll(',',''));

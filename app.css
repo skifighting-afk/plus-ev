@@ -938,3 +938,4 @@ body.kiosk #site-foot,body.printing #site-foot,html.printing #site-foot{display:
 .name-btn{border:0;background:none;padding:0;color:var(--text);font:inherit;text-decoration:underline;text-underline-offset:3px;cursor:pointer}
 @media (min-width:1100px){html.light #tabs{background:none}}
 .sched-folds .workflow-inner>h3:first-child{display:none}.sched-folds>.workflow-fold{margin-bottom:10px}
+.sales-folds .workflow-inner>h3:first-child,.sales-folds .workflow-inner>h2:first-child{display:none}.sales-folds>.workflow-fold{margin-bottom:10px}

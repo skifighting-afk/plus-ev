@@ -1,4 +1,4 @@
-import {formatHours,ratioParts,foldSection,enhanceFoldableCards} from './store-workflow.js?v=115';
+import {formatHours,ratioParts,foldSection,enhanceFoldableCards} from './store-workflow.js?v=122';
 import { installHQOperations } from './hq-operations.js?v=110';
 import { visibleNotifications } from './owner-policy.js?v=110';
 import { laborTotals, scheduleTotals } from './labor-overview.js?v=121';
@@ -6,7 +6,7 @@ import { readOnlyClient, installInspectionGuard } from './hq-inspection.js?v=113
 const inspectionStore = new URLSearchParams(location.search).get('hq_store');
 import { installHQStoreView } from './hq-store-view.js?v=109';
 import { jobDefaults } from './workflow-policy.js';
-import { installERPUI } from './erp-ui.js?v=121';
+import { installERPUI } from './erp-ui.js?v=122';
 import { initialHomeView, ownerNavigation, cashSales, reportPatch } from './ui-policy.js';
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
 import * as E from './engine.js?v=113';
@@ -4674,4 +4674,4 @@ document.addEventListener('click', e => {
 
 document.addEventListener('keydown',e=>{if(!['Enter',' '].includes(e.key)||!e.target.matches?.('.dcell[role="button"]'))return;e.preventDefault();e.target.click();});
 
-{const originalRender=render;render=()=>{originalRender();if(S.mode!=='store'||!['home','sched'].includes(S.tab)||S.sub)return;let prefs={};try{prefs=JSON.parse(lsGet('ev-folds')||'{}')}catch{}enhanceFoldableCards($('#view'),prefs,(id,open)=>{let latest={};try{latest=JSON.parse(lsGet('ev-folds')||'{}')}catch{}latest[id]=open;lsSet('ev-folds',JSON.stringify(latest));});};}
+{const originalRender=render;render=()=>{originalRender();$('#view')?.classList.toggle('sales-folds',S.mode==='store'&&S.tab==='sales'&&!S.sub);if(S.mode!=='store'||!['home','sched','sales'].includes(S.tab)||S.sub)return;let prefs={};try{prefs=JSON.parse(lsGet('ev-folds')||'{}')}catch{}enhanceFoldableCards($('#view'),prefs,(id,open)=>{let latest={};try{latest=JSON.parse(lsGet('ev-folds')||'{}')}catch{}latest[id]=open;lsSet('ev-folds',JSON.stringify(latest));});};}
