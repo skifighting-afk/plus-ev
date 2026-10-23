@@ -364,7 +364,7 @@ function operatingLabor() {
   const sales=S.reports.reduce((n,r)=>n+(r.sales||0),0);
   return laborTotals({members:staff,payroll,sales,scheduled});
 }
-const laborOf=(y,m)=>{const period=E.ymd(y,m,1),data=erpUI.periodPayroll(S.store?.id,period);if(data&&(period.slice(0,7)>=(S.store?.labor_actual_from||'9999').slice(0,7)||data.members?.some(r=>r.ledger_count)))return data.members.reduce((n,r)=>n+(r.projected_gross??r.gross),0);return [...S.members.filter(p=>p.role!=='owner'),...(S.gone||[]).filter(p=>(p.checks?.out?.at||'')>=period)].reduce((n,p)=>{const r=erpUI.payroll(p,y,m,S.tpl,S.ov,0,p.active===false?p.checks?.out?.at||TODAY:TODAY,night());return n+(p.active===false?r.gross:r.fullGross);},0);};
+const laborOf=(y,m,actual=false)=>{const period=E.ymd(y,m,1),data=erpUI.periodPayroll(S.store?.id,period);if(data&&(actual||period.slice(0,7)>=(S.store?.labor_actual_from||'9999').slice(0,7)||data.members?.some(r=>r.ledger_count)))return data.members.reduce((n,r)=>n+(actual?r.gross:(r.projected_gross??r.gross)),0);return [...S.members.filter(p=>p.role!=='owner'),...(S.gone||[]).filter(p=>(p.checks?.out?.at||'')>=period)].reduce((n,p)=>{const r=erpUI.payroll(p,y,m,S.tpl,S.ov,0,p.active===false?p.checks?.out?.at||TODAY:TODAY,night());return n+(actual||p.active===false?r.gross:r.fullGross);},0);};
 function dailyLaborCard(){const rows=S.operatingPayroll?.daily||[];if(!rows.length)return '';return fold('daily-labor','날짜별 인건비 · 매출 대비',`<div class="tbl"><table><thead><tr><th>날짜</th><th>총 시간</th><th>근무분 인건비</th><th>마감 매출</th><th>인건비율</th></tr></thead><tbody>${rows.map(r=>{const sales=S.reports.find(x=>x.report_date===r.date)?.sales||0;return `<tr><td>${r.date.slice(5)}</td><td>${formatHours(r.hours)}</td><td>₩${E.won(r.cost)}</td><td>${sales?'₩'+E.won(sales):'마감 전'}</td><td>${sales?(r.cost/sales*100).toFixed(1)+'%':'—'}</td></tr>`}).join('')}</tbody></table></div><p class="note">하루 근무분(근무시간 × 시급) 기준 · 인센티브·주휴수당은 날짜별 금액에서 제외하고 월 합계에 포함합니다.</p>`);}
 function scheduleLaborCard(){const r=operatingLabor();if(r.unavailable)return '<section class="card"><h3>직원별 누적 근무</h3><p class="note">급여 조회 권한이 필요해요</p></section>';return `<section class="card" id="schedule-labor"><h3>${S.m}월 직원별 누적 근무</h3><div class="row between"><b>인건비율 ${r.ratio==null?'—':r.ratio.toFixed(1)+'%'}</b><span>현재까지 발생 인건비 <b>₩${E.won(r.cost)}</b></span></div><p class="note">실제 마감 매출 ₩${E.won(r.sales)} 기준 · 휴게 제외 · 근무시간 × 시급 기준 (식대·4대보험 제외)${r.incomplete?` · 기록 충돌·미완료 ${r.incomplete}건은 누적에서 제외`:''}</p><div class="tbl"><table><thead><tr><th>직원</th><th class="r">누적 시간</th><th class="r">스케줄 시간</th><th class="r">누적 인건비</th><th class="r">세금 공제</th><th class="r">매출 대비</th></tr></thead><tbody>${r.rows.filter(x=>x.active||x.cost||x.hours).map(x=>`<tr><td><button type="button" class="name-btn" data-act="labor-member" data-m="${x.id}">${esc(x.name)}</button>${!x.active?' <small>퇴사</small>':''}</td><td class="r">${formatHours(x.hours)}</td><td class="r">${formatHours(x.plannedHours)}</td><td class="r">₩${E.won(x.cost)}</td><td class="r">${(c=>c==='없음'?'—':`₩${E.won(E.dedOf(Math.max(0,x.cost-(c==='4대'?x.meal||0:0)),c))} <small>${c==='4대'?'4대':'3.3%'}</small>`)(x.contract||'3.3')}</td><td class="r">${r.sales?(x.cost/r.sales*100).toFixed(1)+'%':'—'}</td></tr>`).join('')||'<tr><td colspan="6">근무 기록이 없어요</td></tr>'}</tbody></table></div><p class="note">세금 공제는 직원 정보의 세금 선택(3.3% · 4대보험 근로자 부담분)대로 계산한 예상 금액이에요. 직원 이름을 누르면 이번 달 근무 기록을 보고 잘못 입력한 근무를 취소할 수 있어요.</p><p class="note">누적은 종료된 스케줄을 자동 반영하며 실제 근무 기록이 있으면 그 기록을 우선합니다. 스케줄 시간은 달력에 넣은 이번 달 전체(오늘 이후 포함)입니다.</p>${dailyLaborCard()}</section>`;}
 
@@ -481,7 +481,16 @@ function monthSummary(y, m) {
   const urgent = S.posts.filter(p => p.kind === 'urgent' && p.created_at.slice(0, 10) >= f && p.created_at.slice(0, 10) <= l).reduce((a, p) => a + (p.paid_amount || 0), 0);
   const labor = laborOf(y, m) + urgent, cost = labor + Object.values(exp).reduce((a, v) => a + v, 0);
   const D = E.daysIn(y, m), el = cur ? Math.max(1, now.getDate() - 1) : D;
-  return { est: !!pm, n, sales, proj, exp, labor, urgent, cost, left: proj - cost, el, earned: sales - cost * el / D, bep: proj ? Math.ceil(cost / (proj / D)) : null };
+  const through = cur ? TODAY : l, earnedDays = cur ? +TODAY.slice(8) : D;
+  const actualReports = rs.filter(r => r.report_date <= through), actualSales = actualReports.reduce((a, r) => a + (+r.sales || 0), 0);
+  const actualExp = Object.create(null);
+  S.expAll.filter(x => x.spent_on >= f && x.spent_on <= through).forEach(x => actualExp[x.category] = (actualExp[x.category] || 0) + (+x.amount || 0));
+  const estimatedFixed = Object.keys(fixedFor(y, m).fx).filter(k => !Object.hasOwn(actualExp, k));
+  Object.entries(fixedFor(y, m).fx).forEach(([k, v]) => { if (+v && !Object.hasOwn(actualExp, k)) actualExp[k] = Math.round(+v * earnedDays / D); });
+  if (!Object.hasOwn(actualExp, 'card')) actualExp.card = Math.round(actualReports.reduce((a, r) => a + (+r.card || 0), 0) * (+S.store.equip?.card_rate || 1.6) / 100);
+  const actualUrgent = S.posts.filter(p => p.kind === 'urgent' && p.created_at.slice(0, 10) >= f && p.created_at.slice(0, 10) <= through).reduce((a, p) => a + (+p.paid_amount || 0), 0);
+  const actualLabor = laborOf(y, m, true) + actualUrgent, actualCost = actualLabor + Object.values(actualExp).reduce((a, v) => a + v, 0);
+  return { est: !!pm, n, sales, proj, exp, labor, urgent, cost, left: proj - cost, el, earnedDays, actualSales, actualLabor, actualExp, actualCost, estimatedFixed, earned: actualSales - actualCost, bep: proj ? Math.ceil(cost / (proj / D)) : null };
 }
 // ===== 보안·계정: 다시 확인 · PIN 잠금 · 알림함 · 방해 금지 · 백업 · 도움말 =====
 const fresh = () => S.reauthAt && Date.now() - S.reauthAt < 5 * 60e3, isEmailUser = () => (S.user?.app_metadata?.provider || 'email') === 'email';
@@ -647,12 +656,33 @@ function selfCard() {
     ${[['매출', s => s.proj, true, mw], ['인건비 비율', s => s.proj > 0 && s.labor <= s.proj * 1.5 ? s.labor / s.proj * 100 : NaN, false, pct], ['비용 합계', s => s.cost, false, mw], ['남는 돈', s => s.left, true, mw]].map(([n, f, g, fm]) => { const v = [...ms].reverse().map(x => f(x.s)), d = v[2] - v[1]; return `<tr><td>${n}</td>${v.map((x, i) => `<td class="r num ${i < 2 ? 'mut' : ''}">${isNaN(x) ? '-' : fm(x)}</td>`).join('')}<td class="r num ${!d || isNaN(d) ? '' : (d > 0) === g ? 'up' : 'down'}">${!d || isNaN(d) ? '-' : (d > 0 ? '▲' : '▼') + fm(Math.abs(d))}</td></tr>`; }).join('')}</tbody></table></div>
     ${S.bench?.locked ? `<div class="promo"><span>비슷한 매장들과 비교한 순위·경고등·처방은 <b>프로</b>에서 보여요.</span><button class="btn sm gold" data-act="goto" data-t="improve">둘러보기</button></div>` : ''}</div>`;
 }
+function expenseCategories() {
+  const cats = { ...CAT };
+  for (const name of S.store?.cfg?.expense_categories || []) cats['custom:' + name] = name;
+  for (const row of S.expAll || []) if (row.category?.startsWith('custom:')) cats[row.category] = row.category.slice(7);
+  return cats;
+}
+function categoryName(key) { return CAT[key] || (String(key).startsWith('custom:') ? key.slice(7) : key); }
+function expenseForm(row = {}) {
+  const cats = expenseCategories();
+  if (row.category && !Object.hasOwn(cats, row.category)) cats[row.category] = categoryName(row.category);
+  openSheet(`<h2>지출 ${row.id ? '수정' : '추가'}</h2><form class="f" id="expense-form" data-id="${esc(row.id || '')}"><label class="fl">내용<input name="memo" maxlength="40" value="${esc(row.memo || '')}" placeholder="예: 쿠팡 소모품, 주류 납품"></label><div class="grid2"><label class="fl">항목<select name="cat">${Object.entries(cats).filter(([k]) => k !== 'card' || row.category === 'card').map(([k, label]) => `<option value="${esc(k)}"${k === (row.category || 'goods') ? ' selected' : ''}>${esc(label)}</option>`).join('')}</select></label><label class="fl">금액 (원)<input name="amount" type="number" inputmode="numeric" min="1" max="2147483647" step="1" required value="${row.amount || ''}" ${row.source === 'close' ? 'readonly' : ''}></label></div>
+    <div class="row"><input id="expense-category-name" maxlength="40" placeholder="새 항목 이름 (예: 얼음, 세탁비)" aria-label="새 지출 항목 이름"><button type="button" class="btn sm" data-act="exp-category-add">항목 추가</button></div>
+    <label class="fl">날짜<input type="date" name="date" required value="${esc(row.spent_on || TODAY)}" ${row.source === 'close' ? 'readonly' : ''}></label>${row.source === 'close' ? '<p class="note">마감 현금과 연결된 지출이에요. 항목·내용은 여기서 수정하고, 금액·날짜는 해당 날짜의 오픈·마감 화면에서 수정해 주세요.</p>' : ''}
+    <label class="fl">영수증 사진 <small class="mut">${row.photo ? '(새 사진을 선택하지 않으면 기존 사진 유지)' : '(선택)'}</small><input type="file" name="photo" accept="image/*"></label><button class="btn pri full">${row.id ? '수정 저장' : '추가'}</button></form>`);
+}
 function fixedCard() {
-  const F = fixedFor(S.y, S.m), fx = F.fx, sum = FIXED.reduce((a, [k]) => a + (+fx[k] || 0), 0);
-  return `<div class="card"><div class="row between"><h3 style="margin:0">${S.m}월 지출 비용 <small>고정비 ₩${E.won(sum)} · 그 외 지출 ₩${E.won((S.expenses || []).reduce((a, x) => a + (+x.amount || 0), 0))}</small></h3><span class="row">${isOwner() ? `<button class="btn sm" data-act="fixed">${S.m}월 수정</button>` : ''}<button class="btn sm" data-act="fixed-year">연간 보기</button></span></div>
-    ${!F.own && F.from ? `<p class="note" style="margin:6px 0 0">${+F.from.slice(5, 7)}월 금액을 그대로 쓰고 있어요. 이 달만 다르면 수정하세요.</p>` : ''}
-    <div class="fxg">${FIXED.map(([k, n]) => `<div><small>${n}</small><b class="num">${+fx[k] ? '₩' + man(+fx[k]) : '-'}</b></div>`).join('')}</div>
-    <div class="row" style="margin-top:10px"><button class="btn sm pri" data-act="exp-new">+ 지출 추가 (쿠팡·주류 등)</button><button class="btn sm" data-act="exp-list">${S.m}월 비용 내역 ${S.expenses.length}건</button></div></div>`;
+  const F = fixedFor(S.y, S.m), M = monthSummary(S.y, S.m), totals = Object.fromEntries(Object.keys(expenseCategories()).map(k => [k, 0]));
+  const [first, last] = monthRange(), rows = (S.expAll || []).filter(x => x.spent_on >= first && x.spent_on <= last);
+  for (const x of rows) totals[x.category] = (totals[x.category] || 0) + (+x.amount || 0);
+  for (const [k, v] of Object.entries(F.fx)) if (!rows.some(x => x.category === k)) totals[k] = +v || 0;
+  if (!rows.some(x => x.category === 'card')) totals.card = M.actualExp.card || 0;
+  const total = Object.values(totals).reduce((a, v) => a + v, 0);
+  return `<div class="card"><div class="row between"><h3 style="margin:0">${S.m}월 지출 비용 <small>합계 ₩${E.won(total)} · 매출 ₩${E.won(M.sales)} 대비</small></h3><span class="row">${isOwner() ? `<button class="btn sm" data-act="fixed">${S.m}월 수정</button>` : ''}<button class="btn sm" data-act="fixed-year">연간 보기</button></span></div>
+    ${!F.own && F.from ? `<p class="note">${+F.from.slice(5, 7)}월 고정비를 이어 쓰고 있어요.</p>` : ''}
+    <div class="fxg">${Object.entries(totals).map(([k, amount]) => `<div><small>${esc(categoryName(k))}</small><b class="num">₩${E.won(amount)}</b><small>매출 대비 ${M.sales > 0 ? (amount / M.sales * 100).toFixed(1) + '%' : '—'}</small></div>`).join('')}</div>
+    <p class="note">등록 지출과 월 고정비 기준 · 미등록 카드 수수료는 카드 매출로 추정 · 같은 항목의 등록 지출이 있으면 고정비 대신 반영해요. 매출이 없으면 비율은 —로 표시해요.</p>
+    <div class="row" style="margin-top:10px"><button class="btn sm pri" data-act="exp-new">+ 지출 추가 (쿠팡·주류 등)</button><button class="btn sm" data-act="exp-list">${S.m}월 비용 내역 ${rows.length}건</button></div></div>`;
 }
 function fixedYearSheet(y) {
   const months = Array.from({ length: 12 }, (_, i) => ({ m: i + 1, F: fixedFor(y, i + 1) }));
@@ -684,13 +714,13 @@ function vHome() {
   <div class="hmain">
   <div class="sech"><h2>${S.m}월 손익</h2>${monthNav()}</div>
   ${laborBudget(M, cur)}
-  <div class="card bill"><h3>${S.m}월 계산서 ${help('bill')} <small>${cur ? '월말 예상 기준' : '확정'}</small></h3>
-    ${cur ? `<div class="lead"><small>오늘까지 남은 돈 (${M.el}일)</small><b class="num ${M.earned >= 0 ? 'up' : 'down'}">${M.earned < 0 ? '−' : ''}₩${man(Math.abs(M.earned))}</b></div>` : ''}
-    <div class="li"><b>매출${cur ? ' <small class="mut">월말 예상</small>' : ''}</b><b class="num">₩${man(M.proj)}</b></div>
-    <div class="li"><span class="mut">− 인건비 (스케줄 · 긴급 구인 포함)</span><span class="num">₩${man(M.labor)}</span></div>
-    ${Object.entries(M.exp).map(([k, v]) => `<div class="li"><span class="mut">− ${CAT[k] || k}</span><span class="num">₩${man(v)}</span></div>`).join('')}
-    <div class="li sum"><b>= ${cur ? '월말 예상 남는 돈' : '남는 돈'}</b><b class="num ${M.left >= 0 ? 'up' : 'down'}">${M.n >= 3 || !cur || M.est ? `${M.left < 0 ? '−' : ''}₩${man(Math.abs(M.left))}${M.left < 0 ? ' 적자' : ''}${cur && M.n < 3 ? ' <small class="mut">추정</small>' : ''}` : '<small class="mut" style="font-size:13px">마감 3일부터 보여요</small>'}</b></div>
-    <p class="note" style="margin-bottom:0">매출 = 매일 마감 · 인건비 = 근무표 자동 · 월세 등 = 고정지출에 한 번만 <button class="btn sm" data-act="fixed">고정지출 넣기</button></p><p class="note">${M.bep && M.bep <= E.daysIn(S.y, S.m) ? `손익분기: <b class="up">${S.m}월 ${M.bep}일</b>에 넘어요.` : '이번 달은 손익분기를 못 넘어요.'}</p></div>
+  <div class="card bill"><h3>${S.m}월 계산서 <small>${cur ? '현재까지 누적 기준' : '월 누적 기준'}</small></h3>
+    <div class="li"><b>누적 매출</b><b class="num">₩${E.won(M.actualSales)}</b></div>
+    <div class="li"><span class="mut">− 발생 인건비 (긴급 구인 포함)</span><span class="num">₩${E.won(M.actualLabor)}</span></div>
+    ${Object.entries(M.actualExp).map(([k, v]) => `<div class="li"><span class="mut">− ${esc(categoryName(k))}${cur && M.estimatedFixed.includes(k) ? ' (일할)' : ''}</span><span class="num">₩${E.won(v)}</span></div>`).join('')}
+    <div class="li sum"><b>= ${cur ? '현재까지 남은 돈' : '남은 돈'}</b><b class="num ${M.earned >= 0 ? 'up' : 'down'}">${M.earned < 0 ? '−' : ''}₩${E.won(Math.abs(M.earned))}</b></div>
+    <p class="note">${cur ? `이번 달 1일~오늘 (${M.earnedDays}일)까지` : '해당 월'} 기록된 매출 − 발생 인건비 − 지출. 등록 지출은 전액, 별도 지출로 등록하지 않은 고정비는 ${cur ? '오늘까지 일할' : '월 전체'} 반영해요. 카드 수수료는 등록 금액이 없으면 카드 매출로 추정해요.</p>
+    <p class="note">통장 잔액과는 달라요. 미입력 매출·지출과 미완료 근무는 확인해 주세요.</p></div>
   ${goalCard(M)}${fold('briefing','브리핑 · 매장 알림',setupCard()+coCard()+(cur ? noShowCard() + liveCard() + forecastCard() + payDayCard() + iosCard() + startCard() + upcomingCard() + laborCard() + noticeCard() + `<button class="card nowline" data-act="poster"><small>홍보</small><b>포스터 스튜디오 · 템플릿 6종</b><span class="mut">›</span></button>` : ''))}
 
 
@@ -1472,7 +1502,7 @@ function vMore() {
     return `${storeHead('월간 손익')}${back}<div class="card"><div class="tbl"><table><thead><tr><th>항목</th>${months.map(x => `<th class="r">${x.mm}월</th>`).join('')}</tr></thead><tbody>
       <tr><td><b>매출</b></td>${months.map(x => `<td class="r num"><b>${man(x.s.proj)}</b></td>`).join('')}</tr>
       <tr><td class="mut">인건비</td>${months.map(x => `<td class="r num">${man(x.s.labor)}</td>`).join('')}</tr>
-      ${keys.map(k => `<tr><td class="mut">${CAT[k] || k}</td>${months.map(x => `<td class="r num">${x.s.exp[k] ? man(x.s.exp[k]) : '-'}</td>`).join('')}</tr>`).join('')}
+      ${keys.map(k => `<tr><td class="mut">${esc(categoryName(k))}</td>${months.map(x => `<td class="r num">${x.s.exp[k] ? man(x.s.exp[k]) : '-'}</td>`).join('')}</tr>`).join('')}
       <tr><td><b>남는 돈</b></td>${months.map(x => `<td class="r num ${x.s.left >= 0 ? 'up' : 'down'}"><b>${man(x.s.left)}</b></td>`).join('')}</tr>
       <tr><td class="mut">손익분기 날</td>${months.map(x => `<td class="r num mut">${x.s.proj ? (x.s.bep <= E.daysIn(x.yy, x.mm) ? x.s.bep + '일' : '못 넘음') : '-'}</td>`).join('')}</tr></tbody></table></div>
       <p class="note">이번 달은 지금 속도로 계산한 월말 예상이에요.</p></div>`;
@@ -2598,7 +2628,7 @@ function goalAll() {
 function reportSheet() {
   const pm = new Date(S.y, S.m - 2, 1), y = pm.getFullYear(), m = pm.getMonth() + 1, M = monthSummary(y, m), [f, l] = monthRange(y, m), R = S.hist.filter(r => r.report_date >= f && r.report_date <= l), best = [...R].sort((a, b) => b.sales - a.sales)[0];
   openSheet(`<div class="mrep"><h2>${S.store.name} ${m}월 리포트</h2><p class="sub">${y}년 ${m}월 · 마감 ${R.length}일</p><div class="evc"><div><small>매출</small><b class="num">₩${man(M.sales)}</b></div><div><small>인건비</small><b class="num">₩${man(M.labor)}</b></div><div><small>남은 돈</small><b class="num ${M.left >= 0 ? 'up' : 'down'}">₩${man(M.left)}</b></div></div>
-  ${Object.entries(M.exp).map(([k, v]) => `<div class="li"><span>${CAT[k] || k}</span><span class="num">₩${E.won(v)}</span></div>`).join('')}<div class="li"><span>엔트리</span><span class="num">${R.reduce((a, r) => a + (r.entries || 0), 0)}명</span></div>${best ? `<div class="li"><span>최고 매출일</span><span class="num">${+best.report_date.slice(8)}일 ₩${man(best.sales)}</span></div>` : ''}<div class="li"><span>금고 차액 합</span><span class="num">₩${E.won(R.reduce((a, r) => a + Math.abs(r.cash_diff || 0), 0))}</span></div></div>
+  ${Object.entries(M.exp).map(([k, v]) => `<div class="li"><span>${esc(categoryName(k))}</span><span class="num">₩${E.won(v)}</span></div>`).join('')}<div class="li"><span>엔트리</span><span class="num">${R.reduce((a, r) => a + (r.entries || 0), 0)}명</span></div>${best ? `<div class="li"><span>최고 매출일</span><span class="num">${+best.report_date.slice(8)}일 ₩${man(best.sales)}</span></div>` : ''}<div class="li"><span>금고 차액 합</span><span class="num">₩${E.won(R.reduce((a, r) => a + Math.abs(r.cash_diff || 0), 0))}</span></div></div>
   <button class="btn pri full" data-act="print">PDF로 저장 · 인쇄</button><button class="btn full" data-act="rep-copy" style="margin-top:6px">글로 복사 (인쇄창이 안 뜨면)</button>`);
 }
 // ===== 사용성: 오프라인 마감 · 홈 꾸미기 · 즐겨찾기 · 색약 · 첫 화면 · 단축키 · 기기 목록 · 지난해 =====
@@ -3276,8 +3306,20 @@ document.addEventListener('click', e => {
   if (a === 'pay-copy') { const t = S.members.filter(p => p.role !== 'owner').map(p => { const r = payOf(p); return `${p.bank_holder || p.real_name || p.nick}\t${p.bank_name || '-'}\t${p.bank_acct || '-'}\t${r.xfer}`; }).join('\n'); navigator.clipboard?.writeText(t).then(() => toast('예금주·은행·계좌·금액을 복사했어요. 은행 앱 대량이체에 붙여넣으세요'), () => toast('복사가 막혀 있어요')); }
   if (a === 'copy') { navigator.clipboard?.writeText(d.v).then(() => toast('복사했어요'), () => toast(d.v)); }
   if (a === 'exp-del') busy(async () => { await q(sb.from('expenses').delete().eq('id', d.id)); closeSheet(); await reload(); toast('삭제했어요'); });
-  if (a === 'exp-new') openSheet(`<h2>지출 추가</h2><form class="f" id="expense-form"><label class="fl">내용<input name="memo" maxlength="40" placeholder="예: 쿠팡 소모품, 주류 납품"></label><div class="grid2"><label class="fl">항목<select name="cat">${Object.entries(CAT).filter(([k]) => k !== 'card').map(([v, l]) => `<option value="${v}">${l}</option>`).join('')}</select></label><label class="fl">금액 (원)<input name="amount" type="number" inputmode="numeric" required></label></div><label class="fl">날짜<input type="date" name="date" value="${TODAY}"></label><label class="fl">영수증 사진 <small class="mut">(선택)</small><input type="file" name="photo" accept="image/*"></label><button class="btn pri full">추가</button></form>`);
-  if (a === 'exp-list') openSheet(`<h2>${S.m}월 비용 내역</h2>${S.expenses.map(x => `<div class="li"><div><b>${x.memo ? esc(x.memo) : CAT[x.category] || x.category}</b><small>${x.memo ? (CAT[x.category] || x.category) + ' · ' : ''}${x.spent_on} · ${x.source === 'close' ? '마감 때 쓴 현금' : '직접 입력'}</small></div><span class="row"><span class="num">₩${E.won(x.amount)}</span>${x.photo ? `<button class="btn sm" data-act="exp-photo" data-p="${esc(x.photo)}" aria-label="영수증 보기">영수증</button>` : ''}<button class="btn sm" data-act="exp-del" data-id="${x.id}">삭제</button></span></div>`).join('') || '<div class="empty">비용 기록이 없어요</div>'}<button class="btn sm" data-act="bin" style="margin-top:10px">최근 삭제한 기록 (7일)</button>`);
+  if (a === 'exp-new') expenseForm();
+  if (a === 'exp-edit') { const row = S.expenses.find(x => String(x.id) === String(d.id)); if (row) expenseForm(row); }
+  if (a === 'exp-category-add') {
+    const name = $('#expense-category-name').value.trim();
+    if (!name || name.length > 40) return toast('항목 이름을 1~40자로 입력해 주세요');
+    return busy(async () => {
+      const cats = expenseCategories(), existing = Object.entries(cats).find(([, label]) => label === name), key = existing?.[0] || 'custom:' + name;
+      if (!existing) await cfgSave({ expense_categories: [...new Set([...(S.store.cfg?.expense_categories || []), name])] });
+      const select = $('#expense-form').elements.cat;
+      if (![...select.options].some(option => option.value === key)) select.add(new Option(name, key));
+      select.value = key; $('#expense-category-name').value = ''; toast('항목을 선택했어요');
+    });
+  }
+  if (a === 'exp-list') openSheet(`<h2>${S.m}월 비용 내역</h2>${S.expenses.map(x => `<div class="li"><div><b>${esc(x.memo || categoryName(x.category))}</b><small>${x.memo ? esc(categoryName(x.category)) + ' · ' : ''}${x.spent_on} · ${x.source === 'close' ? '마감 때 쓴 현금' : '직접 입력'}</small></div><span class="row"><span class="num">₩${E.won(x.amount)}</span>${x.photo ? `<button class="btn sm" data-act="exp-photo" data-p="${esc(x.photo)}" aria-label="영수증 보기">영수증</button>` : ''}<button class="btn sm" data-act="exp-edit" data-id="${x.id}">수정</button><button class="btn sm" data-act="exp-del" data-id="${x.id}">삭제</button></span></div>`).join('') || '<div class="empty">비용 기록이 없어요</div>'}<button class="btn sm" data-act="bin" style="margin-top:10px">최근 삭제한 기록 (7일)</button>`);
   if (a === 'pos') openSheet(`<h2>통합 POS 연동</h2><div class="card pos-toss"><b>토스플레이스 <span class="pill g">지금 연결 가능</span></b><ol class="steps"><li>토스 POS → <b>설정</b> → <b>기타설정</b> → <b>서비스 연동</b></li><li><b>서비스 코드로 연결</b> 누르기</li><li>코드 입력 <button type="button" class="btn sm" data-act="copy" data-v="${TOSS_CODE}"><b class="num">${TOSS_CODE}</b> 복사</button></li></ol><small class="mut">설치되면 이 화면에 바로 떠요</small></div><h3 style="margin:18px 0 6px">다른 POS · 준비 중</h3><p class="mut">쓰는 POS를 신청해 주시면 먼저 연동해서 알려드려요.</p><form class="f" id="pos-form"><div class="seg brk" style="flex-wrap:wrap">${[...POS.slice(1), '기타'].map((p, i) => `<label style="flex:1 1 30%"><input type="radio" name="pos" value="${p}" ${i ? '' : 'checked'}><span>${p}</span></label>`).join('')}</div><label class="fl">기타면 이름<input name="etc" placeholder="예: 포스 회사 이름"></label><button class="btn pri full">연동 신청</button></form>`);
   if (a === 'csv') {
     const rows = [['이름', '실명', '직책', '계약', '시급', '근무일', '근무시간', '기본급', '야간수당', '연장수당', '주휴수당', '인센티브', '지급총액', '공제', '실지급', '은행', '계좌번호', '예금주']];
@@ -3500,7 +3542,21 @@ document.addEventListener('submit', e => {
       if (de) return toast(koErr(de.message)); closeSheet(); S.byMe = 1; await sb.auth.signOut(); lsSet('ev_bal_' + S.user?.id, ''); return toast('탈퇴했어요. 그동안 고마웠어요'); }
     if (id === 'bank-form') { await q(sb.from('profiles').update({ bank_name: v.bank || null, bank_acct: (v.acct || '').replace(/[^0-9-]/g, '') || null, bank_holder: v.holder || null }).eq('id', S.user.id)); S.prof = await q(sb.from('profiles').select('*').eq('id', S.user.id).maybeSingle()); render(); toast('계좌를 저장했어요'); }
     if (id === 'pos-form') { const n = v.pos === '기타' ? (v.etc || '기타') : v.pos; await q(sb.from('inquiries').insert({ from_user: S.user.id, store_id: S.store.id, body: `[포스 연동] ${n} — ${S.store.name}` })); S.posAsk = n; closeSheet(); render(); toast(`${n} 연동을 신청했어요`); }
-    if (id === 'expense-form') { const ph = f.elements.photo?.files?.[0]; let photo = null; if (ph) { photo = `${S.store.id}/${Date.now()}.jpg`; await q(sb.storage.from('receipts').upload(photo, await shrink(ph), { contentType: 'image/jpeg' })); } await q(sb.from('expenses').insert({ store_id: S.store.id, category: v.cat, amount: +v.amount, spent_on: v.date || TODAY, source: 'bill', photo, memo: (v.memo || '').trim() || null })); closeSheet(); await reload(); toast('지출을 추가했어요 · 손익에 반영돼요'); }
+    if (id === 'expense-form') {
+      const existing = f.dataset.id ? S.expenses.find(x => String(x.id) === f.dataset.id) : null;
+      if (f.dataset.id && !existing) throw Error('수정할 지출을 찾지 못했어요. 다시 열어 주세요');
+      const amount = +v.amount, category = String(v.cat || ''), date = v.date || TODAY;
+      if (!Number.isInteger(amount) || amount <= 0 || amount > 2147483647) throw Error('금액은 1원 이상의 정수로 입력해 주세요');
+      if (!Object.hasOwn(expenseCategories(), category)) throw Error('지출 항목을 다시 선택해 주세요');
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw Error('날짜를 확인해 주세요');
+      if (existing?.source === 'close' && (amount !== existing.amount || date !== existing.spent_on)) throw Error('마감 지출의 금액과 날짜는 오픈·마감 화면에서 수정해 주세요');
+      const ph = f.elements.photo?.files?.[0]; let photo = existing?.photo || null;
+      if (ph) { photo = `${S.store.id}/${Date.now()}.jpg`; await q(sb.storage.from('receipts').upload(photo, await shrink(ph), { contentType: 'image/jpeg' })); }
+      const patch = { category, amount, spent_on: date, photo, memo: (v.memo || '').trim() || null };
+      if (existing) await q(sb.from('expenses').update(patch).eq('id', existing.id).eq('store_id', S.store.id).select('id').single());
+      else await q(sb.from('expenses').insert({ ...patch, store_id: S.store.id, source: 'bill' }));
+      closeSheet(); await reload(); toast(existing ? '지출을 수정했어요 · 손익에 반영돼요' : '지출을 추가했어요 · 손익에 반영돼요');
+    }
     if (id === 'staff-form') {
       const mw = v.prob ? Math.ceil(minWage() * 0.9 / 10) * 10 : minWage();
       if (+v.rate && +v.rate < mw && f.dataset.okw !== v.rate) { f.dataset.okw = v.rate; return toast(`${TODAY.slice(0, 4)}년 최저임금은 시급 ₩${E.won(minWage())}이에요. 맞으면 저장을 한 번 더 눌러주세요`); }

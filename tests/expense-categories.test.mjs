@@ -1,0 +1,11 @@
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+import {PGlite} from '@electric-sql/pglite';
+const db=new PGlite();
+await db.exec("create table expenses(category text constraint expenses_category_check check(category in ('rent','goods','etc'))); insert into expenses values ('rent'),('goods');");
+await db.exec(readFileSync(new URL('../supabase/migrations/20261023121409_custom_expense_categories.sql',import.meta.url),'utf8'));
+for(const category of ['mgmt','custom:세탁비','custom:'+ '가'.repeat(40)]) await db.query('insert into expenses values ($1)',[category]);
+for(const category of ['unknown','custom:','custom: ','custom: 세탁비','custom:'+ '가'.repeat(41)]) await assert.rejects(db.query('insert into expenses values ($1)',[category]));
+assert.equal((await db.query('select count(*)::int as count from expenses')).rows[0].count,5);
+await db.close();
+console.log('Expense category migration: old rows, management fee, custom names and validation passed');
