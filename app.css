@@ -320,6 +320,18 @@ label.fl{align-content:start}.grid2>label.fl{grid-template-rows:1fr auto;align-c
 .fxg{gap:0;border-top:1px solid var(--border-subtle);margin-top:10px}
 .fxg div{background:none;border-radius:0;padding:10px 12px 10px 0;border-bottom:1px solid var(--border-subtle)}
 .fxg small{font-size:12px}.fxg b{font-size:15px;font-weight:600}
+.fxg .expense-category{display:flex;flex-direction:column;gap:4px;min-width:0;text-align:left;color:inherit;font:inherit;background:transparent;border:0;border-bottom:1px solid var(--border-subtle);padding:12px 8px;cursor:pointer;overflow-wrap:anywhere}
+.fxg .expense-category:hover{background:var(--card2)}
+.expense-category:focus-visible{outline:2px solid var(--accent,#66d6b0);outline-offset:-2px;border-radius:6px}
+.expense-actions{flex-wrap:wrap;gap:8px;margin-top:12px}
+.expense-edit-row{min-width:0;border:1px solid var(--border-subtle);border-radius:12px;padding:12px;margin:0 0 12px}
+.expense-edit-row legend{max-width:100%;overflow-wrap:anywhere;padding:0 6px;font-weight:600}
+.expense-edit-row .fl{min-width:0}.expense-edit-row input,.expense-edit-row select{max-width:100%;box-sizing:border-box}
+.expense-row-status{display:block;overflow-wrap:anywhere;margin-top:8px}
+#expense-settings-form label:has(input[type=checkbox]){display:flex;align-items:center;gap:10px;margin-top:12px;min-height:44px}
+#expense-settings-form input[type=checkbox]{width:20px;height:20px;min-height:20px;padding:0;margin:0;flex:0 0 20px;accent-color:var(--accent,#66d6b0)}
+#expense-bulk-status:not(:empty){padding:12px;background:var(--card2);border-radius:10px;margin-bottom:12px}
+@media(max-width:440px){.expense-edit-row .grid2{grid-template-columns:1fr}.expense-actions .btn{flex:1 1 auto}}
 .daytl{border-top:1px solid var(--border-subtle)}.tl{overflow:hidden}
 .li{padding:10px 0}.li small{font-size:12px}
 /* 데스크톱: 2컬럼 (주 2/3 · 보조 1/3) */

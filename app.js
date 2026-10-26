@@ -660,9 +660,60 @@ function expenseCategories() {
   const cats = { ...CAT };
   for (const name of S.store?.cfg?.expense_categories || []) cats['custom:' + name] = name;
   for (const row of S.expAll || []) if (row.category?.startsWith('custom:')) cats[row.category] = row.category.slice(7);
+  for (const key of Object.keys(cats)) cats[key] = categoryName(key);
   return cats;
 }
-function categoryName(key) { return CAT[key] || (String(key).startsWith('custom:') ? key.slice(7) : key); }
+function categoryName(key) { return S.store?.cfg?.expense_display?.labels?.[key] || CAT[key] || (String(key).startsWith('custom:') ? key.slice(7) : key); }
+function expenseMonthData() {
+  const [first, last] = monthRange(S.y, S.m), F = fixedFor(S.y, S.m), M = monthSummary(S.y, S.m);
+  const rows = (S.expAll || []).filter(x => x.spent_on >= first && x.spent_on <= last).sort((a, b) => a.spent_on.localeCompare(b.spent_on));
+  const totals = Object.fromEntries(Object.keys(expenseCategories()).map(k => [k, 0])), estimates = {};
+  for (const row of rows) totals[row.category] = (totals[row.category] || 0) + (+row.amount || 0);
+  for (const [k, v] of Object.entries(F.fx)) if (!rows.some(x => x.category === k)) { totals[k] = +v || 0; estimates[k] = '월 고정비'; }
+  if (!rows.some(x => x.category === 'card')) { totals.card = M.actualExp.card || 0; estimates.card = '카드 매출 기준 추정'; }
+  return { rows, totals, estimates, F, M, total: Object.values(totals).reduce((a, v) => a + v, 0) };
+}
+function expenseList(category = '') {
+  const D = expenseMonthData(), rows = D.rows.filter(x => !category || x.category === category);
+  const estimates = Object.entries(D.estimates).filter(([k]) => (!category || k === category) && D.totals[k]);
+  const total = category ? D.totals[category] || 0 : D.total;
+  openSheet(`<button class="btn sm" data-act="close" style="float:right">닫기</button><h2>${S.m}월 ${category ? esc(categoryName(category)) : '전체 비용'} 내역</h2><p class="sub">월 전체 기준 · 합계 <b class="num">₩${E.won(total)}</b></p>
+    ${estimates.map(([k, label]) => `<div class="li"><div><b>${esc(categoryName(k))}</b><small>${label} · 입력된 거래가 아닌 계산 금액</small></div><b class="num">₩${E.won(D.totals[k])}</b></div>`).join('')}
+    ${rows.map(x => `<div class="li"><div><b>${esc(x.memo || categoryName(x.category))}</b><small>${esc(x.spent_on)} · ${esc(categoryName(x.category))} · ${x.source === 'close' ? '마감 현금' : '직접 입력'}${x.spent_on > TODAY ? ' · 예정' : ''}</small></div><span class="row"><b class="num">₩${E.won(x.amount)}</b>${x.photo ? `<button class="btn sm" data-act="exp-photo" data-p="${esc(x.photo)}">영수증</button>` : ''}<button class="btn sm" data-act="exp-edit" data-id="${esc(x.id)}">수정</button><button class="btn sm" data-act="exp-del" data-id="${esc(x.id)}">삭제</button></span></div>`).join('') || '<p class="note">직접 입력된 지출 내역이 없어요.</p>'}
+    <div class="row expense-actions"><button class="btn pri" data-act="exp-new" data-category="${esc(category)}">+ 지출 추가</button>${rows.length ? `<button class="btn" data-act="exp-bulk" data-category="${esc(category)}">전체 수정</button>` : ''}<button class="btn" data-act="exp-list">전체 비용 보기</button></div><p class="note">월 고정비·추정 수수료도 합계에 포함돼요. 순이익은 오늘까지 지출과 일할 고정비를 반영하므로 월 전체와 다를 수 있어요.</p><button class="btn sm" data-act="bin">최근 삭제한 기록 (7일)</button>`);
+}
+function expensePatch(row, values) {
+  const amount = Number(String(values.amount).replaceAll(',', '')), spent_on = String(values.spent_on || ''), category = String(values.category || ''), memo = String(values.memo || '').trim();
+  if (!Number.isInteger(amount) || amount < 1 || amount > 2147483647) throw Error('금액은 1~2,147,483,647원의 정수로 입력해 주세요');
+  const date = new Date(spent_on + 'T00:00:00Z');
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(spent_on) || !Number.isFinite(+date) || date.toISOString().slice(0, 10) !== spent_on) throw Error('유효한 날짜를 입력해 주세요');
+  if (!Object.hasOwn(expenseCategories(), category) && category !== row.category) throw Error('항목을 다시 선택해 주세요');
+  if (memo.length > 40) throw Error('내용은 40자 이내로 입력해 주세요');
+  if (row.source === 'close' && (amount !== +row.amount || spent_on !== row.spent_on)) throw Error('마감 지출의 금액·날짜는 오픈·마감에서 수정해 주세요');
+  return { category, amount, spent_on, memo: memo || null };
+}
+function expenseChanged(row, patch) { return Object.entries(patch).some(([k, v]) => (row[k] ?? null) !== v); }
+async function saveExpenseChanges(changes, update) {
+  let saved = 0; const failed = [];
+  for (const { row, patch } of changes) {
+    try { await update(row, patch); Object.assign(row, patch); saved++; }
+    catch (error) { failed.push({ id: String(row.id), message: error.message || '저장하지 못했어요' }); }
+  }
+  return { saved, failed };
+}
+function expenseBulkForm(category = '') {
+  const rows = expenseMonthData().rows.filter(x => !category || x.category === category), cats = expenseCategories();
+  openSheet(`<button class="btn sm" data-act="close" style="float:right">닫기</button><h2>${S.m}월 ${category ? esc(categoryName(category)) + ' ' : ''}전체 수정</h2><p class="note">변경한 항목만 저장해요. 마감 현금의 금액·날짜는 오픈·마감에서 수정해 주세요.</p><form class="f" id="expense-bulk-form"><div role="status" aria-live="polite" id="expense-bulk-status"></div>
+    ${rows.map((r, i) => `<fieldset class="expense-edit-row" data-id="${esc(r.id)}"><legend>${i + 1}. ${esc(r.memo || categoryName(r.category))}${r.source === 'close' ? ' · 마감 연결' : ''}</legend><div class="grid2"><label class="fl">날짜<input name="spent_on" type="date" required value="${esc(r.spent_on)}" ${r.source === 'close' ? 'readonly' : ''}></label><label class="fl">금액 (원)<input name="amount" type="number" min="1" max="2147483647" step="1" required value="${+r.amount}" ${r.source === 'close' ? 'readonly' : ''}></label><label class="fl">항목<select name="category">${Object.entries({ ...cats, [r.category]: categoryName(r.category) }).map(([k, n]) => `<option value="${esc(k)}" ${k === r.category ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select></label><label class="fl">내용<input name="memo" maxlength="40" value="${esc(r.memo || '')}"></label></div><small class="expense-row-status" role="status"></small></fieldset>`).join('') || '<p class="note">수정할 지출이 없어요.</p>'}
+    ${rows.length ? '<button class="btn pri full" type="submit">변경사항 한 번에 저장</button>' : ''}</form>`);
+}
+function expenseSettings() {
+  if (!isOwner()) return toast('항목 설정은 대표만 변경할 수 있어요');
+  const cfg = S.store.cfg?.expense_display || {}, cats = expenseCategories(), order = [...new Set([...(cfg.order || []), ...Object.keys(cats)])].filter(k => Object.hasOwn(cats, k));
+  openSheet(`<button class="btn sm" data-act="close" style="float:right">닫기</button><h2>비용 항목 설정</h2><p class="note">이 매장에 저장돼요. 이름·순서·숨김을 바꿔도 기존 거래와 합계는 유지돼요.</p><form class="f" id="expense-settings-form">
+    ${order.map((k, i) => `<fieldset class="expense-edit-row" data-category="${esc(k)}"><legend>${esc(CAT[k] || k.slice(7))}</legend><div class="grid2"><label class="fl">표시 이름<input name="label" required maxlength="40" value="${esc(cats[k])}"></label><label class="fl">표시 순서<input name="order" type="number" min="1" max="9999" step="1" required value="${i + 1}"></label></div><label><input name="hidden" type="checkbox" ${(cfg.hidden || []).includes(k) ? 'checked' : ''}> 카드에서 숨기기</label></fieldset>`).join('')}
+    <label class="fl">새 항목 추가<input name="new_category" maxlength="40" placeholder="예: 쿠팡, 세탁비"></label><label><input type="checkbox" name="show_zero" ${cfg.show_zero !== false ? 'checked' : ''}> 0원 항목도 표시</label><button class="btn pri full">항목 설정 저장</button></form>`);
+}
 function expenseForm(row = {}) {
   const cats = expenseCategories();
   if (row.category && !Object.hasOwn(cats, row.category)) cats[row.category] = categoryName(row.category);
@@ -672,17 +723,17 @@ function expenseForm(row = {}) {
     <label class="fl">영수증 사진 <small class="mut">${row.photo ? '(새 사진을 선택하지 않으면 기존 사진 유지)' : '(선택)'}</small><input type="file" name="photo" accept="image/*"></label><button class="btn pri full">${row.id ? '수정 저장' : '추가'}</button></form>`);
 }
 function fixedCard() {
-  const F = fixedFor(S.y, S.m), M = monthSummary(S.y, S.m), totals = Object.fromEntries(Object.keys(expenseCategories()).map(k => [k, 0]));
-  const [first, last] = monthRange(), rows = (S.expAll || []).filter(x => x.spent_on >= first && x.spent_on <= last);
-  for (const x of rows) totals[x.category] = (totals[x.category] || 0) + (+x.amount || 0);
-  for (const [k, v] of Object.entries(F.fx)) if (!rows.some(x => x.category === k)) totals[k] = +v || 0;
-  if (!rows.some(x => x.category === 'card')) totals.card = M.actualExp.card || 0;
-  const total = Object.values(totals).reduce((a, v) => a + v, 0);
+  const { F, M, totals, rows, total } = expenseMonthData(), cfg = S.store.cfg?.expense_display || {};
+  const keys = [...new Set([...(cfg.order || []), ...Object.keys(totals)])].filter(k => Object.hasOwn(totals, k));
+  const visible = keys.filter(k => !(cfg.hidden || []).includes(k) && (cfg.show_zero !== false || totals[k]));
+  const hiddenTotal = keys.filter(k => !visible.includes(k)).reduce((n, k) => n + totals[k], 0);
   return `<div class="card"><div class="row between"><h3 style="margin:0">${S.m}월 지출 비용 <small>합계 ₩${E.won(total)} · 매출 ₩${E.won(M.sales)} 대비</small></h3><span class="row">${isOwner() ? `<button class="btn sm" data-act="fixed">${S.m}월 수정</button>` : ''}<button class="btn sm" data-act="fixed-year">연간 보기</button></span></div>
     ${!F.own && F.from ? `<p class="note">${+F.from.slice(5, 7)}월 고정비를 이어 쓰고 있어요.</p>` : ''}
-    <div class="fxg">${Object.entries(totals).map(([k, amount]) => `<div><small>${esc(categoryName(k))}</small><b class="num">₩${E.won(amount)}</b><small>매출 대비 ${M.sales > 0 ? (amount / M.sales * 100).toFixed(1) + '%' : '—'}</small></div>`).join('')}</div>
+    <p class="note">월 전체 비용 · 오늘까지 반영 비용 ₩${E.won(Object.values(M.actualExp).reduce((a, v) => a + v, 0))} (급여 제외, 고정비 일할)</p>
+    <div class="fxg">${visible.map(k => { const amount = totals[k]; return `<button type="button" class="expense-category" data-act="exp-category" data-category="${esc(k)}" aria-label="${esc(categoryName(k))} 내역 보기"><small>${esc(categoryName(k))} ›</small><b class="num">₩${E.won(amount)}</b><small>매출 대비 ${M.sales > 0 ? (amount / M.sales * 100).toFixed(1) + '%' : '—'}</small></button>`; }).join('')}</div>
+    ${hiddenTotal ? `<p class="note">숨긴 항목 ₩${E.won(hiddenTotal)}도 합계에 포함돼요. 전체 비용 내역에서 확인할 수 있어요.</p>` : ''}
     <p class="note">등록 지출과 월 고정비 기준 · 미등록 카드 수수료는 카드 매출로 추정 · 같은 항목의 등록 지출이 있으면 고정비 대신 반영해요. 매출이 없으면 비율은 —로 표시해요.</p>
-    <div class="row" style="margin-top:10px"><button class="btn sm pri" data-act="exp-new">+ 지출 추가 (쿠팡·주류 등)</button><button class="btn sm" data-act="exp-list">${S.m}월 비용 내역 ${rows.length}건</button></div></div>`;
+    <div class="row expense-actions"><button class="btn sm pri" data-act="exp-new">+ 지출 추가 (쿠팡·주류 등)</button><button class="btn sm" data-act="exp-list">${S.m}월 비용 내역 ${rows.length}건</button><button class="btn sm" data-act="exp-bulk">전체 수정</button>${isOwner() ? '<button class="btn sm" data-act="exp-settings">항목 설정</button>' : ''}</div></div>`;
 }
 function fixedYearSheet(y) {
   const months = Array.from({ length: 12 }, (_, i) => ({ m: i + 1, F: fixedFor(y, i + 1) }));
@@ -3306,7 +3357,10 @@ document.addEventListener('click', e => {
   if (a === 'pay-copy') { const t = S.members.filter(p => p.role !== 'owner').map(p => { const r = payOf(p); return `${p.bank_holder || p.real_name || p.nick}\t${p.bank_name || '-'}\t${p.bank_acct || '-'}\t${r.xfer}`; }).join('\n'); navigator.clipboard?.writeText(t).then(() => toast('예금주·은행·계좌·금액을 복사했어요. 은행 앱 대량이체에 붙여넣으세요'), () => toast('복사가 막혀 있어요')); }
   if (a === 'copy') { navigator.clipboard?.writeText(d.v).then(() => toast('복사했어요'), () => toast(d.v)); }
   if (a === 'exp-del') busy(async () => { await q(sb.from('expenses').delete().eq('id', d.id)); closeSheet(); await reload(); toast('삭제했어요'); });
-  if (a === 'exp-new') expenseForm();
+  if (a === 'exp-new') expenseForm(d.category ? { category: d.category } : {});
+  if (a === 'exp-category') expenseList(d.category);
+  if (a === 'exp-bulk') expenseBulkForm(d.category);
+  if (a === 'exp-settings') expenseSettings();
   if (a === 'exp-edit') { const row = S.expenses.find(x => String(x.id) === String(d.id)); if (row) expenseForm(row); }
   if (a === 'exp-category-add') {
     const name = $('#expense-category-name').value.trim();
@@ -3319,7 +3373,7 @@ document.addEventListener('click', e => {
       select.value = key; $('#expense-category-name').value = ''; toast('항목을 선택했어요');
     });
   }
-  if (a === 'exp-list') openSheet(`<h2>${S.m}월 비용 내역</h2>${S.expenses.map(x => `<div class="li"><div><b>${esc(x.memo || categoryName(x.category))}</b><small>${x.memo ? esc(categoryName(x.category)) + ' · ' : ''}${x.spent_on} · ${x.source === 'close' ? '마감 때 쓴 현금' : '직접 입력'}</small></div><span class="row"><span class="num">₩${E.won(x.amount)}</span>${x.photo ? `<button class="btn sm" data-act="exp-photo" data-p="${esc(x.photo)}" aria-label="영수증 보기">영수증</button>` : ''}<button class="btn sm" data-act="exp-edit" data-id="${x.id}">수정</button><button class="btn sm" data-act="exp-del" data-id="${x.id}">삭제</button></span></div>`).join('') || '<div class="empty">비용 기록이 없어요</div>'}<button class="btn sm" data-act="bin" style="margin-top:10px">최근 삭제한 기록 (7일)</button>`);
+  if (a === 'exp-list') expenseList();
   if (a === 'pos') openSheet(`<h2>통합 POS 연동</h2><div class="card pos-toss"><b>토스플레이스 <span class="pill g">지금 연결 가능</span></b><ol class="steps"><li>토스 POS → <b>설정</b> → <b>기타설정</b> → <b>서비스 연동</b></li><li><b>서비스 코드로 연결</b> 누르기</li><li>코드 입력 <button type="button" class="btn sm" data-act="copy" data-v="${TOSS_CODE}"><b class="num">${TOSS_CODE}</b> 복사</button></li></ol><small class="mut">설치되면 이 화면에 바로 떠요</small></div><h3 style="margin:18px 0 6px">다른 POS · 준비 중</h3><p class="mut">쓰는 POS를 신청해 주시면 먼저 연동해서 알려드려요.</p><form class="f" id="pos-form"><div class="seg brk" style="flex-wrap:wrap">${[...POS.slice(1), '기타'].map((p, i) => `<label style="flex:1 1 30%"><input type="radio" name="pos" value="${p}" ${i ? '' : 'checked'}><span>${p}</span></label>`).join('')}</div><label class="fl">기타면 이름<input name="etc" placeholder="예: 포스 회사 이름"></label><button class="btn pri full">연동 신청</button></form>`);
   if (a === 'csv') {
     const rows = [['이름', '실명', '직책', '계약', '시급', '근무일', '근무시간', '기본급', '야간수당', '연장수당', '주휴수당', '인센티브', '지급총액', '공제', '실지급', '은행', '계좌번호', '예금주']];
@@ -3542,6 +3596,51 @@ document.addEventListener('submit', e => {
       if (de) return toast(koErr(de.message)); closeSheet(); S.byMe = 1; await sb.auth.signOut(); lsSet('ev_bal_' + S.user?.id, ''); return toast('탈퇴했어요. 그동안 고마웠어요'); }
     if (id === 'bank-form') { await q(sb.from('profiles').update({ bank_name: v.bank || null, bank_acct: (v.acct || '').replace(/[^0-9-]/g, '') || null, bank_holder: v.holder || null }).eq('id', S.user.id)); S.prof = await q(sb.from('profiles').select('*').eq('id', S.user.id).maybeSingle()); render(); toast('계좌를 저장했어요'); }
     if (id === 'pos-form') { const n = v.pos === '기타' ? (v.etc || '기타') : v.pos; await q(sb.from('inquiries').insert({ from_user: S.user.id, store_id: S.store.id, body: `[포스 연동] ${n} — ${S.store.name}` })); S.posAsk = n; closeSheet(); render(); toast(`${n} 연동을 신청했어요`); }
+    if (id === 'expense-bulk-form') {
+      const fields = [...f.querySelectorAll('.expense-edit-row')];
+      // Validate every row before making any writes. Keep failed drafts in the open form.
+      let changes;
+      try { changes = fields.map(el => {
+        const row = S.expAll.find(x => String(x.id) === el.dataset.id);
+        if (!row) throw Error('지출이 변경됐어요. 화면을 다시 열어 주세요');
+        const values = Object.fromEntries([...el.querySelectorAll('[name]')].map(x => [x.name, x.value]));
+        return { row, patch: expensePatch(row, values) };
+      }).filter(({ row, patch }) => expenseChanged(row, patch)); }
+      catch (error) { $('#expense-bulk-status').textContent = error.message; return; }
+      if (!changes.length) return toast('변경한 내용이 없어요');
+      f.querySelector('button[type=submit]').disabled = true;
+      const storeId = S.store.id;
+      try {
+        const result = await saveExpenseChanges(changes, async (row, patch) => {
+          await q(sb.from('expenses').update(patch).eq('id', row.id).eq('store_id', storeId).select('id').single());
+          const monthly = S.expenses.find(x => String(x.id) === String(row.id));
+          if (monthly) Object.assign(monthly, patch);
+        });
+        const failed = new Map(result.failed.map(x => [x.id, x.message]));
+        fields.forEach(el => { el.querySelector('.expense-row-status').textContent = failed.has(el.dataset.id) ? `저장 실패: ${failed.get(el.dataset.id)}` : '저장됨'; });
+        $('#expense-bulk-status').textContent = `${result.saved}건 저장 · ${result.failed.length}건 실패${result.failed.length ? ' — 입력을 유지했어요. 다시 저장하면 실패한 변경만 재시도해요.' : ''}`;
+        if (!result.failed.length) { closeSheet(); await reload(); toast(`${result.saved}건 지출을 수정했어요`); }
+        else render();
+      } finally { const button = f.querySelector('button[type=submit]'); if (button) button.disabled = false; }
+      return;
+    }
+    if (id === 'expense-settings-form') {
+      if (!isOwner()) return toast('항목 설정은 대표만 변경할 수 있어요');
+      const entries = [...f.querySelectorAll('[data-category]')].map((el, index) => ({ key: el.dataset.category, name: el.querySelector('[name=label]').value.trim(), order: +el.querySelector('[name=order]').value, hidden: el.querySelector('[name=hidden]').checked, index }));
+      if (entries.some(x => !x.name || x.name.length > 40 || !Number.isInteger(x.order) || x.order < 1 || x.order > 9999)) return toast('항목 이름과 순서를 확인해 주세요');
+      const names = entries.map(x => x.name), newName = (v.new_category || '').trim();
+      if (new Set(names).size !== names.length || (newName && (names.includes(newName) || Object.hasOwn(expenseCategories(), 'custom:' + newName)))) return toast('같은 이름의 항목이 있어요');
+      if (newName.length > 40) return toast('항목 이름은 40자 이내로 입력해 주세요');
+      const display = { labels: Object.fromEntries(entries.map(x => [x.key, x.name])), hidden: entries.filter(x => x.hidden).map(x => x.key), order: entries.sort((a, b) => a.order - b.order || a.index - b.index).map(x => x.key), show_zero: f.elements.show_zero.checked };
+      const categories = [...(S.store.cfg?.expense_categories || [])];
+      if (newName) { categories.push(newName); display.order.push('custom:' + newName); }
+      // Require a returned row: RLS denial must never look like a successful settings save.
+      const cfg = { ...(S.store.cfg || {}), expense_display: display, expense_categories: [...new Set(categories)], at: new Date().toISOString() };
+      await q(sb.from('stores').update({ cfg }).eq('id', S.store.id).select('id').single());
+      S.store.cfg = cfg;
+      const st = S.stores.find(x => x.id === S.store.id); if (st) st.cfg = cfg;
+      closeSheet(); render(); toast('비용 항목 설정을 저장했어요'); return;
+    }
     if (id === 'expense-form') {
       const existing = f.dataset.id ? S.expenses.find(x => String(x.id) === f.dataset.id) : null;
       if (f.dataset.id && !existing) throw Error('수정할 지출을 찾지 못했어요. 다시 열어 주세요');
