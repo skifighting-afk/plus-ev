@@ -486,7 +486,7 @@ function monthSummary(y, m) {
   const actualExp = Object.create(null);
   S.expAll.filter(x => x.spent_on >= f && x.spent_on <= through).forEach(x => actualExp[x.category] = (actualExp[x.category] || 0) + (+x.amount || 0));
   const estimatedFixed = Object.keys(fixedFor(y, m).fx).filter(k => !Object.hasOwn(actualExp, k));
-  Object.entries(fixedFor(y, m).fx).forEach(([k, v]) => { if (+v && !Object.hasOwn(actualExp, k)) actualExp[k] = Math.round(+v * earnedDays / D); });
+  Object.entries(fixedFor(y, m).fx).forEach(([k, v]) => { if (+v && !Object.hasOwn(actualExp, k)) actualExp[k] = +v; // 고정비(임대료 등)는 일할 없이 월 전액 });
   if (!Object.hasOwn(actualExp, 'card')) actualExp.card = Math.round(actualReports.reduce((a, r) => a + (+r.card || 0), 0) * (+S.store.equip?.card_rate || 1.6) / 100);
   const actualUrgent = S.posts.filter(p => p.kind === 'urgent' && p.created_at.slice(0, 10) >= f && p.created_at.slice(0, 10) <= through).reduce((a, p) => a + (+p.paid_amount || 0), 0);
   const actualLabor = laborOf(y, m, true) + actualUrgent, actualCost = actualLabor + Object.values(actualExp).reduce((a, v) => a + v, 0);
@@ -768,9 +768,9 @@ function vHome() {
   <div class="card bill"><h3>${S.m}월 계산서 <small>${cur ? '현재까지 누적 기준' : '월 누적 기준'}</small></h3>
     <div class="li"><b>누적 매출</b><b class="num">₩${E.won(M.actualSales)}</b></div>
     <div class="li"><span class="mut">− 발생 인건비 (긴급 구인 포함)</span><span class="num">₩${E.won(M.actualLabor)}</span></div>
-    ${Object.entries(M.actualExp).map(([k, v]) => `<div class="li"><span class="mut">− ${esc(categoryName(k))}${cur && M.estimatedFixed.includes(k) ? ' (일할)' : ''}</span><span class="num">₩${E.won(v)}</span></div>`).join('')}
+    ${Object.entries(M.actualExp).map(([k, v]) => `<div class="li"><span class="mut">− ${esc(categoryName(k))}</span><span class="num">₩${E.won(v)}</span></div>`).join('')}
     <div class="li sum"><b>= ${cur ? '현재까지 남은 돈' : '남은 돈'}</b><b class="num ${M.earned >= 0 ? 'up' : 'down'}">${M.earned < 0 ? '−' : ''}₩${E.won(Math.abs(M.earned))}</b></div>
-    <p class="note">${cur ? `이번 달 1일~오늘 (${M.earnedDays}일)까지` : '해당 월'} 기록된 매출 − 발생 인건비 − 지출. 등록 지출은 전액, 별도 지출로 등록하지 않은 고정비는 ${cur ? '오늘까지 일할' : '월 전체'} 반영해요. 카드 수수료는 등록 금액이 없으면 카드 매출로 추정해요.</p>
+    <p class="note">${cur ? `이번 달 1일~오늘 (${M.earnedDays}일)까지` : '해당 월'} 기록된 매출 − 발생 인건비 − 지출. 등록 지출은 전액, 별도 지출로 등록하지 않은 고정비(임대료 등)는 월 전체 금액으로 반영해요. 카드 수수료는 등록 금액이 없으면 카드 매출로 추정해요.</p>
     <p class="note">통장 잔액과는 달라요. 미입력 매출·지출과 미완료 근무는 확인해 주세요.</p></div>
   ${goalCard(M)}${fold('briefing','브리핑 · 매장 알림',setupCard()+coCard()+(cur ? noShowCard() + liveCard() + forecastCard() + payDayCard() + iosCard() + startCard() + upcomingCard() + laborCard() + noticeCard() + `<button class="card nowline" data-act="poster"><small>홍보</small><b>포스터 스튜디오 · 템플릿 6종</b><span class="mut">›</span></button>` : ''))}
 
