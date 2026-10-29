@@ -486,7 +486,8 @@ function monthSummary(y, m) {
   const actualExp = Object.create(null);
   S.expAll.filter(x => x.spent_on >= f && x.spent_on <= through).forEach(x => actualExp[x.category] = (actualExp[x.category] || 0) + (+x.amount || 0));
   const estimatedFixed = Object.keys(fixedFor(y, m).fx).filter(k => !Object.hasOwn(actualExp, k));
-  Object.entries(fixedFor(y, m).fx).forEach(([k, v]) => { if (+v && !Object.hasOwn(actualExp, k)) actualExp[k] = +v; // 고정비(임대료 등)는 일할 없이 월 전액 });
+  // 고정비(임대료 등)는 일할 없이 월 전액
+  Object.entries(fixedFor(y, m).fx).forEach(([k, v]) => { if (+v && !Object.hasOwn(actualExp, k)) actualExp[k] = +v; });
   if (!Object.hasOwn(actualExp, 'card')) actualExp.card = Math.round(actualReports.reduce((a, r) => a + (+r.card || 0), 0) * (+S.store.equip?.card_rate || 1.6) / 100);
   const actualUrgent = S.posts.filter(p => p.kind === 'urgent' && p.created_at.slice(0, 10) >= f && p.created_at.slice(0, 10) <= through).reduce((a, p) => a + (+p.paid_amount || 0), 0);
   const actualLabor = laborOf(y, m, true) + actualUrgent, actualCost = actualLabor + Object.values(actualExp).reduce((a, v) => a + v, 0);

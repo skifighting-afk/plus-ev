@@ -11,7 +11,8 @@ vm.runInContext(src.slice(src.indexOf('const FIXED ='),src.indexOf('const monKey
 vm.runInContext(src.slice(src.indexOf('function monthSummary('),src.indexOf('// ===== 보안')),c);
 vm.runInContext(src.slice(src.indexOf('function expenseCategories('),src.indexOf('function fixedYearSheet(')),c);
 const result=c.monthSummary(2026,10);
-assert.equal(result.earned,6784000,'deduct incurred labor, full dated expenses, elapsed fixed cost and actual card fees');
+assert.equal(result.actualExp.rent,3100000,'unrecorded fixed costs use the full monthly amount even mid-month');
+assert.equal(result.earned,5184000,'deduct incurred labor, full dated expenses, full monthly fixed cost and actual card fees');
 let html=c.fixedCard();
 assert.ok(html.includes('₩16,000'), 'card fees fallback is visible in expense totals');
 assert.ok(html.includes('음료·소모품')&&html.includes('기타'),'all expense categories appear');
