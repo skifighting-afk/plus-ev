@@ -61,6 +61,8 @@ export function ins4(g) { const hp = floor10(g * 0.03595); return floor10(g * 0.
 export const dedOf = (g, c) => (c === '없음' ? 0 : c === '4대' ? ins4(g) : tax33(g));
 
 export function payroll(p, y, m, tpl, ov, inc, today, night) {
+  // 월급 직원: 근무시간과 무관하게 월 전액 (shortcut: 중도 입사·퇴사 일할 없음 — 매장 요청 시 추가)
+  if (p.checks?.pay_basis === 'monthly') { const sh = shiftsOf(p, y, m, tpl, ov, today, night), d = sh.filter(x => x.done), g = (+p.checks.monthly_pay || 0) + (+inc || 0), ded = dedOf(g, p.contract); return { days: d.length, hours: d.reduce((a, x) => a + x.hours, 0), brk: d.reduce((a, x) => a + x.brk, 0), base: g - (+inc || 0), np: 0, otp: 0, juhu: 0, inc, gross: g, ded, net: g - ded, fullGross: g, fullNet: g - ded, shifts: sh, basis: 'monthly' }; }
   const sh = shiftsOf(p, y, m, tpl, ov, today, night), d = sh.filter(x => x.done), r = k => Math.round(d.reduce((a, x) => a + x[k], 0));
   const jh = juhuOf(p, y, m, sh, today, shiftsOf(p, m === 1 ? y - 1 : y, m === 1 ? 12 : m - 1, tpl, ov, today, night)), base = r('base'), np = r('nightPay'), otp = r('otPay'), gross = base + np + otp + jh.done + inc, ded = dedOf(gross, p.contract);
   const full = Math.round(sh.reduce((a, x) => a + x.gross, 0)) + jh.full + inc;

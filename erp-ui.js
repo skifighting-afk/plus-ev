@@ -1,4 +1,4 @@
-import * as E from './engine.js';
+import * as E from './engine.js?v=113m';
 import { calculateActualPayroll } from './labor-engine.js?v=122';
 import { foldSection } from './store-workflow.js?v=122';
 import { expectedCash,closingCash } from './cash-engine.js?v=105';
@@ -84,6 +84,7 @@ export function installERPUI({S,sb,q,A68,F68,openSheet,closeSheet,reload,toast,e
   function payroll(p,y,m,tpl,ov,inc,today,nightWindow) {
     if(S.mode==='store'&&!canPay())return {base:0,np:0,otp:0,juhu:0,inc:0,gross:0,ded:0,net:0,fullGross:0,fullNet:0,days:0,hours:0,brk:0,shifts:[],unavailable:true};
     const raw=E.payroll(p,y,m,tpl,ov,inc,today,nightWindow),storeId=p.store_id||S.store?.id,period=E.ymd(y,m,1).slice(0,7),data=cache.get(storeId+':'+period)||(storeId===S.store?.id&&y===S.y&&m===S.m?S.actualPayroll:null),row=data?.members?.find(r=>r.member_id===p.id);
+    if(p.checks?.pay_basis==='monthly')return raw; // 월급은 근무 기록과 무관
     const actualFrom=storeId===S.store?.id?S.store?.labor_actual_from:S.stores?.find(st=>st.id===storeId)?.labor_actual_from;
     if(!actualFrom||(period<actualFrom.slice(0,7)&&!row?.ledger_count))return raw;
     if(!row)throw Error('이 매장·월의 급여 집계를 먼저 불러와 주세요');
