@@ -1,7 +1,7 @@
 import {formatHours,ratioParts,foldSection,enhanceFoldableCards} from './store-workflow.js?v=122';
 import { installHQOperations } from './hq-operations.js?v=110';
 import { visibleNotifications } from './owner-policy.js?v=110';
-import { laborTotals, scheduleTotals } from './labor-overview.js?v=121';
+import { laborTotals, scheduleTotals } from './labor-overview.js?v=121m';
 import { readOnlyClient, installInspectionGuard } from './hq-inspection.js?v=113';
 const inspectionStore = new URLSearchParams(location.search).get('hq_store');
 import { installHQStoreView } from './hq-store-view.js?v=109';
