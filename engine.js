@@ -58,15 +58,16 @@ export function juhuOf(p, y, m, sh, today, prevSh = []) {
 }
 export function tax33(g) { const it = floor10(g * 0.03), lt = floor10(it * 0.1); return it + lt; }
 export function ins4(g) { const hp = floor10(g * 0.03595); return floor10(g * 0.0475) + hp + floor10(hp * 0.1314) + floor10(g * 0.009); }
-export const dedOf = (g, c) => (c === '없음' ? 0 : c === '4대' ? ins4(g) : tax33(g));
+// 4대: 직원에 고지서 기준 월 공제액을 넣었으면 그 금액, 없으면 요율 추정
+export const dedOf = (g, c, p) => (c === '없음' ? 0 : c === '4대' ? (+p?.checks?.ins4_fixed > 0 ? +p.checks.ins4_fixed : ins4(g)) : tax33(g));
 
 export function payroll(p, y, m, tpl, ov, inc, today, night) {
   // 월급 직원: 근무시간과 무관하게 월 전액 (shortcut: 중도 입사·퇴사 일할 없음 — 매장 요청 시 추가)
-  if (p.checks?.pay_basis === 'monthly') { const sh = shiftsOf(p, y, m, tpl, ov, today, night), d = sh.filter(x => x.done), g = (+p.checks.monthly_pay || 0) + (+inc || 0), ded = dedOf(g, p.contract); return { days: d.length, hours: d.reduce((a, x) => a + x.hours, 0), brk: d.reduce((a, x) => a + x.brk, 0), base: g - (+inc || 0), np: 0, otp: 0, juhu: 0, inc, gross: g, ded, net: g - ded, fullGross: g, fullNet: g - ded, shifts: sh, basis: 'monthly' }; }
+  if (p.checks?.pay_basis === 'monthly') { const sh = shiftsOf(p, y, m, tpl, ov, today, night), d = sh.filter(x => x.done), g = (+p.checks.monthly_pay || 0) + (+inc || 0), ded = dedOf(g, p.contract, p); return { days: d.length, hours: d.reduce((a, x) => a + x.hours, 0), brk: d.reduce((a, x) => a + x.brk, 0), base: g - (+inc || 0), np: 0, otp: 0, juhu: 0, inc, gross: g, ded, net: g - ded, fullGross: g, fullNet: g - ded, shifts: sh, basis: 'monthly' }; }
   const sh = shiftsOf(p, y, m, tpl, ov, today, night), d = sh.filter(x => x.done), r = k => Math.round(d.reduce((a, x) => a + x[k], 0));
-  const jh = juhuOf(p, y, m, sh, today, shiftsOf(p, m === 1 ? y - 1 : y, m === 1 ? 12 : m - 1, tpl, ov, today, night)), base = r('base'), np = r('nightPay'), otp = r('otPay'), gross = base + np + otp + jh.done + inc, ded = dedOf(gross, p.contract);
+  const jh = juhuOf(p, y, m, sh, today, shiftsOf(p, m === 1 ? y - 1 : y, m === 1 ? 12 : m - 1, tpl, ov, today, night)), base = r('base'), np = r('nightPay'), otp = r('otPay'), gross = base + np + otp + jh.done + inc, ded = dedOf(gross, p.contract, p);
   const full = Math.round(sh.reduce((a, x) => a + x.gross, 0)) + jh.full + inc;
-  return { days: d.length, hours: d.reduce((a, x) => a + x.hours, 0), brk: d.reduce((a, x) => a + x.brk, 0), base, np, otp, juhu: jh.done, inc, gross, ded, net: gross - ded, fullGross: full, fullNet: full - dedOf(full, p.contract), shifts: sh };
+  return { days: d.length, hours: d.reduce((a, x) => a + x.hours, 0), brk: d.reduce((a, x) => a + x.brk, 0), base, np, otp, juhu: jh.done, inc, gross, ded, net: gross - ded, fullGross: full, fullNet: full - dedOf(full, p.contract, p), shifts: sh };
 }
 
 // 공고 요금 (알바몬 가격 수준, 부가세 포함)
